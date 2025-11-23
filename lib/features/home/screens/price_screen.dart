@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+// Giá Nông sản hôm nay
 class PriceScreen extends StatefulWidget {
   const PriceScreen({super.key});
 

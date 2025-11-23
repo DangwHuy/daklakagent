@@ -621,8 +621,8 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
                             children: [
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(12)),
-                                child: Text(giaiDoan, style: TextStyle(fontSize: 11, color: Colors.blue[900], fontWeight: FontWeight.w600)),
+                                decoration: BoxDecoration(color: Colors.blue[40], borderRadius: BorderRadius.circular(12)),
+                                child: Text(giaiDoan, style: TextStyle(fontSize: 9, color: Colors.blue[900], fontWeight: FontWeight.w600)),
                               ),
                               const SizedBox(width: 8),
                               Container(
