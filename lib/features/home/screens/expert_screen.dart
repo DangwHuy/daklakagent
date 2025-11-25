@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ExpertScreen extends StatefulWidget {
   const ExpertScreen({super.key});
@@ -7,208 +11,227 @@ class ExpertScreen extends StatefulWidget {
   State<ExpertScreen> createState() => _ExpertScreenState();
 }
 
-class _ExpertScreenState extends State<ExpertScreen> {
+class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderStateMixin {
   final TextEditingController _questionController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   final List<Map<String, dynamic>> _conversations = [];
+  bool _isLoading = false;
+  bool _isTyping = false;
+  bool _isLoadingHistory = true;
+  late AnimationController _animationController;
 
-  // Dữ liệu câu hỏi thường gặp
-  final List<Map<String, String>> faqData = [
+  final String geminiApiKey = ''; // API KEY của bạn
+
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  String? _currentUserId;
+  String? _currentChatId;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat();
+    _initializeUser();
+  }
+
+  Future<void> _initializeUser() async {
+    try {
+      // Đợi Firebase Auth khởi tạo hoàn tất
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      User? currentUser = _auth.currentUser;
+
+      if (currentUser == null) {
+        final userCredential = await _auth.signInAnonymously();
+        currentUser = userCredential.user;
+        print('Đã tạo user anonymous mới: ${currentUser?.uid}');
+      } else {
+        print('Sử dụng user hiện tại: ${currentUser.uid}');
+      }
+
+      setState(() {
+        _currentUserId = currentUser?.uid;
+      });
+
+      await _loadChatHistory();
+
+    } catch (e) {
+      print('Lỗi khởi tạo user: $e');
+    } finally {
+      setState(() {
+        _isLoadingHistory = false;
+      });
+    }
+  }
+
+  Future<String> askAgent(String question) async {
+    if (geminiApiKey.isEmpty) {
+      return '❌ Lỗi: Chưa cấu hình API Key! Vui lòng liên hệ quản trị viên.';
+    }
+
+    try {
+      final url = Uri.parse(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$geminiApiKey',
+      );
+
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'contents': [
+            {
+              'parts': [
+                {
+                  'text': '''Bạn là "Agent Cho Bà Con" - trợ lý AI thông minh chuyên hỗ trợ bà con nông dân Việt Nam về kỹ thuật trồng sầu riêng.
+
+🌟 Phong cách trả lời:
+- Thân thiện, gần gũi như anh em một nhà
+- Dùng ngôn ngữ dễ hiểu, tránh thuật ngữ phức tạp
+- Đưa ra giải pháp cụ thể, có thể làm ngay
+- Kèm theo lời khuyên thực tế từ kinh nghiệm
+
+📝 Câu hỏi của bà con: $question
+
+Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đang chia sẻ kinh nghiệm với bà con!'''
+                }
+              ]
+            }
+          ],
+          'generationConfig': {
+            'temperature': 0.8,
+            'maxOutputTokens': 1200,
+          }
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        return data['candidates'][0]['content']['parts'][0]['text'];
+      } else {
+        throw Exception('API Error: ${response.statusCode}');
+      }
+    } catch (e) {
+      return '😔 Xin lỗi bà con, Agent đang bận một chút. Vui lòng thử lại sau nhé!\n\n💡 Mẹo: Bà con có thể xem phần FAQ bên dưới trong lúc chờ đợi.';
+    }
+  }
+
+  final List<Map<String, dynamic>> faqData = [
     {
       'question': 'Sầu riêng tôi bị vàng lá, phải làm sao?',
-      'answer': 'Vàng lá có nhiều nguyên nhân:\n\n'
-          '1. Thiếu dinh dưỡng: Bón phân NPK 16:16:8, bổ sung sắt (Fe)\n'
-          '2. Ngập úng: Xẻ rãnh thoát nước, rải vôi khử trùng\n'
-          '3. Nấm Phytophthora: Tưới thuốc Aliette 80WP (2.5g/lít)\n'
-          '4. Thiếu nước: Tưới đủ 100-200 lít/gốc/tuần\n\n'
-          'Kiểm tra rễ xem có thối không, nếu thối → xử lý nấm ngay!',
-      'category': 'Dinh dưỡng',
+      'answer': '🌿 Vàng lá có nhiều nguyên nhân anh em nhé:\n\n'
+          '1️⃣ Thiếu dinh dưỡng: Bón NPK 16:16:8, bổ sung sắt (Fe)\n'
+          '2️⃣ Ngập úng: Xẻ rãnh thoát nước, rải vôi\n'
+          '3️⃣ Nấm bệnh: Dùng Aliette 80WP (2.5g/lít nước)\n'
+          '4️⃣ Thiếu nước: Tưới 100-200 lít/gốc/tuần\n\n'
+          '⚠️ Lưu ý: Kiểm tra rễ xem có thối không nhé!',
+      'category': '🌱 Dinh dưỡng',
+      'icon': Icons.eco,
+      'color': Colors.green,
     },
     {
       'question': 'Làm sao để sầu riêng ra hoa đều?',
-      'answer': 'Để ra hoa đều, cần:\n\n'
-          '1. Tạo stress nhẹ: Giảm tưới 1-2 tháng trước kỳ ra hoa mong muốn\n'
-          '2. Bón phân cao Lân: NPK 10:50:7 (2-3kg/gốc) trước ra hoa 30-40 ngày\n'
-          '3. Phun Paclobutrazol: 2-3g/lít, phun tán lá 2-3 tháng trước\n'
-          '4. Tỉa cành: Tỉa cành già, tạo tán thông thoáng\n'
-          '5. Thời tiết: Cần có đợt lạnh (dưới 20°C) để kích thích ra hoa\n\n'
-          'Lưu ý: Không bón nhiều đạm (N) trước ra hoa!',
-      'category': 'Kỹ thuật',
+      'answer': '🌸 Bí quyết ra hoa đều:\n\n'
+          '1️⃣ Tạo stress nhẹ: Giảm tưới 1-2 tháng trước\n'
+          '2️⃣ Bón phân Lân cao: NPK 10:50:7 (2-3kg/gốc)\n'
+          '3️⃣ Phun thuốc kìm: Paclobutrazol 2-3g/lít\n'
+          '4️⃣ Tỉa cành: Tạo tán thông thoáng\n'
+          '5️⃣ Chờ thời tiết lạnh dưới 20°C\n\n'
+          '⚠️ Không bón nhiều đạm (N) trước ra hoa!',
+      'category': '🛠️ Kỹ thuật',
+      'icon': Icons.settings,
+      'color': Colors.orange,
     },
     {
       'question': 'Trái sầu riêng bị rụng hàng loạt?',
-      'answer': 'Nguyên nhân rụng trái:\n\n'
-          '1. Thiếu nước: Tưới đủ 150-300 lít/gốc khi trái còn nhỏ\n'
-          '2. Thiếu Bo (붕 붕소): Phun lá Boric Acid 0.1-0.2%\n'
-          '3. Stress nhiệt: Nhiệt độ > 35°C → Tưới phun sương chiều mát\n'
-          '4. Sâu đục trái: Kiểm tra và phun thuốc trừ sâu\n'
-          '5. Thụ phấn kém: Thả ong bầu trong vườn\n\n'
-          'Giải pháp: Phun Bo + Canxi + Kali khi trái to bằng nắm tay',
-      'category': 'Sâu bệnh',
+      'answer': '🍃 Nguyên nhân và cách xử lý:\n\n'
+          '1️⃣ Thiếu nước: Tưới 150-300 lít/gốc\n'
+          '2️⃣ Thiếu Bo: Phun Boric Acid 0.1-0.2%\n'
+          '3️⃣ Nắng nóng >35°C: Phun sương chiều mát\n'
+          '4️⃣ Sâu đục trái: Phun thuốc trừ sâu\n'
+          '5️⃣ Thụ phấn kém: Thả ong vào vườn\n\n'
+          '💊 Giải pháp: Phun Bo + Canxi + Kali khi trái to!',
+      'category': '🐛 Sâu bệnh',
+      'icon': Icons.bug_report,
+      'color': Colors.red,
     },
     {
       'question': 'Khi nào thì thu hoạch sầu riêng?',
-      'answer': 'Dấu hiệu thu hoạch sầu riêng:\n\n'
-          '1. Thời gian: 90-120 ngày sau khi đậu trái (tùy giống)\n'
-          '2. Gai trái: Gai cách xa, màu xanh đậm → xanh nhạt\n'
-          '3. Cuống trái: Cuống khô, nứt vòng quanh\n'
-          '4. Mùi: Có mùi thơm nhẹ ở cuống\n'
-          '5. Gõ trái: Âm thanh ộp ộp (chín), không giòn (còn sống)\n'
-          '6. Rãnh giữa múi gai: Rãnh nông, múi gai phồng\n\n'
-          'Lưu ý: Thu hoạch buổi sáng sớm, tránh mưa!',
-      'category': 'Thu hoạch',
+      'answer': '📅 Dấu hiệu thu hoạch:\n\n'
+          '1️⃣ Thời gian: 90-120 ngày sau đậu trái\n'
+          '2️⃣ Gai trái: Từ xanh đậm → xanh nhạt\n'
+          '3️⃣ Cuống trái: Khô, nứt vòng quanh\n'
+          '4️⃣ Mùi thơm: Nhẹ ở cuống trái\n'
+          '5️⃣ Gõ trái: Âm thanh ộp ộp (chín)\n'
+          '6️⃣ Rãnh gai: Nông, múi gai phồng\n\n'
+          '⏰ Thu hoạch buổi sáng sớm, tránh mưa nhé!',
+      'category': '🌾 Thu hoạch',
+      'icon': Icons.agriculture,
+      'color': Colors.brown,
     },
   ];
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: const Text('Hỏi Đáp Chuyên Gia'),
-        backgroundColor: Colors.purple[700],
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
-      body: Column(
-        children: [
-          // Header
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.purple[700]!, Colors.purple[500]!],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF5F7FA),
+        body: Column(
+          children: [
+            // Fixed Header - không bị ảnh hưởng bởi tab
+            _buildHeader(),
+            // Tab Bar
+            Container(
+              color: Colors.white,
+              child: TabBar(
+                labelColor: const Color(0xFF6C63FF),
+                unselectedLabelColor: Colors.grey,
+                indicatorColor: const Color(0xFF6C63FF),
+                indicatorWeight: 3,
+                labelStyle: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
+                tabs: const [
+                  Tab(
+                    icon: Icon(Icons.chat_bubble_outline, size: 22),
+                    text: 'Trò chuyện',
+                  ),
+                  Tab(
+                    icon: Icon(Icons.help_outline, size: 22),
+                    text: 'Câu hỏi thường gặp',
+                  ),
+                ],
               ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '💬 Tư Vấn Miễn Phí',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Đặt câu hỏi hoặc xem câu hỏi thường gặp',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.schedule, color: Colors.white, size: 18),
-                      SizedBox(width: 8),
-                      Text(
-                        'Trả lời trong vòng 24h',
-                        style: TextStyle(color: Colors.white, fontSize: 13),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Tabs
-          Container(
-            color: Colors.white,
-            child: TabBar(
-              controller: DefaultTabController.of(context),
-              labelColor: Colors.purple[700],
-              unselectedLabelColor: Colors.grey,
-              indicatorColor: Colors.purple[700],
-              tabs: const [
-                Tab(text: 'Hỏi đáp'),
-                Tab(text: 'FAQ'),
-              ],
-            ),
-          ),
-
-          // Content
-          Expanded(
-            child: DefaultTabController(
-              length: 2,
+            // Tab Content
+            Expanded(
               child: TabBarView(
                 children: [
-                  _buildQATab(),
+                  _buildChatTab(),
                   _buildFAQTab(),
                 ],
               ),
             ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: _buildInputSection(),
-    );
-  }
-
-  Widget _buildQATab() {
-    if (_conversations.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.question_answer_outlined, size: 80, color: Colors.grey[300]),
-            const SizedBox(height: 16),
-            Text(
-              'Chưa có câu hỏi nào',
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Hãy đặt câu hỏi đầu tiên của bạn!',
-              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-            ),
           ],
         ),
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _conversations.length,
-      itemBuilder: (context, index) {
-        return _buildConversationCard(_conversations[index]);
-      },
+        bottomNavigationBar: _buildInputSection(),
+      ),
     );
   }
-
-  Widget _buildFAQTab() {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: faqData.length,
-      itemBuilder: (context, index) {
-        return _buildFAQCard(faqData[index]);
-      },
-    );
-  }
-
-  Widget _buildConversationCard(Map<String, dynamic> conversation) {
+  Widget _buildHeader() {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[200]!),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 50, 20, 20),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF6C63FF), Color(0xFF5A52D5)],
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -216,101 +239,455 @@ class _ExpertScreenState extends State<ExpertScreen> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.purple[100],
-                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: Icon(Icons.person, color: Colors.purple[700], size: 20),
+                child: const Icon(
+                  Icons.support_agent,
+                  color: Colors.white,
+                  size: 32,
+                ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Câu hỏi của bạn',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      'Agent Cho Bà Con',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
-                    Text(
-                      conversation['time'],
-                      style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF4CAF50),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        const Text(
+                          'Đang hoạt động',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: conversation['answered'] ? Colors.green[100] : Colors.orange[100],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  conversation['answered'] ? 'Đã trả lời' : 'Chờ trả lời',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: conversation['answered'] ? Colors.green[700] : Colors.orange[700],
-                    fontWeight: FontWeight.bold,
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.3),
+                width: 1,
+              ),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.auto_awesome, color: Colors.amber, size: 20),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Trợ lý AI thông minh - Hỗ trợ 24/7',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChatTab() {
+    if (_isLoadingHistory) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(const Color(0xFF6C63FF)),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Đang tải lịch sử chat...',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 14,
               ),
-            ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_conversations.isEmpty) {
+      return _buildEmptyState();
+    }
+
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.all(16),
+      reverse: true,
+      itemCount: _conversations.length + (_isTyping ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (_isTyping && index == 0) {
+          return _buildTypingIndicator();
+        }
+        final actualIndex = _isTyping ? index - 1 : index;
+        return _buildMessageBubble(
+          _conversations[_conversations.length - 1 - actualIndex],
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF6C63FF), Color(0xFF5A52D5)],
+              ),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF6C63FF).withOpacity(0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.support_agent,
+              size: 64,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'Xin chào bà con! 👋',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF2D3748),
+            ),
           ),
           const SizedBox(height: 12),
           Text(
-            conversation['question'],
-            style: const TextStyle(fontSize: 14, height: 1.5),
+            'Agent sẵn sàng hỗ trợ bà con về\nkỹ thuật trồng sầu riêng',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[600],
+              height: 1.5,
+            ),
           ),
-          if (conversation['answered']) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
+          const SizedBox(height: 32),
+          const Text(
+            '💡 Gợi ý câu hỏi:',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF4A5568),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            alignment: WrapAlignment.center,
+            children: [
+              _buildSuggestedChip('🍃 Cách chữa vàng lá?', Icons.eco),
+              _buildSuggestedChip('⏰ Khi nào bón phân?', Icons.schedule),
+              _buildSuggestedChip('🐛 Xử lý sâu đục trái?', Icons.bug_report),
+              _buildSuggestedChip('🌸 Cách kích hoa?', Icons.local_florist),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuggestedChip(String text, IconData icon) {
+    return InkWell(
+      onTap: () {
+        _questionController.text = text.replaceAll(RegExp(r'[^\w\s?]'), '').trim();
+        _sendQuestion();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.3)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: const Color(0xFF6C63FF)),
+            const SizedBox(width: 8),
+            Text(
+              text,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF2D3748),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTypingIndicator() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildAgentAvatar(),
+          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildDot(0),
+                const SizedBox(width: 6),
+                _buildDot(1),
+                const SizedBox(width: 6),
+                _buildDot(2),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDot(int index) {
+    return AnimatedBuilder(
+      animation: _animationController,
+      builder: (context, child) {
+        final value = (_animationController.value - (index * 0.2)) % 1.0;
+        final opacity = (value < 0.5) ? value * 2 : (1 - value) * 2;
+        return Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: const Color(0xFF6C63FF).withOpacity(0.3 + (opacity * 0.7)),
+            shape: BoxShape.circle,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMessageBubble(Map<String, dynamic> message) {
+    final isUser = message['isUser'] ?? false;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        children: [
+          if (!isUser) ...[
+            _buildAgentAvatar(),
+            const SizedBox(width: 12),
+          ],
+          Flexible(
+            child: Container(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.75,
+              ),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.green[50],
-                borderRadius: BorderRadius.circular(12),
+                gradient: isUser
+                    ? const LinearGradient(
+                  colors: [Color(0xFF6C63FF), Color(0xFF5A52D5)],
+                )
+                    : null,
+                color: isUser ? null : Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(isUser ? 20 : 4),
+                  topRight: Radius.circular(isUser ? 4 : 20),
+                  bottomLeft: const Radius.circular(20),
+                  bottomRight: const Radius.circular(20),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Icon(Icons.verified_user, color: Colors.green[700], size: 18),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Trả lời từ chuyên gia',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green[900],
-                          fontSize: 13,
-                        ),
+                  if (!isUser)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Agent Cho Bà Con',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: Color(0xFF6C63FF),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF4CAF50),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'AI',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
+                  Text(
+                    message['text'] ?? '',
+                    style: TextStyle(
+                      fontSize: 15,
+                      height: 1.6,
+                      color: isUser ? Colors.white : const Color(0xFF2D3748),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    conversation['answer'],
-                    style: const TextStyle(fontSize: 13, height: 1.5),
+                    message['time'] ?? '',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isUser ? Colors.white70 : Colors.grey[500],
+                    ),
                   ),
                 ],
               ),
             ),
+          ),
+          if (isUser) ...[
+            const SizedBox(width: 12),
+            _buildUserAvatar(),
           ],
         ],
       ),
     );
   }
 
-  Widget _buildFAQCard(Map<String, String> faq) {
+  Widget _buildAgentAvatar() {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF6C63FF), Color(0xFF5A52D5)],
+        ),
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF6C63FF).withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: const Icon(Icons.support_agent, color: Colors.white, size: 22),
+    );
+  }
+
+  Widget _buildUserAvatar() {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8F5E9),
+        shape: BoxShape.circle,
+        border: Border.all(color: const Color(0xFF4CAF50), width: 2),
+      ),
+      child: const Icon(Icons.person, color: Color(0xFF4CAF50), size: 22),
+    );
+  }
+
+  Widget _buildFAQTab() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: faqData.length,
+      itemBuilder: (context, index) => _buildFAQCard(faqData[index]),
+    );
+  }
+
+  Widget _buildFAQCard(Map<String, dynamic> faq) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[200]!),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 8,
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
             offset: const Offset(0, 2),
           ),
         ],
@@ -318,54 +695,83 @@ class _ExpertScreenState extends State<ExpertScreen> {
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
           leading: Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.purple[100],
-              borderRadius: BorderRadius.circular(8),
+              color: (faq['color'] as Color).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(Icons.help_outline, color: Colors.purple[700], size: 24),
+            child: Icon(
+              faq['icon'] as IconData,
+              color: faq['color'] as Color,
+              size: 24,
+            ),
           ),
           title: Text(
             faq['question']!,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+              color: Color(0xFF2D3748),
+            ),
           ),
-          subtitle: Text(
-            faq['category']!,
-            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              faq['category']!,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
           children: [
-            Padding(
+            Container(
+              width: double.infinity,
               padding: const EdgeInsets.all(16),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.green[50],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.lightbulb, color: Colors.green[700], size: 18),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Câu trả lời',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green[900],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      faq['answer']!,
-                      style: const TextStyle(fontSize: 13, height: 1.6),
-                    ),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    (faq['color'] as Color).withOpacity(0.05),
+                    (faq['color'] as Color).withOpacity(0.02),
                   ],
                 ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.auto_awesome,
+                        color: faq['color'] as Color,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Câu trả lời từ Agent',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: faq['color'] as Color,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    faq['answer']!,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      height: 1.7,
+                      color: Color(0xFF2D3748),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -379,49 +785,93 @@ class _ExpertScreenState extends State<ExpertScreen> {
       padding: EdgeInsets.only(
         left: 16,
         right: 16,
-        top: 12,
-        bottom: MediaQuery.of(context).padding.bottom + 12,
+        top: 16,
+        bottom: MediaQuery.of(context).padding.bottom + 16,
       ),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, -4),
           ),
         ],
       ),
       child: Row(
         children: [
           Expanded(
-            child: TextField(
-              controller: _questionController,
-              maxLines: null,
-              decoration: InputDecoration(
-                hintText: 'Nhập câu hỏi của bạn...',
-                hintStyle: TextStyle(color: Colors.grey[400]),
-                filled: true,
-                fillColor: Colors.grey[100],
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide.none,
+            child: Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFFF7F8FA),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: _isLoading
+                      ? const Color(0xFF6C63FF).withOpacity(0.3)
+                      : Colors.transparent,
+                  width: 2,
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+              child: TextField(
+                controller: _questionController,
+                maxLines: null,
+                enabled: !_isLoading,
+                style: const TextStyle(fontSize: 15),
+                decoration: InputDecoration(
+                  hintText: _isLoading
+                      ? 'Agent đang suy nghĩ...'
+                      : 'Bà con cần hỏi gì không? 😊',
+                  hintStyle: TextStyle(
+                    color: Colors.grey[400],
+                    fontSize: 14,
+                  ),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 14,
+                  ),
+                  prefixIcon: Icon(
+                    Icons.chat_bubble_outline,
+                    color: Colors.grey[400],
+                    size: 20,
+                  ),
+                ),
               ),
             ),
           ),
           const SizedBox(width: 12),
           Container(
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.purple[700]!, Colors.purple[500]!],
+              gradient: _isLoading
+                  ? LinearGradient(colors: [Colors.grey[400]!, Colors.grey[400]!])
+                  : const LinearGradient(
+                colors: [Color(0xFF6C63FF), Color(0xFF5A52D5)],
               ),
               shape: BoxShape.circle,
+              boxShadow: _isLoading
+                  ? null
+                  : [
+                BoxShadow(
+                  color: const Color(0xFF6C63FF).withOpacity(0.4),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: IconButton(
-              onPressed: _sendQuestion,
-              icon: const Icon(Icons.send, color: Colors.white),
+              onPressed: _isLoading ? null : _sendQuestion,
+              icon: _isLoading
+                  ? const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              )
+                  : const Icon(Icons.send_rounded, color: Colors.white, size: 22),
             ),
           ),
         ],
@@ -429,53 +879,207 @@ class _ExpertScreenState extends State<ExpertScreen> {
     );
   }
 
-  void _sendQuestion() {
+  void _sendQuestion() async {
     if (_questionController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập câu hỏi')),
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.info_outline, color: Colors.white),
+              SizedBox(width: 12),
+              Text('Bà con vui lòng nhập câu hỏi nhé!'),
+            ],
+          ),
+          backgroundColor: const Color(0xFF6C63FF),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
       );
       return;
     }
 
-    setState(() {
-      _conversations.insert(0, {
-        'question': _questionController.text,
-        'time': '${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')} - ${DateTime.now().day}/${DateTime.now().month}',
-        'answered': false,
-        'answer': '',
-      });
-    });
-
+    final question = _questionController.text.trim();
     _questionController.clear();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Câu hỏi đã được gửi! Chuyên gia sẽ trả lời trong 24h'),
-        backgroundColor: Colors.green[700],
-      ),
-    );
-
-    // Giả lập trả lời sau 3 giây
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        setState(() {
-          _conversations[0]['answered'] = true;
-          _conversations[0]['answer'] =
-          'Cảm ơn bạn đã đặt câu hỏi! Đây là câu trả lời mẫu từ hệ thống.\n\n'
-              'Để được tư vấn chi tiết hơn, vui lòng:\n'
-              '• Cung cấp hình ảnh rõ nét\n'
-              '• Mô tả cụ thể triệu chứng\n'
-              '• Cho biết tuổi cây, giống cây\n'
-              '• Thời tiết và điều kiện canh tác\n\n'
-              'Chuyên gia sẽ hỗ trợ bạn sớm nhất!';
-        });
-      }
+    setState(() {
+      _conversations.add({
+        'text': question,
+        'isUser': true,
+        'time': _getCurrentTime(),
+      });
+      _isLoading = true;
+      _isTyping = true;
     });
+
+    // Save user message
+    await _saveMessage(question, true);
+
+    // Scroll to bottom
+    Future.delayed(const Duration(milliseconds: 100), () {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    });
+
+    // Get AI response
+    final answer = await askAgent(question);
+
+    setState(() {
+      _isTyping = false;
+      _conversations.add({
+        'text': answer,
+        'isUser': false,
+        'time': _getCurrentTime(),
+      });
+      _isLoading = false;
+    });
+
+    // Save AI response
+    await _saveMessage(answer, false);
+
+    // Scroll to bottom
+    Future.delayed(const Duration(milliseconds: 100), () {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  String _getCurrentTime() {
+    final now = DateTime.now();
+    return '${now.hour}:${now.minute.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _loadChatHistory() async {
+    if (_currentUserId == null) {
+      print('User ID null, không thể load history');
+      return;
+    }
+
+    try {
+      print('Đang load chat history cho user: $_currentUserId');
+
+      // Lấy chat session mới nhất
+      final chatSnapshot = await _firestore
+          .collection('users')
+          .doc(_currentUserId)
+          .collection('chats')
+          .orderBy('lastUpdated', descending: true)
+          .limit(1)
+          .get();
+
+      if (chatSnapshot.docs.isEmpty) {
+        print('Không tìm thấy chat cũ, tạo chat mới');
+        // Tạo chat mới
+        final newChat = await _firestore
+            .collection('users')
+            .doc(_currentUserId)
+            .collection('chats')
+            .add({
+          'createdAt': FieldValue.serverTimestamp(),
+          'lastUpdated': FieldValue.serverTimestamp(),
+          'title': 'Chat với Agent',
+          'userId': _currentUserId,
+        });
+        _currentChatId = newChat.id;
+        print('Đã tạo chat mới: $_currentChatId');
+      } else {
+        _currentChatId = chatSnapshot.docs.first.id;
+        print('Tìm thấy chat cũ: $_currentChatId');
+
+        // Load tin nhắn
+        final messagesSnapshot = await _firestore
+            .collection('users')
+            .doc(_currentUserId)
+            .collection('chats')
+            .doc(_currentChatId)
+            .collection('messages')
+            .orderBy('timestamp', descending: false)
+            .get();
+
+        print('Tìm thấy ${messagesSnapshot.docs.length} tin nhắn');
+
+        setState(() {
+          _conversations.clear();
+          for (var doc in messagesSnapshot.docs) {
+            final data = doc.data();
+            _conversations.add({
+              'text': data['text'] ?? '',
+              'isUser': data['isUser'] ?? false,
+              'time': _formatTimestamp(data['timestamp']),
+              'timestamp': data['timestamp'],
+            });
+          }
+        });
+
+        // Scroll xuống tin nhắn mới nhất
+        if (_conversations.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _scrollController.animateTo(
+              0,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+            );
+          });
+        }
+      }
+    } catch (e) {
+      print('Lỗi load chat: $e');
+    }
+  }
+
+  Future<void> _saveMessage(String text, bool isUser) async {
+    if (_currentUserId == null || _currentChatId == null) {
+      print('Không thể lưu tin nhắn: UserId=$_currentUserId, ChatId=$_currentChatId');
+      return;
+    }
+
+    try {
+      // Lưu tin nhắn
+      await _firestore
+          .collection('users')
+          .doc(_currentUserId)
+          .collection('chats')
+          .doc(_currentChatId)
+          .collection('messages')
+          .add({
+        'text': text,
+        'isUser': isUser,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      // Update lastUpdated và lastMessage
+      await _firestore
+          .collection('users')
+          .doc(_currentUserId)
+          .collection('chats')
+          .doc(_currentChatId)
+          .update({
+        'lastUpdated': FieldValue.serverTimestamp(),
+        'lastMessage': text.length > 50 ? '${text.substring(0, 50)}...' : text,
+      });
+
+      print('Đã lưu tin nhắn vào Firestore');
+    } catch (e) {
+      print('Lỗi lưu tin nhắn: $e');
+    }
+  }
+
+  String _formatTimestamp(Timestamp? timestamp) {
+    if (timestamp == null) return _getCurrentTime();
+    final date = timestamp.toDate();
+    return '${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }
 
   @override
   void dispose() {
     _questionController.dispose();
+    _scrollController.dispose();
+    _animationController.dispose();
     super.dispose();
   }
 }
