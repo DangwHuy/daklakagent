@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class ExpertScreen extends StatefulWidget {
   const ExpertScreen({super.key});
@@ -17,15 +15,10 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
   final List<Map<String, dynamic>> _conversations = [];
   bool _isLoading = false;
   bool _isTyping = false;
-  bool _isLoadingHistory = true;
+  bool _isLoadingHistory = false; // Đã bỏ Firebase nên không cần loading history
   late AnimationController _animationController;
 
   final String geminiApiKey = ''; // API KEY của bạn
-
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  String? _currentUserId;
-  String? _currentChatId;
 
   @override
   void initState() {
@@ -34,37 +27,7 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     )..repeat();
-    _initializeUser();
-  }
-
-  Future<void> _initializeUser() async {
-    try {
-      // Đợi Firebase Auth khởi tạo hoàn tất
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      User? currentUser = _auth.currentUser;
-
-      if (currentUser == null) {
-        final userCredential = await _auth.signInAnonymously();
-        currentUser = userCredential.user;
-        print('Đã tạo user anonymous mới: ${currentUser?.uid}');
-      } else {
-        print('Sử dụng user hiện tại: ${currentUser.uid}');
-      }
-
-      setState(() {
-        _currentUserId = currentUser?.uid;
-      });
-
-      await _loadChatHistory();
-
-    } catch (e) {
-      print('Lỗi khởi tạo user: $e');
-    } finally {
-      setState(() {
-        _isLoadingHistory = false;
-      });
-    }
+    // Không cần initialize user vì đã bỏ Firebase
   }
 
   Future<String> askAgent(String question) async {
@@ -222,6 +185,7 @@ Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đa
       ),
     );
   }
+
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
@@ -323,27 +287,6 @@ Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đa
   }
 
   Widget _buildChatTab() {
-    if (_isLoadingHistory) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(const Color(0xFF6C63FF)),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Đang tải lịch sử chat...',
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 14,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
     if (_conversations.isEmpty) {
       return _buildEmptyState();
     }
@@ -911,9 +854,6 @@ Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đa
       _isTyping = true;
     });
 
-    // Save user message
-    await _saveMessage(question, true);
-
     // Scroll to bottom
     Future.delayed(const Duration(milliseconds: 100), () {
       _scrollController.animateTo(
@@ -936,9 +876,6 @@ Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đa
       _isLoading = false;
     });
 
-    // Save AI response
-    await _saveMessage(answer, false);
-
     // Scroll to bottom
     Future.delayed(const Duration(milliseconds: 100), () {
       _scrollController.animateTo(
@@ -952,127 +889,6 @@ Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đa
   String _getCurrentTime() {
     final now = DateTime.now();
     return '${now.hour}:${now.minute.toString().padLeft(2, '0')}';
-  }
-
-  Future<void> _loadChatHistory() async {
-    if (_currentUserId == null) {
-      print('User ID null, không thể load history');
-      return;
-    }
-
-    try {
-      print('Đang load chat history cho user: $_currentUserId');
-
-      // Lấy chat session mới nhất
-      final chatSnapshot = await _firestore
-          .collection('users')
-          .doc(_currentUserId)
-          .collection('chats')
-          .orderBy('lastUpdated', descending: true)
-          .limit(1)
-          .get();
-
-      if (chatSnapshot.docs.isEmpty) {
-        print('Không tìm thấy chat cũ, tạo chat mới');
-        // Tạo chat mới
-        final newChat = await _firestore
-            .collection('users')
-            .doc(_currentUserId)
-            .collection('chats')
-            .add({
-          'createdAt': FieldValue.serverTimestamp(),
-          'lastUpdated': FieldValue.serverTimestamp(),
-          'title': 'Chat với Agent',
-          'userId': _currentUserId,
-        });
-        _currentChatId = newChat.id;
-        print('Đã tạo chat mới: $_currentChatId');
-      } else {
-        _currentChatId = chatSnapshot.docs.first.id;
-        print('Tìm thấy chat cũ: $_currentChatId');
-
-        // Load tin nhắn
-        final messagesSnapshot = await _firestore
-            .collection('users')
-            .doc(_currentUserId)
-            .collection('chats')
-            .doc(_currentChatId)
-            .collection('messages')
-            .orderBy('timestamp', descending: false)
-            .get();
-
-        print('Tìm thấy ${messagesSnapshot.docs.length} tin nhắn');
-
-        setState(() {
-          _conversations.clear();
-          for (var doc in messagesSnapshot.docs) {
-            final data = doc.data();
-            _conversations.add({
-              'text': data['text'] ?? '',
-              'isUser': data['isUser'] ?? false,
-              'time': _formatTimestamp(data['timestamp']),
-              'timestamp': data['timestamp'],
-            });
-          }
-        });
-
-        // Scroll xuống tin nhắn mới nhất
-        if (_conversations.isNotEmpty) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _scrollController.animateTo(
-              0,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOut,
-            );
-          });
-        }
-      }
-    } catch (e) {
-      print('Lỗi load chat: $e');
-    }
-  }
-
-  Future<void> _saveMessage(String text, bool isUser) async {
-    if (_currentUserId == null || _currentChatId == null) {
-      print('Không thể lưu tin nhắn: UserId=$_currentUserId, ChatId=$_currentChatId');
-      return;
-    }
-
-    try {
-      // Lưu tin nhắn
-      await _firestore
-          .collection('users')
-          .doc(_currentUserId)
-          .collection('chats')
-          .doc(_currentChatId)
-          .collection('messages')
-          .add({
-        'text': text,
-        'isUser': isUser,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-
-      // Update lastUpdated và lastMessage
-      await _firestore
-          .collection('users')
-          .doc(_currentUserId)
-          .collection('chats')
-          .doc(_currentChatId)
-          .update({
-        'lastUpdated': FieldValue.serverTimestamp(),
-        'lastMessage': text.length > 50 ? '${text.substring(0, 50)}...' : text,
-      });
-
-      print('Đã lưu tin nhắn vào Firestore');
-    } catch (e) {
-      print('Lỗi lưu tin nhắn: $e');
-    }
-  }
-
-  String _formatTimestamp(Timestamp? timestamp) {
-    if (timestamp == null) return _getCurrentTime();
-    final date = timestamp.toDate();
-    return '${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }
 
   @override

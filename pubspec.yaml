@@ -16,7 +16,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   firebase_core: ^4.2.1
   firebase_auth: ^6.1.2
-  cloud_firestore: ^6.1.0
+  #cloud_firestore: ^6.1.0
   http: ^1.6.0
   intl: ^0.18.1  # ← Thêm cái này nếu chưa có
 
