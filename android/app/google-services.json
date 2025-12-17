@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "422631118526",
+    "project_id": "daklakagent",
+    "storage_bucket": "daklakagent.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:422631118526:android:5a34a43374c0ceee40b0ef",
+        "android_client_info": {
+          "package_name": "com.example.daklakagent"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBp4Ooqe-eB_HoIuH056kKdMw0rlkvvhr8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
