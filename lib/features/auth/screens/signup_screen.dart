@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart'; // Import file logic
+import '../services/auth_service.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -9,61 +9,56 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignupScreenState extends State<SignupScreen> {
-  // Controller để lấy dữ liệu
+  final _nameController = TextEditingController(); // Thêm controller cho Tên
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController(); // Thêm ô nhập lại mật khẩu
+  final _confirmPasswordController = TextEditingController();
 
   final AuthService _authService = AuthService();
   bool _isLoading = false;
 
-  // Hàm xử lý Đăng Ký
   void _handleSignUp() async {
+    String name = _nameController.text.trim(); // Lấy tên
     String email = _emailController.text.trim();
     String password = _passwordController.text.trim();
     String confirmPass = _confirmPasswordController.text.trim();
 
-    // 1. Kiểm tra nhập thiếu
-    if (email.isEmpty || password.isEmpty || confirmPass.isEmpty) {
+    if (name.isEmpty || email.isEmpty || password.isEmpty || confirmPass.isEmpty) {
       _showSnackBar("Vui lòng điền đầy đủ thông tin!", Colors.orange);
       return;
     }
 
-    // 2. Kiểm tra mật khẩu có khớp nhau không
     if (password != confirmPass) {
       _showSnackBar("Mật khẩu nhập lại không khớp!", Colors.red);
       return;
     }
 
-    // 3. Kiểm tra độ dài mật khẩu (Firebase yêu cầu tối thiểu 6 ký tự)
     if (password.length < 6) {
       _showSnackBar("Mật khẩu phải có ít nhất 6 ký tự.", Colors.orange);
       return;
     }
 
-    // 4. Gọi Logic đăng ký từ AuthService
     setState(() => _isLoading = true);
 
-    String? ketQua = await _authService.signUp(email: email, password: password);
+    // Gọi hàm đăng ký mới (truyền thêm name)
+    String? ketQua = await _authService.signUp(
+        email: email,
+        password: password,
+        name: name
+    );
 
     setState(() => _isLoading = false);
 
-    // 5. Xử lý kết quả
     if (ketQua == null) {
-      // Thành công
-      _showSnackBar("Đăng ký thành công! Mời bà con đăng nhập.", Colors.green);
+      _showSnackBar("Đăng ký thành công! Đang chuyển hướng...", Colors.green);
 
-      // Đợi 1 giây rồi quay về màn hình đăng nhập
-      Future.delayed(const Duration(seconds: 1), () {
-        if (mounted) Navigator.pop(context);
-      });
+      // Đóng màn hình đăng ký để về Login hoặc để AuthGate tự chuyển
+      if (mounted) Navigator.pop(context);
     } else {
-      // Thất bại
       _showSnackBar(ketQua, Colors.red);
     }
   }
 
-  // Hàm phụ để hiện thông báo nhanh
   void _showSnackBar(String message, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: color),
@@ -75,7 +70,7 @@ class _SignupScreenState extends State<SignupScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text("Đăng Ký Tài Khoản")),
       body: Center(
-        child: SingleChildScrollView( // Giúp cuộn lên khi bàn phím hiện ra
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -89,7 +84,19 @@ class _SignupScreenState extends State<SignupScreen> {
               ),
               const SizedBox(height: 30),
 
-              // Ô Email
+              // Ô Nhập Họ và Tên (MỚI)
+              TextField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: "Họ và Tên",
+                  prefixIcon: Icon(Icons.badge),
+                  border: OutlineInputBorder(),
+                  hintText: "Ví dụ: Nguyễn Văn A",
+                ),
+                textCapitalization: TextCapitalization.words,
+              ),
+              const SizedBox(height: 16),
+
               TextField(
                 controller: _emailController,
                 decoration: const InputDecoration(
@@ -101,7 +108,6 @@ class _SignupScreenState extends State<SignupScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Ô Mật khẩu
               TextField(
                 controller: _passwordController,
                 decoration: const InputDecoration(
@@ -113,7 +119,6 @@ class _SignupScreenState extends State<SignupScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Ô Nhập lại Mật khẩu
               TextField(
                 controller: _confirmPasswordController,
                 decoration: const InputDecoration(
@@ -125,7 +130,6 @@ class _SignupScreenState extends State<SignupScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Nút Đăng Ký
               SizedBox(
                 width: double.infinity,
                 height: 50,
@@ -141,10 +145,9 @@ class _SignupScreenState extends State<SignupScreen> {
                 ),
               ),
 
-              // Nút quay lại Đăng nhập
               TextButton(
                 onPressed: () {
-                  Navigator.pop(context); // Quay lại màn hình trước
+                  Navigator.pop(context);
                 },
                 child: const Text("Đã có tài khoản? Đăng nhập ngay"),
               ),

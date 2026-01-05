@@ -18,7 +18,7 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
   bool _isLoadingHistory = false; // Đã bỏ Firebase nên không cần loading history
   late AnimationController _animationController;
 
-  final String geminiApiKey = 'AIzaSyBysa-ep-g0kPMdP2C0Tbmemq4lFmu1Hb0'; // API KEY của bạn
+  final String geminiApiKey = ''; // API KEY của bạn
 
   @override
   void initState() {
