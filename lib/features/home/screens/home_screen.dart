@@ -6,7 +6,7 @@ import 'price_screen.dart';
 import 'irrigation_screen.dart';
 import 'pest_disease_screen.dart';
 import 'expert_screen.dart';
-
+import 'FarmerView.dart';
 // ==========================================
 // GIAO DIỆN CHÍNH (HOME SCREEN) V3.5
 // ==========================================
@@ -293,6 +293,18 @@ class HomeScreen extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const ExpertScreen()),
+              );
+            },
+          ),
+          _FeatureCard(
+            icon: Icons.calendar_month_outlined, // Icon lịch
+            label: "Đặt lịch Chuyên gia",
+            color: Colors.teal, // Màu khác biệt
+            onTap: () {
+              // Chuyển sang màn hình Tìm & Đặt lịch
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const FindExpertScreen()),
               );
             },
           ),
