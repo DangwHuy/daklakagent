@@ -7,8 +7,12 @@ import 'irrigation_screen.dart';
 import 'pest_disease_screen.dart';
 import 'expert_screen.dart';
 import 'FarmerView.dart';
+
+// [THÊM MỚI] Import màn hình Chat AI
+import 'package:daklakagent/features/ai/screens/ai_chat.dart';
+
 // ==========================================
-// GIAO DIỆN CHÍNH (HOME SCREEN) V3.5
+// GIAO DIỆN CHÍNH (HOME SCREEN) V3.6 (AI UPDATE)
 // ==========================================
 
 class HomeScreen extends StatelessWidget {
@@ -18,14 +22,31 @@ class HomeScreen extends StatelessWidget {
     await FirebaseAuth.instance.signOut();
   }
 
+  // [THÊM MỚI] Hàm mở màn hình Chat AI
+  void _openAiChat(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AiChatScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
+
+      // [THÊM MỚI] Nút nổi AI (Floating Action Button)
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _openAiChat(context),
+        backgroundColor: Colors.blue[700],
+        icon: const Icon(Icons.smart_toy, color: Colors.white),
+        label: const Text("Hỏi AI", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      ),
+
       appBar: AppBar(
-        title: const Text("Trợ Lý Sầu Riêng Pro v3.5"),
+        title: const Text("Trợ Lý Sầu Riêng Pro v3.6"),
         backgroundColor: Colors.green[700],
         foregroundColor: Colors.white,
         elevation: 0,
@@ -58,12 +79,20 @@ class HomeScreen extends StatelessWidget {
                     end: Alignment.bottomRight,
                   ),
                 ),
-                child: _buildWelcomeCard(user?.email),
+                // [CẬP NHẬT] Đổi child thành Column để chứa thêm Thanh tìm kiếm AI
+                child: Column(
+                  children: [
+                    _buildWelcomeCard(user?.email),
+                    const SizedBox(height: 20),
+                    // [THÊM MỚI] Thanh tìm kiếm AI
+                    _buildAiSearchBar(context),
+                  ],
+                ),
               ),
 
               const SizedBox(height: 16),
 
-              // 🔴 THÔNG ĐIỆP CHIA SẺ VỚI BÀ CON ĐẮK LẮK
+              // 🔴 THÔNG ĐIỆP CHIA SẺ VỚI BÀ CON ĐẮK LẮK (GIỮ NGUYÊN)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Container(
@@ -196,9 +225,50 @@ class HomeScreen extends StatelessWidget {
 
               const SizedBox(height: 12),
               _buildGridMenu(context),
-              const SizedBox(height: 20),
+              const SizedBox(height: 80), // [CẬP NHẬT] Thêm padding dưới để không bị nút FAB che
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  // [THÊM MỚI] Widget Thanh tìm kiếm AI
+  Widget _buildAiSearchBar(BuildContext context) {
+    return InkWell(
+      onTap: () => _openAiChat(context),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.search, color: Colors.green[700]),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                "Hỏi AI: 'Giá sầu riêng hôm nay?'",
+                style: TextStyle(color: Colors.grey[500], fontSize: 14),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.mic, color: Colors.blue[700], size: 20),
+            )
+          ],
         ),
       ),
     );
@@ -315,7 +385,7 @@ class HomeScreen extends StatelessWidget {
 }
 
 // ==========================================
-// WIDGET PHÂN TÍCH THÔNG MINH V3.5
+// WIDGET PHÂN TÍCH THÔNG MINH V3.5 (GIỮ NGUYÊN)
 // ==========================================
 class ProWeatherCardV35 extends StatefulWidget {
   const ProWeatherCardV35({super.key});

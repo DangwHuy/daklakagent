@@ -131,7 +131,7 @@ class _PriceScreenState extends State<PriceScreen> {
         // Thêm vào danh sách hiển thị
         displayList.add({
           'name': '$region ($type)', // Tên hiển thị
-          'price': value.replaceAll(RegExp(r'[^0-9,-]'), '').trim(), // Lấy giá trị số (ví dụ: '85,000 - 95,000')
+          'price': value.replaceAll(RegExp(r'[^0-9,.\-]'), '').trim(), // Lấy giá trị số (ví dụ: '85,000 - 95,000')
           'unit': 'đ/kg', // Đơn vị cố định
           // Trend và icon là giả định vì API không cung cấp, nhưng tôi giữ lại để UI đẹp
           'trend': 'up',
