@@ -46,7 +46,7 @@ class HomeScreen extends StatelessWidget {
       ),
 
       appBar: AppBar(
-        title: const Text("Trợ Lý Sầu Riêng Pro v3.6"),
+        title: const Text("Trợ Lý Của Bà Con"),
         backgroundColor: Colors.green[700],
         foregroundColor: Colors.white,
         elevation: 0,
@@ -133,7 +133,7 @@ class HomeScreen extends StatelessWidget {
                             Row(
                               children: [
                                 const Text(
-                                  "🌧️ Chia sẻ với bà con Đắk Lắk",
+                                  "Chúc bà con năm mới bội thu!",
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
@@ -144,7 +144,7 @@ class HomeScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              "Gửi chút nắng ấm từ phương xa về với Đắk Lắk yêu thương. Xin được san sẻ những khó khăn, mất mát mà bà con đang phải gánh chịu. Mong mọi người hãy thật vững tâm, giữ gìn sức khỏe. Cầu chúc bình an đến với từng nếp nhà, bão lũ rồi sẽ tan, ngày mai trời lại sáng! 💪",
+                              " và Cà phê vẫn giữ giá tốt. Trời Đắk Lắk đang se lạnh, bà con nhớ giữ ấm và thăm vườn thường xuyên nhé. Vụ mùa bội thu đang chờ phía trước! 🌱",
                               style: TextStyle(
                                 fontSize: 13,
                                 color: Colors.grey[800],
