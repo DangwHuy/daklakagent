@@ -8,8 +8,10 @@ import 'pest_disease_screen.dart';
 import 'expert_screen.dart';
 import 'FarmerView.dart';
 
+
 // [THÊM MỚI] Import màn hình Chat AI
 import 'package:daklakagent/features/ai/screens/ai_chat.dart';
+import 'package:daklakagent/features/weather/Screens/weather_screen.dart';
 
 // ==========================================
 // GIAO DIỆN CHÍNH (HOME SCREEN) V3.6 (AI UPDATE)
@@ -384,9 +386,6 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-// ==========================================
-// WIDGET PHÂN TÍCH THÔNG MINH V3.5 (GIỮ NGUYÊN)
-// ==========================================
 class ProWeatherCardV35 extends StatefulWidget {
   const ProWeatherCardV35({super.key});
 
@@ -396,7 +395,6 @@ class ProWeatherCardV35 extends StatefulWidget {
 
 class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
   late Future<Map<String, dynamic>> _dataFuture;
-  final GlobalKey<RefreshIndicatorState> _refreshKey = GlobalKey<RefreshIndicatorState>();
 
   // ⚠️ THAY LINK NGROK MỚI CỦA BẠN Ở ĐÂY
   final String pythonApiUrl = 'https://arica-baldish-consuelo.ngrok-free.dev/api/phan-tich-sau-rieng';
@@ -424,13 +422,12 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
       ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
-        final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
-        return jsonResponse;
+        return json.decode(utf8.decode(response.bodyBytes));
       } else {
-        throw Exception('Server trả về lỗi: ${response.statusCode}');
+        throw Exception('Lỗi: ${response.statusCode}');
       }
     } catch (e) {
-      throw Exception('Không kết nối được Server: $e');
+      throw Exception('Lỗi kết nối: $e');
     }
   }
 
@@ -440,694 +437,312 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
       future: _dataFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Container(
-            height: 200,
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
-              ],
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CircularProgressIndicator(color: Colors.green[700]),
-                const SizedBox(height: 16),
-                const Text("🧠 Bộ não AI v3.5 đang phân tích...", style: TextStyle(fontSize: 14, color: Colors.grey)),
-                const SizedBox(height: 8),
-                Text("Tích hợp kiến thức VietGAP", style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-              ],
-            ),
-          );
+          return const Center(child: Padding(
+            padding: EdgeInsets.all(20.0),
+            child: CircularProgressIndicator(),
+          ));
         }
 
-        if (snapshot.hasError) {
-          return Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.red[50],
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.red[200]!),
-            ),
-            child: Column(
-              children: [
-                Icon(Icons.cloud_off, color: Colors.red[700], size: 48),
-                const SizedBox(height: 12),
-                const Text("Mất kết nối với Bộ Não AI v3.5", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                const SizedBox(height: 8),
-                Text("Kiểm tra Google Colab hoặc Link Ngrok", style: TextStyle(fontSize: 13, color: Colors.grey[700]), textAlign: TextAlign.center),
-                const SizedBox(height: 4),
-                Text("Lỗi: ${snapshot.error}", style: TextStyle(fontSize: 11, color: Colors.grey[600]), textAlign: TextAlign.center),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: refreshData,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text("Thử lại"),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red[700], foregroundColor: Colors.white),
-                ),
-              ],
+        if (snapshot.hasError || !snapshot.hasData) {
+          return Center(
+            child: ElevatedButton.icon(
+              onPressed: refreshData,
+              icon: const Icon(Icons.refresh),
+              label: const Text("Thử lại"),
             ),
           );
         }
 
         final data = snapshot.data!;
         final List<dynamic> listData = data['du_lieu'] ?? [];
-        final String thoiGian = data['thoi_gian'] ?? '';
-        final String phienBan = data['phien_ban'] ?? '3.5';
-        final String canhBaoDacBiet = data['canh_bao_dac_biet'] ?? '';
 
-        if (listData.isEmpty) {
-          return Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.amber[50],
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.amber[200]!),
-            ),
-            child: Column(
-              children: [
-                Icon(Icons.warning_amber, color: Colors.amber[700], size: 48),
-                const SizedBox(height: 12),
-                const Text("Chưa có dữ liệu phân tích", style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: refreshData,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text("Tải lại"),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.amber[700]),
-                ),
-              ],
-            ),
-          );
-        }
+        if (listData.isEmpty) return const Text("Không có dữ liệu");
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Thanh trạng thái
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.green[100],
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.green[300]!),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.verified, size: 14, color: Colors.green[700]),
-                        const SizedBox(width: 4),
-                        Text("v$phienBan", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green[700])),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(Icons.update, size: 16, color: Colors.grey[600]),
-                  const SizedBox(width: 6),
-                  Expanded(child: Text("Cập nhật: $thoiGian", style: TextStyle(fontSize: 12, color: Colors.grey[600]))),
-                  TextButton.icon(
-                    onPressed: refreshData,
-                    icon: const Icon(Icons.refresh, size: 18),
-                    label: const Text("Làm mới"),
-                    style: TextButton.styleFrom(foregroundColor: Colors.green[700], padding: const EdgeInsets.symmetric(horizontal: 8)),
-                  ),
-                ],
-              ),
-            ),
-
-            if (canhBaoDacBiet.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.blue[200]!),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, size: 18, color: Colors.blue[700]),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          canhBaoDacBiet,
-                          style: TextStyle(fontSize: 12, color: Colors.blue[900], fontWeight: FontWeight.w500),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-
-            const SizedBox(height: 12),
-
-            SizedBox(
-              height: 620,
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                scrollDirection: Axis.horizontal,
-                itemCount: listData.length,
-                itemBuilder: (context, index) => _buildSmartCardV35(listData[index]),
-              ),
-            ),
-          ],
+        // Hiển thị danh sách các thẻ rút gọn theo chiều ngang
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start, // Giúp các thẻ căn đỉnh
+            children: listData.map((item) => _buildSmartCardShort(item)).toList(),
+          ),
         );
       },
     );
   }
 
-  Widget _buildSmartCardV35(dynamic item) {
+  Widget _buildSmartCardShort(dynamic item) {
+    // --- Lấy dữ liệu ---
     String khuVuc = item['khu_vuc'] ?? 'N/A';
     double nhietDo = (item['nhiet_do'] as num?)?.toDouble() ?? 0.0;
-    double nhietDoMax = (item['nhiet_do_max'] as num?)?.toDouble() ?? 0.0;
-    double nhietDoMin = (item['nhiet_do_min'] as num?)?.toDouble() ?? 0.0;
     double doAm = (item['do_am'] as num?)?.toDouble() ?? 0.0;
     double gio = (item['gio'] as num?)?.toDouble() ?? 0.0;
     int may = (item['may'] as num?)?.toInt() ?? 0;
-    double apSuat = (item['ap_suat'] as num?)?.toDouble() ?? 0.0;
     String moTa = item['mo_ta'] ?? '';
     String iconThoiTiet = item['icon_thoi_tiet'] ?? '01d';
     double mua1h = (item['mua_1h'] as num?)?.toDouble() ?? 0.0;
-    double mua3h = (item['mua_3h'] as num?)?.toDouble() ?? 0.0;
     int caoDo = (item['cao_do'] as num?)?.toInt() ?? 0;
 
-    // 🔴 DỮ LIỆU MỚI V3.5
     int chiSoLuLut = (item['chi_so_nguy_co_lu_lut'] as num?)?.toInt() ?? 0;
     int chiSoNam = (item['chi_so_nguy_co_nam'] as num?)?.toInt() ?? 0;
     int chiSoStress = (item['chi_so_stress_nhiet'] as num?)?.toInt() ?? 0;
-    String giaiDoan = item['giai_doan_sinh_truong'] ?? 'N/A';
-    String mucDoTongThe = item['muc_do_tong_the'] ?? 'an_toan';
 
-    String mauSacApp = item['mau_sac_app'] ?? 'green';
-    Color themeColor = _getThemeColor(mauSacApp);
+    // --- LOGIC XÁC ĐỊNH MÀU SẮC VÀ TRẠNG THÁI ---
+    // Tìm chỉ số rủi ro cao nhất để quyết định màu
+    int maxRisk = [chiSoLuLut, chiSoNam, chiSoStress].reduce((curr, next) => curr > next ? curr : next);
 
-    // ƯU TIÊN MÀU ĐỎ NẾU CÓ LŨ LỤT
-    if (chiSoLuLut >= 70) {
-      themeColor = Colors.red;
-    } else if (chiSoLuLut >= 50) {
-      themeColor = Colors.orange;
+    Color statusColor = const Color(0xFF2E7D32); // Màu xanh lá đậm (Giống hình)
+    String statusText = "Môi trường ổn định";
+    IconData statusIcon = Icons.check_box;
+
+    if (maxRisk >= 70) {
+      statusColor = const Color(0xFFD32F2F); // Đỏ
+      statusText = "Nguy hiểm (Chi tiết >)";
+      statusIcon = Icons.warning;
+    } else if (maxRisk >= 40) {
+      statusColor = const Color(0xFFEF6C00); // Cam
+      statusText = "Cảnh báo (Chi tiết >)";
+      statusIcon = Icons.info;
+    } else {
+      statusText = "Môi trường ổn định (Chi tiết >)";
     }
 
-    List<dynamic> canhBaoList = item['danh_sach_canh_bao'] ?? [];
-    List<dynamic> canhBao24h = item['canh_bao_24h_toi'] ?? [];
-    Map<String, dynamic> keHoach = item['ke_hoach_hanh_dong'] ?? {};
-    List<dynamic> duBao3Moc = item['du_bao_3_moc_toi'] ?? [];
-
     return Container(
-      width: 370,
+      width: 340,
       margin: const EdgeInsets.only(right: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: themeColor.withOpacity(0.4), width: 2.5),
-        boxShadow: [
-          BoxShadow(color: themeColor.withOpacity(0.15), blurRadius: 20, offset: const Offset(0, 8)),
-        ],
-      ),
-      child: Column(
-        children: [
-          // === HEADER ===
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [themeColor.withOpacity(0.2), themeColor.withOpacity(0.05)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Image.network(
-                      "https://openweathermap.org/img/wn/$iconThoiTiet@2x.png",
-                      width: 60,
-                      height: 60,
-                      errorBuilder: (context, error, stackTrace) => Icon(Icons.cloud, size: 60, color: Colors.grey[400]),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  khuVuc,
-                                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              Icon(Icons.terrain, size: 14, color: Colors.grey[600]),
-                              const SizedBox(width: 4),
-                              Text("${caoDo}m", style: TextStyle(fontSize: 11, color: Colors.grey[600])),
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          Text(moTa, style: TextStyle(color: Colors.grey[700], fontSize: 13)),
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(color: Colors.blue[40], borderRadius: BorderRadius.circular(12)),
-                                child: Text(giaiDoan, style: TextStyle(fontSize: 9, color: Colors.blue[900], fontWeight: FontWeight.w600)),
-                              ),
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: _getMucDoColor(mucDoTongThe).withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: _getMucDoColor(mucDoTongThe)),
-                                ),
-                                child: Text(
-                                  _getMucDoText(mucDoTongThe),
-                                  style: TextStyle(fontSize: 10, color: _getMucDoColor(mucDoTongThe), fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text("$nhietDo°C", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: themeColor)),
-                        Text("$doAm% ẩm", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                        const SizedBox(height: 4),
-                        Text("${nhietDoMin}°~${nhietDoMax}°", style: TextStyle(fontSize: 11, color: Colors.grey[600])),
-                      ],
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 12),
-
-                // Thông tin bổ sung
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildMiniInfo(Icons.water_drop, "${mua1h}mm/h", "Mưa 1h"),
-                    _buildMiniInfo(Icons.air, "${gio}m/s", "Gió"),
-                    _buildMiniInfo(Icons.compress, "${apSuat}hPa", "Áp suất"),
-                    _buildMiniInfo(Icons.cloud, "$may%", "Mây"),
-                  ],
-                ),
-
-                // 🔴 CHỈ SỐ NGUY CƠ V3.5
-                const SizedBox(height: 12),
-                Column(
-                  children: [
-                    // LŨ LỤT - ƯU TIÊN SỐ 1
-                    _buildRiskIndicator("🔴 LŨ LỤT", chiSoLuLut, Icons.water_damage, Colors.red),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(child: _buildRiskIndicator("Nấm", chiSoNam, Icons.coronavirus, Colors.orange)),
-                        const SizedBox(width: 8),
-                        Expanded(child: _buildRiskIndicator("Nhiệt", chiSoStress, Icons.local_fire_department, Colors.red)),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          // === BODY - CẢNH BÁO CHI TIẾT ===
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(12),
+      // ClipRRect để bo góc cho cả ảnh con bên trong
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20), // Bo góc tổng thể thẻ
+          border: Border.all(color: Colors.grey[300]!, width: 1),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // === PHẦN TRÊN (Thông tin thời tiết) ===
+            Padding(
+              padding: const EdgeInsets.all(20),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (canhBaoList.isNotEmpty) ...[
-                    const Text("📋 Tình hình hiện tại", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                    const SizedBox(height: 8),
-                    ...canhBaoList.map((cb) => _buildAlertCard(cb)).toList(),
-                  ],
+                  // Dòng 1: Địa điểm (Giống hình 1)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.location_on, color: Colors.red[700], size: 20),
+                      const SizedBox(width: 6),
+                      Text("$khuVuc (${caoDo}m)", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
 
-                  if (canhBao24h.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.amber[50],
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.amber[200]!),
+                  const SizedBox(height: 12),
+
+                  // Dòng 2: Icon mây + Nhiệt độ + Mô tả (Căn giữa)
+                  Column(
+                    children: [
+                      Image.network(
+                        "https://openweathermap.org/img/wn/$iconThoiTiet@2x.png",
+                        width: 80, height: 80,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.cloud, size: 80, color: Colors.grey),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.event_note, size: 18, color: Colors.amber[900]),
-                              const SizedBox(width: 6),
-                              Text("Dự báo 24-72h tới", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber[900])),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          ...canhBao24h.map((cb) => Padding(
-                            padding: const EdgeInsets.only(bottom: 6),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text("• ", style: TextStyle(fontSize: 18)),
-                                Expanded(child: Text("${cb['noi_dung']}\n→ ${cb['hanh_dong']}", style: const TextStyle(fontSize: 12, height: 1.4))),
-                              ],
-                            ),
-                          )).toList(),
-                        ],
-                      ),
-                    ),
-                  ],
+                      Text("$nhietDo°C", style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.blue[800])),
+                      const SizedBox(height: 4),
+                      Text(moTa, style: TextStyle(fontSize: 15, color: Colors.grey[700], fontWeight: FontWeight.w500)),
+                    ],
+                  ),
 
-                  if (duBao3Moc.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    _buildForecastSection(duBao3Moc),
-                  ],
+                  const SizedBox(height: 20),
+                  const Divider(height: 1, color: Colors.grey),
+                  const SizedBox(height: 20),
 
-                  if (keHoach.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    _buildActionPlan(keHoach),
-                  ],
+                  // Dòng 3: 3 Thông số (Ẩm, Gió, Mưa) - Giống hình 1
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildWeatherStat(Icons.water_drop_outlined, "$doAm%", "(Ẩm)"),
+                      Container(width: 1, height: 30, color: Colors.grey[300]), // Vách ngăn
+                      _buildWeatherStat(Icons.air, "${gio}m/s", "(Gió)"),
+                      Container(width: 1, height: 30, color: Colors.grey[300]), // Vách ngăn
+                      _buildWeatherStat(Icons.cloud_queue, "${mua1h}mm", "(Mưa)"),
+                    ],
+                  ),
                 ],
               ),
             ),
-          ),
+
+            // === PHẦN DƯỚI: THANH TRẠNG THÁI (MÀU XANH) ===
+            // Thay thế hoàn toàn phần Lũ lụt/Nấm cũ
+            InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => WeatherScreen(
+                      // Lúc này chữ initialLocation sẽ hết báo đỏ
+                      initialLocation: khuVuc,
+                    ),
+                  ),
+                );
+              },
+              child: Container(
+                width: double.infinity, // Full chiều ngang
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: statusColor, // Màu thay đổi theo mức độ nguy hiểm
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(19), // Bo góc dưới trùng với thẻ cha
+                    bottomRight: Radius.circular(19),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(statusIcon, color: Colors.white, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      statusText,
+                      style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                    ),
+                    const Spacer(),
+                    // Icon lấp lánh ở góc phải giống hình
+                    const Icon(Icons.auto_awesome, color: Colors.white70, size: 18),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Widget con hiển thị thông số (Ẩm, Gió, Mưa)
+  Widget _buildWeatherStat(IconData icon, String value, String label) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 16, color: Colors.black87),
+            const SizedBox(width: 4),
+            Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+      ],
+    );
+  }
+
+  // Widget con hiển thị dòng chi tiết trong Dialog
+  Widget _buildRiskRow(String label, int value) {
+    Color color = value > 50 ? Colors.red : Colors.green;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text("$value/100", style: TextStyle(color: color, fontWeight: FontWeight.bold)),
         ],
       ),
     );
   }
 
+  // Widget hiển thị Tag nhỏ (Nghỉ ngơi, Cảnh báo)
+  Widget _buildTag(String text, MaterialColor color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        border: Border.all(color: color, width: 0.5),
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+      ),
+      child: Text(text, style: TextStyle(fontSize: 10, color: color[800], fontWeight: FontWeight.bold)),
+    );
+  }
+
+  // Widget thông tin nhỏ (Mưa, Gió...)
   Widget _buildMiniInfo(IconData icon, String value, String label) {
     return Column(
       children: [
-        Icon(icon, size: 16, color: Colors.grey[600]),
+        Icon(icon, size: 18, color: Colors.grey[700]),
         const SizedBox(height: 4),
         Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-        Text(label, style: TextStyle(fontSize: 9, color: Colors.grey[600])),
+        Text(label, style: TextStyle(fontSize: 9, color: Colors.grey[500])),
       ],
     );
   }
 
-  Widget _buildRiskIndicator(String label, int value, IconData icon, MaterialColor color) {
-    MaterialColor bgColor = value >= 70 ? Colors.red : (value >= 50 ? Colors.orange : (value >= 30 ? Colors.amber : Colors.green));
+  // Widget thẻ LŨ LỤT (To)
+  Widget _buildRiskCardBig(String label, int value, IconData icon, MaterialColor color) {
+    // Logic màu sắc: Nếu an toàn (thấp) thì màu xanh, cao thì màu đỏ
+    Color bgColor = value < 30 ? Colors.green[50]! : Colors.red[50]!;
+    Color borderColor = value < 30 ? Colors.green[200]! : Colors.red[200]!;
+    Color iconColor = value < 30 ? Colors.green[700]! : Colors.red;
+    Color dotColor = value < 30 ? Colors.green : Colors.red;
 
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: bgColor[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: bgColor[200]!, width: 2),
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor, width: 1.5),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: bgColor[700]),
+          Icon(icon, size: 24, color: Colors.grey[700]), // Icon nhà
+          const SizedBox(width: 8),
+          Icon(Icons.circle, size: 12, color: dotColor), // Chấm tròn màu
           const SizedBox(width: 8),
           Expanded(
-            child: Text(label, style: TextStyle(fontSize: 12, color: bgColor[900], fontWeight: FontWeight.w600)),
+            child: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87)),
           ),
-          Text("$value", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: bgColor[700])),
-          Text("/100", style: TextStyle(fontSize: 11, color: Colors.grey[600])),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAlertCard(dynamic cb) {
-    String tieuDe = cb['tieu_de'] ?? '';
-    String noiDung = cb['noi_dung'] ?? '';
-    String hanhDong = cb['hanh_dong'] ?? '';
-    String icon = cb['icon'] ?? 'info';
-    String mucDo = cb['muc_do'] ?? '';
-
-    bool isFlood = icon == 'flood' || tieuDe.contains('LŨ LỤT');
-    bool isKhanCap = mucDo.contains('khan_cap') || tieuDe.contains('🔴');
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isFlood ? Colors.red[50] : (isKhanCap ? Colors.orange[50] : Colors.grey[50]),
-        borderRadius: BorderRadius.circular(12),
-        border: Border(left: BorderSide(color: _getIconColor(icon), width: isFlood ? 6 : 4)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(_getIconData(icon), size: 22, color: _getIconColor(icon)),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  tieuDe,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: isFlood ? 15 : 14,
-                    color: isFlood ? Colors.red[900] : Colors.black87,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (noiDung.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(noiDung, style: const TextStyle(fontSize: 13, height: 1.4)),
-          ],
-          if (hanhDong.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.blue[50],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blue[100]!),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.lightbulb_outline, size: 16, color: Colors.blue[700]),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      hanhDong,
-                      style: TextStyle(fontSize: 12, color: Colors.blue[900], fontWeight: FontWeight.w500, height: 1.4),
-                    ),
-                  ),
-                ],
-              ),
+          RichText(
+            text: TextSpan(
+              children: [
+                TextSpan(text: "$value", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87)),
+                TextSpan(text: "/100", style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+              ],
             ),
-          ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildForecastSection(List<dynamic> duBao) {
+  // Widget thẻ Nấm/Nhiệt (Nhỏ)
+  Widget _buildRiskCardSmall(String label, int value, IconData icon, MaterialColor color) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.purple[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.purple[200]!),
+        color: color[50], // Màu nền nhạt theo theme
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color[200]!, width: 1.5),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
             children: [
-              Icon(Icons.schedule, size: 18, color: Colors.purple[900]),
-              const SizedBox(width: 6),
-              Text("Dự báo 9h tới", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.purple[900])),
+              Icon(icon, size: 20, color: color[700]),
+              const SizedBox(width: 8),
+              Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color[900])),
             ],
           ),
-          const SizedBox(height: 10),
-          ...duBao.take(3).map((item) {
-            String time = item['time']?.toString().substring(11, 16) ?? '';
-            double temp = (item['temp'] as num?)?.toDouble() ?? 0;
-            int humidity = (item['humidity'] as num?)?.toInt() ?? 0;
-            double rainProb = (item['rain_prob'] as num?)?.toDouble() ?? 0;
-            String desc = item['description'] ?? '';
-
-            return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.purple[100]!),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.purple[100],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(time, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.purple[900])),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text("$temp°C • $humidity% ẩm", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                        Text(desc, style: TextStyle(fontSize: 11, color: Colors.grey[700])),
-                      ],
-                    ),
-                  ),
-                  if (rainProb > 0)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.blue[100],
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.water_drop, size: 12, color: Colors.blue[700]),
-                          const SizedBox(width: 2),
-                          Text("${rainProb.toInt()}%", style: TextStyle(fontSize: 10, color: Colors.blue[900], fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            );
-          }).toList(),
+          RichText(
+            text: TextSpan(
+              children: [
+                TextSpan(text: "$value", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color[800])),
+                TextSpan(text: "/100", style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+              ],
+            ),
+          ),
         ],
       ),
     );
-  }
-
-  Widget _buildActionPlan(Map<String, dynamic> keHoach) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.green[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.green[200]!),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.checklist, size: 18, color: Colors.green[900]),
-              const SizedBox(width: 6),
-              Text("Kế hoạch hành động", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green[900])),
-            ],
-          ),
-          const SizedBox(height: 10),
-          if (keHoach['uu_tien_cao'] != null && (keHoach['uu_tien_cao'] as List).isNotEmpty) ...[
-            _buildPrioritySection("🔴 Khẩn cấp (Hôm nay)", keHoach['uu_tien_cao'], Colors.red),
-          ],
-          if (keHoach['trung_binh'] != null && (keHoach['trung_binh'] as List).isNotEmpty) ...[
-            const SizedBox(height: 8),
-            _buildPrioritySection("🟡 Trung bình (Tuần này)", keHoach['trung_binh'], Colors.orange),
-          ],
-          if (keHoach['dai_han'] != null && (keHoach['dai_han'] as List).isNotEmpty) ...[
-            const SizedBox(height: 8),
-            _buildPrioritySection("🟢 Dài hạn", keHoach['dai_han'], Colors.green),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPrioritySection(String title, dynamic items, MaterialColor color) {
-    List<dynamic> list = items is List ? items : [];
-    if (list.isEmpty) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color[700])),
-        const SizedBox(height: 4),
-        ...list.map((item) => Padding(
-          padding: const EdgeInsets.only(left: 8, bottom: 4),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text("• ", style: TextStyle(color: color[700])),
-              Expanded(child: Text(item.toString(), style: const TextStyle(fontSize: 12, height: 1.3))),
-            ],
-          ),
-        )).toList(),
-      ],
-    );
-  }
-
-  Color _getThemeColor(String colorName) {
-    switch (colorName) {
-      case 'red': return Colors.red;
-      case 'orange': return Colors.orange;
-      case 'yellow': return Colors.amber;
-      default: return Colors.green;
-    }
-  }
-
-  Color _getMucDoColor(String mucDo) {
-    if (mucDo.contains('khan_cap')) return Colors.red;
-    if (mucDo.contains('nguy_hiem')) return Colors.orange;
-    if (mucDo.contains('canh_bao')) return Colors.amber;
-    return Colors.green;
-  }
-
-  String _getMucDoText(String mucDo) {
-    if (mucDo.contains('khan_cap_lu')) return 'KHẨN CẤP LŨ';
-    if (mucDo.contains('khan_cap')) return 'KHẨN CẤP';
-    if (mucDo.contains('nguy_hiem_lu')) return 'NGUY HIỂM LŨ';
-    if (mucDo.contains('nguy_hiem')) return 'NGUY HIỂM';
-    if (mucDo.contains('canh_bao')) return 'CẢNH BÁO';
-    return 'AN TOÀN';
-  }
-
-  IconData _getIconData(String iconName) {
-    switch (iconName) {
-      case 'flood': return Icons.water_damage;
-      case 'warning': return Icons.warning_amber_rounded;
-      case 'water_drop': return Icons.water_drop;
-      case 'sunny': return Icons.sunny;
-      case 'wb_sunny': return Icons.wb_sunny;
-      case 'air': return Icons.air;
-      case 'ac_unit': return Icons.ac_unit;
-      case 'check_circle': return Icons.check_circle_outline;
-      case 'local_fire_department': return Icons.local_fire_department;
-      case 'event': return Icons.event_note;
-      case 'visibility': return Icons.visibility;
-      case 'medical_services': return Icons.medical_services;
-      case 'eco': return Icons.eco;
-      default: return Icons.info_outline;
-    }
-  }
-
-  Color _getIconColor(String iconName) {
-    if (iconName == 'check_circle' || iconName == 'eco') return Colors.green;
-    if (iconName == 'flood' || iconName == 'warning' || iconName == 'sunny' || iconName == 'local_fire_department') {
-      return Colors.red;
-    }
-    if (iconName == 'medical_services') return Colors.blue;
-    return Colors.orange;
   }
 }
 
