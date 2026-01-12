@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -30,8 +31,17 @@ void main() async {
       await Firebase.initializeApp();
     }
 
+    // [QUAN TRỌNG] Đăng nhập Email cố định để khớp UID với ESP32
     if (FirebaseAuth.instance.currentUser == null) {
-      await FirebaseAuth.instance.signInAnonymously();
+      try {
+        await FirebaseAuth.instance.signInWithEmailAndPassword(
+            email: "huy@gmail.com",
+            password: "123456"
+        );
+        print("✅ Đã đăng nhập: huy@gmail.com (UID: ${FirebaseAuth.instance.currentUser?.uid})");
+      } catch (e) {
+        print("⚠️ Lỗi đăng nhập: $e");
+      }
     }
 
   } catch (e) {
@@ -67,6 +77,9 @@ class IrrigationScreen extends StatefulWidget {
 }
 
 class _IrrigationScreenState extends State<IrrigationScreen> {
+  // [SỬA LỖI] Định nghĩa AppID chung cho toàn bộ màn hình để tránh lệch pha
+  final String _appId = const String.fromEnvironment('__app_id', defaultValue: 'default-app-id');
+
   // Dữ liệu người dùng chọn
   String selectedStage = 'Ra hoa';
   int treeAge = 5;
@@ -88,6 +101,13 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
   // --- DỮ LIỆU QUẢN LÝ NƯỚC ---
   final TextEditingController _totalTreesController = TextEditingController(text: '100');
   final TextEditingController _waterReserveController = TextEditingController(text: '50');
+
+  // --- DỮ LIỆU IOT ---
+  int? _realtimeSoilMoisture;
+  String _iotControlMode = "AUTO"; // Mặc định tự động
+  String _iotPumpStatusTarget = "OFF";  // [CẬP NHẬT] Trạng thái mong muốn (thay cho command)
+  bool _isSendingCommand = false;
+  StreamSubscription? _controlSub;
 
   // Danh sách địa điểm hỗ trợ
   final Map<String, Map<String, double>> locations = {
@@ -123,7 +143,8 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
   void initState() {
     super.initState();
     _fetchWeather(selectedLocation);
-    _loadFarmConfig(); // [MỚI] Tải dữ liệu từ Firestore khi mở app
+    _loadFarmConfig();
+    _listenToControlConfig(); // Bắt đầu lắng nghe cấu hình
     _totalTreesController.addListener(() => setState(() {}));
     _waterReserveController.addListener(() => setState(() {}));
   }
@@ -132,19 +153,84 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
   void dispose() {
     _totalTreesController.dispose();
     _waterReserveController.dispose();
+    _controlSub?.cancel();
     super.dispose();
   }
 
-  // --- [MỚI] LOGIC FIRESTORE (LOAD) ---
+  // --- [SỬA LỖI] LẮNG NGHE & TỰ KHỞI TẠO CẤU HÌNH ---
+  void _listenToControlConfig() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    // Đường dẫn chính xác: artifacts/default-app-id/users/{uid}/config/pump_control
+    final docRef = FirebaseFirestore.instance
+        .collection('artifacts')
+        .doc(_appId)
+        .collection('users')
+        .doc(user.uid)
+        .collection('config')
+        .doc('pump_control');
+
+    _controlSub = docRef.snapshots().listen((snapshot) {
+      if (snapshot.exists && snapshot.data() != null) {
+        // Nếu có dữ liệu, cập nhật UI
+        setState(() {
+          _iotControlMode = snapshot.data()!['mode'] ?? "AUTO";
+          // [CẬP NHẬT] Đọc pump_status thay vì command
+          _iotPumpStatusTarget = snapshot.data()!['pump_status'] ?? "OFF";
+        });
+      } else {
+        // [QUAN TRỌNG] Nếu chưa có, tự động tạo file config mặc định
+        print("⚠️ Chưa có file config, đang tự tạo...");
+        docRef.set({
+          'mode': "AUTO",
+          'pump_status': "OFF", // [CẬP NHẬT] Tạo trường pump_status
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+      }
+    }, onError: (e) => print("Lỗi lắng nghe Config: $e"));
+  }
+
+  // --- GỬI LỆNH ĐIỀU KHIỂN BƠM ---
+  Future<void> _sendCommandToPump(bool isAuto, bool turnOn) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    setState(() => _isSendingCommand = true);
+
+    try {
+      // Ghi đúng vào đường dẫn mà ESP32 đang đọc
+      await FirebaseFirestore.instance
+          .collection('artifacts')
+          .doc(_appId)
+          .collection('users')
+          .doc(user.uid)
+          .collection('config')
+          .doc('pump_control')
+          .set({
+        'mode': isAuto ? "AUTO" : "MANUAL",
+        // [CẬP NHẬT] Ghi pump_status thay vì command
+        'pump_status': turnOn ? "ON" : "OFF",
+        'timestamp': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // UI sẽ tự cập nhật nhờ hàm _listenToControlConfig
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi gửi lệnh: $e')));
+    } finally {
+      setState(() => _isSendingCommand = false);
+    }
+  }
+
   Future<void> _loadFarmConfig() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    const String appId = String.fromEnvironment('__app_id', defaultValue: 'default-app-id');
 
     try {
       final doc = await FirebaseFirestore.instance
           .collection('artifacts')
-          .doc(appId)
+          .doc(_appId)
           .collection('users')
           .doc(user.uid)
           .collection('config')
@@ -156,7 +242,6 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
         if (data != null) {
           setState(() {
             _totalTreesController.text = (data['total_trees'] ?? 100).toString();
-            // Đảm bảo không load null
             _waterReserveController.text = (data['water_reserve'] ?? 50.0).toString();
           });
         }
@@ -166,16 +251,14 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
     }
   }
 
-  // --- [MỚI] LOGIC FIRESTORE (SAVE) ---
   Future<void> _saveFarmConfig() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    const String appId = String.fromEnvironment('__app_id', defaultValue: 'default-app-id');
 
     try {
       await FirebaseFirestore.instance
           .collection('artifacts')
-          .doc(appId)
+          .doc(_appId)
           .collection('users')
           .doc(user.uid)
           .collection('config')
@@ -184,7 +267,7 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
         'total_trees': int.tryParse(_totalTreesController.text) ?? 0,
         'water_reserve': double.tryParse(_waterReserveController.text) ?? 0.0,
         'last_updated': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true)); // Merge để không mất các trường khác nếu có
+      }, SetOptions(merge: true));
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('✅ Đã đồng bộ dữ liệu lên Cloud!')),
@@ -194,9 +277,7 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
     }
   }
 
-  // --- [MỚI] LOGIC XÁC NHẬN TƯỚI THÔNG MINH (TIGHT COUPLING) ---
   void _confirmIrrigation() async {
-    // 1. Tính toán nhu cầu chuẩn
     Map<String, dynamic> rec = _calculateWaterAmount();
     int waterPerTreeLiters = rec['raw_amount'] ?? 50;
     int totalTrees = int.tryParse(_totalTreesController.text) ?? 0;
@@ -206,26 +287,22 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
     double actualNeedM3 = standardNeedM3;
     double savedM3 = 0;
 
-    // 2. Logic Thông Minh: Kiểm tra dự báo mưa
-    // Nếu dự báo mưa > 10mm, hệ thống tự động cho rằng không cần tưới (hoặc tưới rất ít)
     bool isRainy = _predictedRain24h > 10;
-    if (isRainy) {
-      actualNeedM3 = 0; // Tiết kiệm toàn bộ
+    bool isSoilWet = (_realtimeSoilMoisture ?? 0) > 70;
+
+    if (isRainy || isSoilWet) {
+      actualNeedM3 = 0;
       savedM3 = standardNeedM3;
     }
 
-    // 3. Cập nhật số dư
     double newReserve = currentReserve - actualNeedM3;
     if (newReserve < 0) newReserve = 0;
 
-    // 4. Lưu lại
     setState(() {
       _waterReserveController.text = newReserve.toStringAsFixed(2);
     });
-    // Gọi hàm save để đồng bộ lên Firestore ngay lập tức
     await _saveFarmConfig();
 
-    // 5. Hiển thị báo cáo
     if (!mounted) return;
     showDialog(
       context: context,
@@ -235,7 +312,7 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (isRainy)
+            if (isRainy || isSoilWet)
               Container(
                 padding: const EdgeInsets.all(8),
                 margin: const EdgeInsets.only(bottom: 10),
@@ -246,9 +323,13 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.cloud_done, color: Colors.green),
+                    const Icon(Icons.eco, color: Colors.green),
                     const SizedBox(width: 8),
-                    Expanded(child: Text("Phát hiện sắp mưa lớn (${_predictedRain24h.toStringAsFixed(1)}mm). Hệ thống đã tự động ghi nhận HOÃN TƯỚI để tiết kiệm.", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
+                    Expanded(child: Text(
+                        isSoilWet
+                            ? "Đất đang đủ ẩm (${_realtimeSoilMoisture}%). Đã tự động ghi nhận HOÃN TƯỚI."
+                            : "Sắp mưa lớn (${_predictedRain24h.toStringAsFixed(1)}mm). Đã tự động ghi nhận HOÃN TƯỚI.",
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
                   ],
                 ),
               ),
@@ -397,12 +478,10 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    const String appId = String.fromEnvironment('__app_id', defaultValue: 'default-app-id');
-
     try {
       await FirebaseFirestore.instance
           .collection('artifacts')
-          .doc(appId)
+          .doc(_appId)
           .collection('users')
           .doc(user.uid)
           .collection('analyses')
@@ -430,8 +509,6 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
       return;
     }
 
-    const String appId = String.fromEnvironment('__app_id', defaultValue: 'default-app-id');
-
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -447,7 +524,7 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
                 child: StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
                       .collection('artifacts')
-                      .doc(appId)
+                      .doc(_appId)
                       .collection('users')
                       .doc(user.uid)
                       .collection('analyses')
@@ -626,8 +703,8 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- HEADER THỜI TIẾT HIỆN TẠI ---
-            _buildWeatherHeader(),
+            // --- [MỚI] IOT DASHBOARD (THAY THẾ HEADER THỜI TIẾT CŨ) ---
+            _buildIoTDashboard(),
 
             // --- HEADER DỰ BÁO ---
             if (_isForecastLoading)
@@ -654,6 +731,14 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
               _buildSmartAlert(),
 
             const SizedBox(height: 10),
+
+            // --- [MỚI] BẢNG ĐIỀU KHIỂN BƠM ---
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _buildPumpControlPanel(),
+            ),
+
+            const SizedBox(height: 20),
 
             // --- INPUT FIELDS ---
             Padding(
@@ -683,6 +768,7 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
                         setState(() { soilType = val!; _aiResult = null; _isViewingHistory = false; });
                       }, icon: Icons.landscape, color: Colors.brown)),
                       const SizedBox(width: 16),
+                      // Hiển thị thời tiết API như dữ liệu tham khảo
                       Expanded(child: _buildReadOnlyField('Thời tiết (API)', weatherCondition, Icons.cloud, Colors.orange)),
                     ],
                   )
@@ -716,7 +802,7 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
 
             const SizedBox(height: 24),
 
-            // --- LỊCH TƯỚI THÔNG MINH (NÂNG CẤP) ---
+            // --- LỊCH TƯỚI THÔNG MINH ---
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: _buildWeeklySchedule(),
@@ -737,15 +823,256 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
     );
   }
 
+  // --- [SỬA LỖI] WIDGET DASHBOARD IOT HIỂN THỊ DỮ LIỆU THẬT ---
+  Widget _buildIoTDashboard() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return _buildWeatherHeader();
+
+    // Sử dụng _appId đã định nghĩa chung
+    // Lắng nghe dữ liệu cảm biến và trạng thái bơm từ cùng một đường dẫn config/pump_control
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('artifacts')
+          .doc(_appId)
+          .collection('users')
+          .doc(user.uid)
+          .collection('config')
+          .doc('pump_control')
+          .snapshots(),
+      builder: (context, snapshot) {
+        int soil = 0;
+        // Sử dụng dữ liệu thật từ API thời tiết thay vì từ ESP32 giả lập
+        double temp = _currentTemp ?? 0.0;
+        double hum = _currentHumidity ?? 0.0;
+
+        String pumpStatus = "OFF";
+        bool hasData = false;
+
+        if (snapshot.hasData && snapshot.data!.exists) {
+          final data = snapshot.data!.data() as Map<String, dynamic>;
+          soil = (data['soil'] as num?)?.toInt() ?? 0;
+          // Không lấy temp/hum từ Firestore nữa (để tránh số 30.5 giả)
+          pumpStatus = data['pump_status'] ?? "OFF";
+          hasData = true;
+
+          if (_realtimeSoilMoisture != soil) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if(mounted) setState(() => _realtimeSoilMoisture = soil);
+            });
+          }
+        }
+
+        if (_isViewingHistory) return _buildWeatherHeader();
+
+        return Container(
+          width: double.infinity,
+          margin: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.green[800]!, Colors.teal[600]!],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 4))],
+          ),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(hasData ? "Dữ liệu Thực tế (IoT)" : "Đang kết nối cảm biến...",
+                          style: TextStyle(color: Colors.white70, fontSize: 12)),
+                      const SizedBox(height: 4),
+                      Text(selectedLocation, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                        color: hasData ? Colors.greenAccent.withOpacity(0.2) : Colors.redAccent.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8)
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.wifi, size: 14, color: hasData ? Colors.greenAccent : Colors.redAccent),
+                        const SizedBox(width: 4),
+                        Text(hasData ? "ONLINE" : "OFFLINE", style: TextStyle(color: hasData ? Colors.greenAccent : Colors.redAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  )
+                ],
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  // Cột 1: Độ ẩm đất
+                  Column(
+                    children: [
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          SizedBox(
+                            width: 80,
+                            height: 80,
+                            child: CircularProgressIndicator(
+                              value: soil / 100,
+                              strokeWidth: 8,
+                              backgroundColor: Colors.white24,
+                              valueColor: AlwaysStoppedAnimation<Color>(soil < 40 ? Colors.redAccent : Colors.white),
+                            ),
+                          ),
+                          Column(
+                            children: [
+                              Text("$soil%", style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                              const Text("Đất", style: TextStyle(color: Colors.white70, fontSize: 10)),
+                            ],
+                          )
+                        ],
+                      ),
+                    ],
+                  ),
+                  // Cột 2: Trạng thái Bơm
+                  Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                            color: pumpStatus == "ON" ? Colors.blue : Colors.white10,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white30)
+                        ),
+                        child: Icon(Icons.water_drop_outlined,
+                            size: 32,
+                            color: pumpStatus == "ON" ? Colors.white : Colors.white54),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(pumpStatus == "ON" ? "ĐANG TƯỚI" : "ĐANG TẮT",
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                    ],
+                  ),
+                  // Cột 3: Nhiệt độ / Ẩm không khí (Lấy từ API)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Row(children: [
+                        const Icon(Icons.thermostat, color: Colors.orangeAccent, size: 16),
+                        Text(" ${temp.toStringAsFixed(1)}°C", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ]),
+                      const SizedBox(height: 8),
+                      Row(children: [
+                        const Icon(Icons.cloud, color: Colors.lightBlueAccent, size: 16),
+                        Text(" ${hum.toInt()}%", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ]),
+                    ],
+                  )
+                ],
+              )
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // --- [SỬA LỖI] BẢNG ĐIỀU KHIỂN CÓ PHẢN HỒI ---
+  Widget _buildPumpControlPanel() {
+    bool isAuto = _iotControlMode == "AUTO";
+    // Check nút nào đang active
+    bool isManualOn = !isAuto && _iotPumpStatusTarget == "ON";
+    bool isManualOff = !isAuto && _iotPumpStatusTarget == "OFF";
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[300]!),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5)],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text("🎮 Bảng Điều Khiển Bơm", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              Row(
+                children: [
+                  Text(isAuto ? "Tự động" : "Thủ công", style: TextStyle(fontSize: 12, color: isAuto ? Colors.green : Colors.orange, fontWeight: FontWeight.bold)),
+                  Switch(
+                    value: isAuto,
+                    activeColor: Colors.green,
+                    onChanged: (val) {
+                      _sendCommandToPump(val, false); // Chuyển chế độ, mặc định tắt bơm an toàn
+                    },
+                  ),
+                ],
+              )
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (isAuto)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.green[50], borderRadius: BorderRadius.circular(8)),
+              child: Row(
+                children: const [
+                  Icon(Icons.auto_mode, color: Colors.green),
+                  SizedBox(width: 8),
+                  Expanded(child: Text("Hệ thống đang tự động tưới theo cảm biến. Bạn không cần thao tác.", style: TextStyle(color: Colors.green, fontSize: 13))),
+                ],
+              ),
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _isSendingCommand ? null : () => _sendCommandToPump(false, true),
+                    icon: const Icon(Icons.power_settings_new),
+                    label: const Text("BẬT BƠM"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isManualOn ? Colors.blue : Colors.grey[300], // Sáng lên nếu đang ON
+                      foregroundColor: isManualOn ? Colors.white : Colors.black54,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _isSendingCommand ? null : () => _sendCommandToPump(false, false),
+                    icon: const Icon(Icons.stop_circle_outlined),
+                    label: const Text("TẮT BƠM"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isManualOff ? Colors.red : Colors.grey[300], // Sáng lên nếu đang OFF
+                      foregroundColor: isManualOff ? Colors.white : Colors.black54,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ],
+            )
+        ],
+      ),
+    );
+  }
+
+  // --- CÁC WIDGET CŨ (GIỮ NGUYÊN) ---
+
   Widget _buildWeatherHeader() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: _isViewingHistory
-              ? [Colors.grey[700]!, Colors.blueGrey[500]!]
-              : [Colors.green[700]!, Colors.teal[500]!],
+          colors: [Colors.green[700]!, Colors.teal[500]!],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -753,10 +1080,7 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            _isViewingHistory ? '🕒 Dữ liệu lịch sử' : '⛅ Thời Tiết Thời Gian Thực',
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-          ),
+          const Text('🕒 Dữ liệu lịch sử / Thời tiết API', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
           const SizedBox(height: 12),
           if (_currentTemp != null)
             Row(
@@ -766,22 +1090,13 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(selectedLocation, style: const TextStyle(color: Colors.white70, fontSize: 14)),
-                    Text(
-                      '${_currentTemp!.toStringAsFixed(1)}°C',
-                      style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      weatherCondition,
-                      style: const TextStyle(color: Colors.white, fontSize: 16),
-                    ),
+                    Text('${_currentTemp!.toStringAsFixed(1)}°C', style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
+                    Text(weatherCondition, style: const TextStyle(color: Colors.white, fontSize: 16)),
                   ],
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(16)),
                   child: Column(
                     children: [
                       const Icon(Icons.water_drop, color: Colors.white),
@@ -1047,7 +1362,7 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
 
           const SizedBox(height: 16),
 
-          // [MỚI] Nút Xác Nhận Tưới
+          // Nút Xác Nhận Tưới
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
@@ -1130,7 +1445,10 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
       default: frequency = '1 lần/tuần'; soilMoisture = '40-50%'; note = 'Dưỡng cây.';
     }
 
-    if (_predictedRain24h > 10) {
+    // [LOGIC MỚI] Ưu tiên dữ liệu cảm biến thực tế
+    if (_realtimeSoilMoisture != null && _realtimeSoilMoisture! > 70) {
+      note = "ĐẤT ĐỦ ẨM (${_realtimeSoilMoisture}%): Hệ thống khuyến nghị KHÔNG CẦN TƯỚI.";
+    } else if (_predictedRain24h > 10) {
       note = "DỰ BÁO MƯA LỚN: Nên tạm ngưng hoặc giảm tưới để tiết kiệm nước!";
     }
 
@@ -1344,9 +1662,7 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
     );
   }
 
-  // --- [NÂNG CẤP] Lịch Tưới Thông Minh ---
   Widget _buildWeeklySchedule() {
-    // Gọi hàm mới: _getSmartWeeklySchedule
     List<Map<String, dynamic>> schedule = _getSmartWeeklySchedule();
 
     return Container(
@@ -1386,25 +1702,22 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
               String day = item['day'];
               String date = item['date'];
 
-              // Cấu hình hiển thị theo Status
               Color bgColor = Colors.grey[100]!;
               Color iconColor = Colors.grey[400]!;
-              IconData icon = Icons.circle_outlined; // Mặc định: Nghỉ
+              IconData icon = Icons.circle_outlined;
 
-              if (status == 1) { // Cần tưới
+              if (status == 1) {
                 bgColor = Colors.blue[100]!;
                 iconColor = Colors.blue[700]!;
                 icon = Icons.water_drop;
-              } else if (status == 2) { // Hoãn do mưa
+              } else if (status == 2) {
                 bgColor = Colors.orange[100]!;
                 iconColor = Colors.orange[700]!;
-                icon = Icons.cloud_off; // Icon đám mây gạch chéo
+                icon = Icons.cloud_off;
               }
 
-              // Nếu là ngày quá khứ
               if (isPast) {
                 if (status > 0) {
-                  // Giả sử quá khứ luôn là đã xong (hoặc hiển thị mờ đi)
                   bgColor = Colors.grey[300]!;
                   iconColor = Colors.grey[600]!;
                   icon = Icons.check_circle;
@@ -1420,7 +1733,7 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
                       color: bgColor,
                       shape: BoxShape.circle,
                       border: isToday
-                          ? Border.all(color: Colors.orange, width: 2) // Highlight hôm nay
+                          ? Border.all(color: Colors.orange, width: 2)
                           : Border.all(color: Colors.transparent),
                     ),
                     child: Center(
@@ -1463,14 +1776,11 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
     );
   }
 
-  // --- [MỚI] Logic Lịch Thông Minh ---
   List<Map<String, dynamic>> _getSmartWeeklySchedule() {
-    // 1. Xác định ngày đầu tuần (Thứ 2)
     DateTime now = DateTime.now();
-    int currentWeekday = now.weekday; // 1 (Mon) -> 7 (Sun)
+    int currentWeekday = now.weekday;
     DateTime startOfWeek = now.subtract(Duration(days: currentWeekday - 1));
 
-    // 2. Lấy mẫu lịch cơ bản (Base Pattern)
     List<bool> basePattern = _getBaseSchedulePattern();
 
     List<Map<String, dynamic>> result = [];
@@ -1479,22 +1789,17 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
       DateTime date = startOfWeek.add(Duration(days: i));
       bool isToday = (date.year == now.year && date.month == now.month && date.day == now.day);
 
-      // So sánh ngày (bỏ qua giờ phút giây)
       DateTime dateOnly = DateTime(date.year, date.month, date.day);
       DateTime nowOnly = DateTime(now.year, now.month, now.day);
       bool isPast = dateOnly.isBefore(nowOnly);
 
-      // 3. Tìm dự báo cho ngày này (nếu có trong 5 ngày tới)
       double predictedRain = 0.0;
       for (var item in _dailyForecasts) {
-        // item['dt_txt'] dạng "2023-10-27 12:00:00"
         String dtTxt = item['dt_txt'] ?? '';
         DateTime itemDate = DateTime.tryParse(dtTxt) ?? DateTime(1970);
 
         if (itemDate.year == date.year && itemDate.month == date.month && itemDate.day == date.day) {
-          // Lấy dữ liệu mưa (đơn giản hóa: nếu main là Rain hoặc có rain volume)
           if (item['weather'][0]['main'] == 'Rain') {
-            // Nếu API báo mưa, gán 1 giá trị tượng trưng > ngưỡng để kích hoạt logic Hoãn
             predictedRain = 15.0;
           } else if (item.containsKey('rain')) {
             predictedRain = (item['rain']['3h'] as num?)?.toDouble() ?? 0.0;
@@ -1502,16 +1807,15 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
         }
       }
 
-      int status = 0; // 0: Nghỉ, 1: Tưới, 2: Mưa/Hoãn
+      int status = 0;
       if (basePattern[i]) {
-        // Nếu lịch gốc bảo tưới, kiểm tra thời tiết
-        if (predictedRain > 5.0) { // Ngưỡng 5mm là hoãn
-          status = 2; // Có lịch nhưng mưa -> Hoãn
+        if (predictedRain > 5.0) {
+          status = 2;
         } else {
-          status = 1; // Có lịch + Nắng -> Tưới
+          status = 1;
         }
       } else {
-        status = 0; // Không có lịch
+        status = 0;
       }
 
       result.add({
@@ -1525,7 +1829,6 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
     return result;
   }
 
-  // Tách logic cũ ra để tái sử dụng
   List<bool> _getBaseSchedulePattern() {
     if (selectedStage == 'Ra hoa') return [true, false, false, true, false, false, false];
     if (selectedStage == 'Đậu trái' || selectedStage == 'Phát triển trái') return [true, false, true, false, true, false, false];
