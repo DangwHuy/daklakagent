@@ -105,7 +105,7 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
   // --- DỮ LIỆU IOT ---
   int? _realtimeSoilMoisture;
   String _iotControlMode = "AUTO"; // Mặc định tự động
-  String _iotPumpStatusTarget = "OFF";  // [CẬP NHẬT] Trạng thái mong muốn (thay cho command)
+  String _iotPumpStatusTarget = "OFF";  // Trạng thái lệnh hiện tại
   bool _isSendingCommand = false;
   StreamSubscription? _controlSub;
 
@@ -588,7 +588,7 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
     );
   }
 
-  // --- LOGIC AI GEMINI ---
+  // --- LOGIC AI GEMINI (NÂNG CẤP ĐỌC IOT) ---
   Future<void> _askGemini() async {
     if (apiKey.isEmpty) {
       setState(() => _aiError = "Đang chạy trong môi trường demo không có API Key.");
@@ -619,27 +619,41 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
     int waterPerTree = basicCalc['raw_amount'] ?? 50;
     double totalUsageM3 = (waterPerTree * totalTrees) / 1000;
 
+    // --- [MỚI] Lấy dữ liệu IoT để gửi AI ---
+    String iotSoil = _realtimeSoilMoisture != null ? "$_realtimeSoilMoisture%" : "Chưa kết nối";
+    String iotPump = _iotPumpStatusTarget;
+    String iotMode = _iotControlMode;
+
     final prompt = '''
       CONTEXT: Chuyên gia nông nghiệp sầu riêng tại $selectedLocation (Tây Nguyên).
       
       INPUT DATA:
       - Vườn: Tuổi $treeAge, Giai đoạn $selectedStage, Đất $soilType.
-      - Hiện tại: ${_currentTemp ?? 'N/A'}C, Ẩm ${_currentHumidity ?? 'N/A'}%, Mưa ${_rainVolume ?? 0}mm, $weatherCondition.
+      - Hiện tại (API): ${_currentTemp ?? 'N/A'}C, Ẩm ${_currentHumidity ?? 'N/A'}%, Mưa ${_rainVolume ?? 0}mm, $weatherCondition.
+      
+      - DỮ LIỆU CẢM BIẾN THỰC TẾ (IOT):
+        + Độ ẩm đất: $iotSoil
+        + Trạng thái Bơm: $iotPump
+        + Chế độ vận hành: $iotMode
+      
       - Tài nguyên: $totalTrees cây, Hồ chứa còn $reserve m3.
       - Nhu cầu tưới (Máy tính): $waterPerTree L/cây => Tổng ${totalUsageM3.toStringAsFixed(2)} m3/lần.
       - Dự báo 3 ngày tới: $forecastSummary.
 
       NHIỆM VỤ:
-      1. Phân tích tác động thời tiết (đặc biệt là mưa dự báo) đến quyết định tưới.
-      2. Kiểm tra nguồn nước: Với hồ chứa hiện tại và nhu cầu tưới, có rủi ro thiếu nước không?
-      3. Đưa ra hành động cụ thể (Tưới ngay/Hoãn/Giảm lượng).
+      1. Phân tích tác động thời tiết và SO SÁNH với dữ liệu cảm biến thực tế.
+      2. Đưa ra quyết định tưới dựa trên sự thật (Cảm biến):
+         + Nếu Độ ẩm đất > 70%: Khuyên TUYỆT ĐỐI KHÔNG TƯỚI (dù lý thuyết bảo tưới).
+         + Nếu Độ ẩm đất < 40% mà Bơm đang TẮT: Cảnh báo khẩn cấp bật bơm.
+         + Nếu đang chế độ AUTO: Đánh giá xem hệ thống tự động có đang hoạt động hợp lý không.
+      3. Kiểm tra nguồn nước dự trữ.
 
       OUTPUT FORMAT (JSON only, no markdown):
       {
         "weather_impact": "Phân tích ngắn gọn (tối đa 20 từ).",
-        "water_action": "Quyết định tưới cụ thể (Dựa trên cả dự báo mưa và nguồn nước).",
+        "water_action": "Quyết định tưới cụ thể (Dựa trên cả dự báo mưa và cảm biến đất).",
         "nutrition_tips": "Lời khuyên dinh dưỡng cho $selectedStage.",
-        "summary_color": "#HexColor (Màu cảnh báo: đỏ/cam/xanh)."
+        "summary_color": "#HexColor (Màu cảnh báo: đỏ/cam/xanh/tím)."
       }
     ''';
 
@@ -930,7 +944,7 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
                           Column(
                             children: [
                               Text("$soil%", style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                              const Text("Đất", style: TextStyle(color: Colors.white70, fontSize: 10)),
+                              const Text("Độ Ẩm Đất", style: TextStyle(color: Colors.white70, fontSize: 10)),
                             ],
                           )
                         ],

@@ -5,14 +5,14 @@ import 'package:http/http.dart' as http;
 import 'price_screen.dart';
 import 'irrigation_screen.dart';
 import 'pest_disease_screen.dart';
-import 'expert_screen.dart';
+import 'expert_screen.dart' hide AnalyzeDiseaseScreen;
 import 'FarmerView.dart';
 
 
 // [THÊM MỚI] Import màn hình Chat AI
 import 'package:daklakagent/features/ai/screens/ai_chat.dart';
 import 'package:daklakagent/features/weather/Screens/weather_screen.dart';
-
+import 'disease.dart';
 // ==========================================
 // GIAO DIỆN CHÍNH (HOME SCREEN) V3.6 (AI UPDATE)
 // ==========================================
@@ -379,6 +379,19 @@ class HomeScreen extends StatelessWidget {
                 MaterialPageRoute(builder: (context) => const FindExpertScreen()),
               );
             },
+          ),
+          _FeatureCard(
+            icon: Icons.camera_alt_outlined, // Icon camera/phân tích ảnh
+            label: "Phân tích ảnh bệnh",
+            color: Colors.green, // Gợi ý: màu xanh nông nghiệp
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AnalyzeDiseaseScreen(),
+                  ),
+                );
+              },
           ),
         ],
       ),

@@ -3,7 +3,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ExpertScreen extends StatefulWidget {
-  const ExpertScreen({super.key});
+  // UPDATE: Thêm tham số nhận câu hỏi từ màn hình trước
+  final String? initialQuestion;
+
+  const ExpertScreen({super.key, this.initialQuestion});
 
   @override
   State<ExpertScreen> createState() => _ExpertScreenState();
@@ -15,10 +18,10 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
   final List<Map<String, dynamic>> _conversations = [];
   bool _isLoading = false;
   bool _isTyping = false;
-  bool _isLoadingHistory = false; // Đã bỏ Firebase nên không cần loading history
+  // bool _isLoadingHistory = false; // Đã bỏ Firebase
   late AnimationController _animationController;
 
-  final String geminiApiKey = 'AIzaSyBysa-ep-g0kPMdP2C0Tbmemq4lFmu1Hb0'; // API KEY của bạn
+  final String geminiApiKey = ''; // API KEY
 
   @override
   void initState() {
@@ -27,7 +30,11 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     )..repeat();
-    // Không cần initialize user vì đã bỏ Firebase
+
+    // UPDATE: Tự động điền câu hỏi nếu có dữ liệu truyền sang
+    if (widget.initialQuestion != null && widget.initialQuestion!.isNotEmpty) {
+      _questionController.text = widget.initialQuestion!;
+    }
   }
 
   Future<String> askAgent(String question) async {
@@ -144,9 +151,7 @@ Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đa
         backgroundColor: const Color(0xFFF5F7FA),
         body: Column(
           children: [
-            // Fixed Header - không bị ảnh hưởng bởi tab
             _buildHeader(),
-            // Tab Bar
             Container(
               color: Colors.white,
               child: TabBar(
@@ -170,7 +175,6 @@ Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đa
                 ],
               ),
             ),
-            // Tab Content
             Expanded(
               child: TabBarView(
                 children: [
