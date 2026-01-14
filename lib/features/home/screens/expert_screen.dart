@@ -1,9 +1,40 @@
+/*
+⚠️ HƯỚNG DẪN CẤU HÌNH QUYỀN MICRO (BẮT BUỘC ĐỂ DÙNG GIỌNG NÓI):
+
+1. Android (android/app/src/main/AndroidManifest.xml):
+   Thêm các dòng sau vào trước thẻ <application>:
+
+   <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+   <uses-permission android:name="android.permission.INTERNET"/>
+   <uses-permission android:name="android.permission.BLUETOOTH"/>
+   <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/>
+   <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
+
+   Và thêm vào trong thẻ <manifest> (quan trọng cho Android 11+):
+   <queries>
+       <intent>
+           <action android:name="android.speech.RecognitionService" />
+       </intent>
+   </queries>
+
+2. iOS (ios/Runner/Info.plist):
+   Thêm các dòng sau vào trong thẻ <dict>:
+
+   <key>NSSpeechRecognitionUsageDescription</key>
+   <string>Ứng dụng cần quyền này để chuyển giọng nói thành văn bản cho việc nhập câu hỏi.</string>
+   <key>NSMicrophoneUsageDescription</key>
+   <string>Ứng dụng cần quyền truy cập microphone để nghe câu hỏi của bạn.</string>
+*/
+
+// AI phân tích CHuyên sâu
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
+import 'package:flutter_markdown/flutter_markdown.dart'; // FEATURE 2: Hiển thị Markdown đẹp
+import 'package:speech_to_text/speech_to_text.dart' as stt; // FEATURE 3: Giọng nói
 
 class ExpertScreen extends StatefulWidget {
-  // UPDATE: Thêm tham số nhận câu hỏi từ màn hình trước
   final String? initialQuestion;
 
   const ExpertScreen({super.key, this.initialQuestion});
@@ -15,13 +46,29 @@ class ExpertScreen extends StatefulWidget {
 class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderStateMixin {
   final TextEditingController _questionController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final List<Map<String, dynamic>> _conversations = [];
+
+  // Dữ liệu hội thoại sẽ được đồng bộ từ Firestore
+  List<Map<String, dynamic>> _conversations = [];
+
   bool _isLoading = false;
   bool _isTyping = false;
-  // bool _isLoadingHistory = false; // Đã bỏ Firebase
   late AnimationController _animationController;
 
-  final String geminiApiKey = ''; // API KEY
+  // Cấu hình Firestore
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  // Trong thực tế, bạn nên lấy User ID từ FirebaseAuth.
+  // Ở đây mình dùng ID cố định để demo cho bà con.
+  final String _userId = 'ba_con_nong_dan_01';
+
+  // UPDATE: Địa chỉ Server Python (Ngrok) của bạn
+  // Lưu ý: Mỗi lần chạy lại ngrok sẽ có link mới, nhớ cập nhật vào đây nhé!
+  final String serverUrl = 'https://dann-uncoincidental-katheleen.ngrok-free.dev/chat';
+
+  // --- BIẾN CHO FEATURE 3 (GIỌNG NÓI) ---
+  late stt.SpeechToText _speech;
+  bool _isListening = false;
+  bool _speechEnabled = false;
+  String _speechError = ''; // Biến lưu lỗi cụ thể để hiển thị
 
   @override
   void initState() {
@@ -31,63 +78,188 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
       duration: const Duration(milliseconds: 1500),
     )..repeat();
 
-    // UPDATE: Tự động điền câu hỏi nếu có dữ liệu truyền sang
+    // Khởi tạo Speech to Text
+    _speech = stt.SpeechToText();
+    _initSpeech();
+
+    // 1. Lắng nghe dữ liệu từ Firestore theo thời gian thực (Real-time)
+    _listenToChatHistory();
+
     if (widget.initialQuestion != null && widget.initialQuestion!.isNotEmpty) {
       _questionController.text = widget.initialQuestion!;
     }
   }
 
-  Future<String> askAgent(String question) async {
-    if (geminiApiKey.isEmpty) {
-      return '❌ Lỗi: Chưa cấu hình API Key! Vui lòng liên hệ quản trị viên.';
+  // Khởi tạo quyền truy cập Micro
+  void _initSpeech() async {
+    try {
+      _speechEnabled = await _speech.initialize(
+        onStatus: (status) {
+          if (status == 'notListening') {
+            if (mounted) setState(() => _isListening = false);
+          } else if (status == 'listening') {
+            if (mounted) setState(() => _isListening = true);
+          }
+        },
+        onError: (errorNotification) {
+          if (mounted) {
+            setState(() {
+              _isListening = false;
+              _speechError = errorNotification.errorMsg; // Lưu thông báo lỗi
+            });
+            print('Lỗi giọng nói: ${errorNotification.errorMsg}');
+          }
+        },
+      );
+      if (mounted) setState(() {});
+    } catch (e) {
+      setState(() {
+        _speechError = e.toString();
+        _speechEnabled = false;
+      });
+      print("Không khởi tạo được SpeechToText: $e");
+    }
+  }
+
+  // Hàm bắt đầu nghe
+  void _startListening() async {
+    if (!_speechEnabled) {
+      // HIỂN THỊ LỖI CỤ THỂ CHO NGƯỜI DÙNG
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_speechError.isNotEmpty
+              ? 'Lỗi: $_speechError'
+              : '⚠️ Lỗi: Không tìm thấy dịch vụ Google Speech hoặc chưa cấp quyền Micro!'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+          action: SnackBarAction(
+            label: 'Thử lại',
+            textColor: Colors.white,
+            onPressed: _initSpeech,
+          ),
+        ),
+      );
+      // Cố gắng khởi tạo lại
+      _initSpeech();
+      return;
     }
 
     try {
-      final url = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$geminiApiKey',
+      await _speech.listen(
+        onResult: (result) {
+          setState(() {
+            _questionController.text = result.recognizedWords;
+            if (_questionController.text.isNotEmpty) {
+              _questionController.selection = TextSelection.fromPosition(
+                TextPosition(offset: _questionController.text.length),
+              );
+            }
+          });
+        },
+        localeId: 'vi_VN', // Cấu hình tiếng Việt
+        cancelOnError: true,
+        listenMode: stt.ListenMode.dictation,
       );
+      setState(() => _isListening = true);
+    } catch (e) {
+      print("Lỗi khi bắt đầu nghe: $e");
+      setState(() => _isListening = false);
+    }
+  }
 
+  // Hàm dừng nghe
+  void _stopListening() async {
+    await _speech.stop();
+    setState(() => _isListening = false);
+  }
+
+  // --- LOGIC FIRESTORE (MỚI) ---
+
+  void _listenToChatHistory() {
+    // Lắng nghe thay đổi trong collection messages
+    _firestore
+        .collection('chat_history')
+        .doc(_userId)
+        .collection('messages')
+        .orderBy('timestamp', descending: false) // Sắp xếp tin nhắn cũ -> mới
+        .snapshots()
+        .listen((snapshot) {
+      if (mounted) {
+        setState(() {
+          _conversations = snapshot.docs.map((doc) => doc.data()).toList();
+        });
+
+        // Tự động cuộn xuống cuối khi có tin nhắn mới
+        Future.delayed(const Duration(milliseconds: 200), () {
+          if (_scrollController.hasClients) {
+            _scrollController.animateTo(
+              _scrollController.position.maxScrollExtent,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+            );
+          }
+        });
+      }
+    }, onError: (e) {
+      print("Lỗi tải chat: $e");
+    });
+  }
+
+  // Hàm thêm tin nhắn vào Firestore
+  Future<void> _addMessageToFirestore(String text, bool isUser) async {
+    await _firestore
+        .collection('chat_history')
+        .doc(_userId)
+        .collection('messages')
+        .add({
+      'text': text,
+      'isUser': isUser,
+      'time': _getCurrentTime(), // Lưu chuỗi giờ hiển thị
+      'timestamp': FieldValue.serverTimestamp(), // Lưu thời gian server để sắp xếp
+    });
+  }
+
+  // Hàm xóa lịch sử trên Firestore
+  Future<void> _clearHistory() async {
+    final batch = _firestore.batch();
+    final snapshot = await _firestore
+        .collection('chat_history')
+        .doc(_userId)
+        .collection('messages')
+        .get();
+
+    for (var doc in snapshot.docs) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
+  }
+
+  // ---------------------------
+
+  // UPDATE: Hàm gọi Server Python (RAG) thay vì gọi trực tiếp Gemini
+  Future<String> askAgent(String question) async {
+    try {
       final response = await http.post(
-        url,
+        Uri.parse(serverUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'contents': [
-            {
-              'parts': [
-                {
-                  'text': '''Bạn là "Agent Cho Bà Con" - trợ lý AI thông minh chuyên hỗ trợ bà con nông dân Việt Nam về kỹ thuật trồng sầu riêng.
-
-🌟 Phong cách trả lời:
-- Thân thiện, gần gũi như anh em một nhà
-- Dùng ngôn ngữ dễ hiểu, tránh thuật ngữ phức tạp
-- Đưa ra giải pháp cụ thể, có thể làm ngay
-- Kèm theo lời khuyên thực tế từ kinh nghiệm
-
-📝 Câu hỏi của bà con: $question
-
-Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đang chia sẻ kinh nghiệm với bà con!'''
-                }
-              ]
-            }
-          ],
-          'generationConfig': {
-            'temperature': 0.8,
-            'maxOutputTokens': 1200,
-          }
+          'question': question, // Gửi key 'question' đúng như server Python yêu cầu
         }),
       );
 
       if (response.statusCode == 200) {
+        // Server Python trả về JSON dạng: {"answer": "...", "context_used": "..."}
         final data = jsonDecode(utf8.decode(response.bodyBytes));
-        return data['candidates'][0]['content']['parts'][0]['text'];
+        return data['answer'] ?? 'Lỗi: Server không trả về câu trả lời.';
       } else {
-        throw Exception('API Error: ${response.statusCode}');
+        return '❌ Lỗi kết nối Server: ${response.statusCode}. Bà con kiểm tra lại Server Python nhé!';
       }
     } catch (e) {
-      return '😔 Xin lỗi bà con, Agent đang bận một chút. Vui lòng thử lại sau nhé!\n\n💡 Mẹo: Bà con có thể xem phần FAQ bên dưới trong lúc chờ đợi.';
+      return '😔 Không kết nối được với Server chuyên gia. \nLỗi: $e \n\n💡 Mẹo: Bà con kiểm tra xem link Ngrok có bị đổi không nhé!';
     }
   }
 
+  // ... (Giữ nguyên phần FAQ Data để code gọn)
   final List<Map<String, dynamic>> faqData = [
     {
       'question': 'Sầu riêng tôi bị vàng lá, phải làm sao?',
@@ -149,6 +321,8 @@ Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đa
       length: 2,
       child: Scaffold(
         backgroundColor: const Color(0xFFF5F7FA),
+        // resizeToAvoidBottomInset: true giúp đẩy giao diện lên khi có bàn phím
+        resizeToAvoidBottomInset: true,
         body: Column(
           children: [
             _buildHeader(),
@@ -183,9 +357,11 @@ Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đa
                 ],
               ),
             ),
+            // UPDATE: Đưa thanh nhập liệu vào Column chính để nó tự động đẩy lên theo bàn phím
+            _buildInputSection(),
           ],
         ),
-        bottomNavigationBar: _buildInputSection(),
+        // Bỏ bottomNavigationBar để tránh xung đột với bàn phím
       ),
     );
   }
@@ -224,9 +400,9 @@ Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đa
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Agent Cho Bà Con',
+                      'Chuyên Gia Sầu Riêng', // Đổi tên hiển thị cho phù hợp
                       style: TextStyle(
-                        fontSize: 24,
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
@@ -244,7 +420,7 @@ Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đa
                         ),
                         const SizedBox(width: 6),
                         const Text(
-                          'Đang hoạt động',
+                          'Kết nối Server RAG VietGAP',
                           style: TextStyle(
                             color: Colors.white70,
                             fontSize: 14,
@@ -255,6 +431,32 @@ Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đa
                   ],
                 ),
               ),
+              // Nút xóa lịch sử trên mây
+              IconButton(
+                icon: const Icon(Icons.cloud_off, color: Colors.white70),
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Xóa lịch sử trên Mây?'),
+                      content: const Text('Hành động này sẽ xóa vĩnh viễn tin nhắn đã lưu.'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Thôi'),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            _clearHistory();
+                            Navigator.pop(context);
+                          },
+                          child: const Text('Xóa hết', style: TextStyle(color: Colors.red)),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              )
             ],
           ),
           const SizedBox(height: 16),
@@ -270,11 +472,11 @@ Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đa
             ),
             child: const Row(
               children: [
-                Icon(Icons.auto_awesome, color: Colors.amber, size: 20),
+                Icon(Icons.cloud_done, color: Colors.lightBlueAccent, size: 20),
                 SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Trợ lý AI thông minh - Hỗ trợ 24/7',
+                    'Đã đồng bộ dữ liệu Firestore & Server',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 13,
@@ -291,27 +493,31 @@ Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đa
   }
 
   Widget _buildChatTab() {
-    if (_conversations.isEmpty) {
+    if (_conversations.isEmpty && !_isTyping) {
       return _buildEmptyState();
     }
 
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.all(16),
-      reverse: true,
+      // Giữ nguyên logic hiển thị danh sách
       itemCount: _conversations.length + (_isTyping ? 1 : 0),
       itemBuilder: (context, index) {
-        if (_isTyping && index == 0) {
+        if (_isTyping && index == _conversations.length) {
           return _buildTypingIndicator();
         }
-        final actualIndex = _isTyping ? index - 1 : index;
-        return _buildMessageBubble(
-          _conversations[_conversations.length - 1 - actualIndex],
-        );
+
+        // Nếu đang typing thì index cuối cùng là indicator, còn lại là msg
+        // Nếu không typing thì index map thẳng vào conversation
+        if (index < _conversations.length) {
+          return _buildMessageBubble(_conversations[index]);
+        }
+        return const SizedBox.shrink();
       },
     );
   }
 
+  // ... (Các Widget EmptyState, SuggestedChip, TypingIndicator giữ nguyên để giao diện đẹp)
   Widget _buildEmptyState() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -350,7 +556,7 @@ Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đa
           ),
           const SizedBox(height: 12),
           Text(
-            'Agent sẵn sàng hỗ trợ bà con về\nkỹ thuật trồng sầu riêng',
+            'Agent đã kết nối với Server VietGAP.\nBà con cứ yên tâm hỏi nhé!',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 16,
@@ -359,15 +565,7 @@ Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đa
             ),
           ),
           const SizedBox(height: 32),
-          const Text(
-            '💡 Gợi ý câu hỏi:',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF4A5568),
-            ),
-          ),
-          const SizedBox(height: 16),
+          // ... (Phần Chip gợi ý giữ nguyên)
           Wrap(
             spacing: 10,
             runSpacing: 10,
@@ -480,6 +678,7 @@ Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đa
 
   Widget _buildMessageBubble(Map<String, dynamic> message) {
     final isUser = message['isUser'] ?? false;
+    final text = message['text'] ?? '';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -494,7 +693,7 @@ Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đa
           Flexible(
             child: Container(
               constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.75,
+                maxWidth: MediaQuery.of(context).size.width * 0.85, // Tăng width một chút cho dễ đọc
               ),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -528,7 +727,7 @@ Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đa
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           const Text(
-                            'Agent Cho Bà Con',
+                            'Chuyên Gia Sầu Riêng',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 13,
@@ -554,12 +753,24 @@ Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đa
                         ],
                       ),
                     ),
-                  Text(
-                    message['text'] ?? '',
-                    style: TextStyle(
-                      fontSize: 15,
-                      height: 1.6,
-                      color: isUser ? Colors.white : const Color(0xFF2D3748),
+                  // FEATURE 2: SỬ DỤNG MARKDOWN BODY
+                  MarkdownBody(
+                    data: text,
+                    selectable: true, // Cho phép copy text
+                    styleSheet: MarkdownStyleSheet(
+                      p: TextStyle(
+                        fontSize: 15,
+                        height: 1.6,
+                        color: isUser ? Colors.white : const Color(0xFF2D3748),
+                      ),
+                      strong: TextStyle( // In đậm
+                        fontWeight: FontWeight.bold,
+                        color: isUser ? Colors.white : const Color(0xFF2D3748),
+                      ),
+                      listBullet: TextStyle( // Gạch đầu dòng
+                        color: isUser ? Colors.white70 : const Color(0xFF6C63FF),
+                      ),
+                      // Màu cho blockquote, code, table nếu có...
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -583,6 +794,7 @@ Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đa
     );
   }
 
+  // ... (Avatar Widget và FAQ Tab giữ nguyên)
   Widget _buildAgentAvatar() {
     return Container(
       width: 40,
@@ -710,6 +922,7 @@ Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đa
                     ],
                   ),
                   const SizedBox(height: 12),
+                  // FAQ vẫn dùng Text thường vì ngắn gọn
                   Text(
                     faq['answer']!,
                     style: const TextStyle(
@@ -729,99 +942,140 @@ Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đa
 
   Widget _buildInputSection() {
     return Container(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 16,
-        bottom: MediaQuery.of(context).padding.bottom + 16,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 20,
-            offset: const Offset(0, -4),
+      // Dùng SafeArea để tránh phần tai thỏ/phím điều hướng nếu cần
+      child: SafeArea(
+        top: false,
+        child: Container(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            // Thêm padding bottom nhỏ nếu cần thiết, nhưng SafeArea thường đã lo việc này
+            bottom: 16,
           ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFFF7F8FA),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: _isLoading
-                      ? const Color(0xFF6C63FF).withOpacity(0.3)
-                      : Colors.transparent,
-                  width: 2,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 20,
+                offset: const Offset(0, -4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF7F8FA),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: _isListening
+                          ? Colors.redAccent // Viền đỏ khi đang nghe
+                          : (_isLoading ? const Color(0xFF6C63FF).withOpacity(0.3) : Colors.transparent),
+                      width: 2,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _questionController,
+                          maxLines: null,
+                          enabled: !_isLoading,
+                          style: const TextStyle(fontSize: 15),
+                          decoration: InputDecoration(
+                            hintText: _isListening
+                                ? 'Đang nghe bà con nói...'
+                                : (_isLoading ? 'Đang suy nghĩ...' : 'Hỏi gì không bà con?'),
+                            hintStyle: TextStyle(
+                              color: _isListening ? Colors.redAccent : Colors.grey[400],
+                              fontSize: 14,
+                            ),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 14,
+                            ),
+                            // Giữ icon chat bubble cũ
+                            prefixIcon: Icon(
+                              Icons.chat_bubble_outline,
+                              color: Colors.grey[400],
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ),
+                      // FEATURE 3: NÚT MICRO TRONG Ô NHẬP LIỆU
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: GestureDetector(
+                          // Cấu hình: Bấm 1 cái để Bật/Tắt (Dễ dùng hơn nhấn giữ)
+                          onTap: () {
+                            if (_isListening) {
+                              _stopListening();
+                            } else {
+                              _startListening();
+                            }
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: _isListening ? Colors.redAccent.withOpacity(0.1) : Colors.transparent,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              _isListening ? Icons.mic : Icons.mic_none,
+                              color: _isListening ? Colors.red : Colors.grey[600],
+                              size: 24,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              child: TextField(
-                controller: _questionController,
-                maxLines: null,
-                enabled: !_isLoading,
-                style: const TextStyle(fontSize: 15),
-                decoration: InputDecoration(
-                  hintText: _isLoading
-                      ? 'Agent đang suy nghĩ...'
-                      : 'Bà con cần hỏi gì không? 😊',
-                  hintStyle: TextStyle(
-                    color: Colors.grey[400],
-                    fontSize: 14,
+              const SizedBox(width: 12),
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  gradient: _isLoading
+                      ? LinearGradient(colors: [Colors.grey[400]!, Colors.grey[400]!])
+                      : const LinearGradient(
+                    colors: [Color(0xFF6C63FF), Color(0xFF5A52D5)],
                   ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 14,
-                  ),
-                  prefixIcon: Icon(
-                    Icons.chat_bubble_outline,
-                    color: Colors.grey[400],
-                    size: 20,
-                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: _isLoading
+                      ? null
+                      : [
+                    BoxShadow(
+                      color: const Color(0xFF6C63FF).withOpacity(0.4),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: IconButton(
+                  onPressed: _isLoading ? null : _sendQuestion,
+                  icon: _isLoading
+                      ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                      : const Icon(Icons.send_rounded, color: Colors.white, size: 22),
                 ),
               ),
-            ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              gradient: _isLoading
-                  ? LinearGradient(colors: [Colors.grey[400]!, Colors.grey[400]!])
-                  : const LinearGradient(
-                colors: [Color(0xFF6C63FF), Color(0xFF5A52D5)],
-              ),
-              shape: BoxShape.circle,
-              boxShadow: _isLoading
-                  ? null
-                  : [
-                BoxShadow(
-                  color: const Color(0xFF6C63FF).withOpacity(0.4),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: IconButton(
-              onPressed: _isLoading ? null : _sendQuestion,
-              icon: _isLoading
-                  ? const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              )
-                  : const Icon(Icons.send_rounded, color: Colors.white, size: 22),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -848,45 +1102,23 @@ Hãy trả lời chi tiết, nhiệt tình như một người anh em ruột đa
     final question = _questionController.text.trim();
     _questionController.clear();
 
+    // 1. Lưu câu hỏi của User lên Firestore ngay lập tức
+    await _addMessageToFirestore(question, true);
+
     setState(() {
-      _conversations.add({
-        'text': question,
-        'isUser': true,
-        'time': _getCurrentTime(),
-      });
       _isLoading = true;
       _isTyping = true;
     });
 
-    // Scroll to bottom
-    Future.delayed(const Duration(milliseconds: 100), () {
-      _scrollController.animateTo(
-        0,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    });
-
-    // Get AI response
+    // 2. Gọi AI
     final answer = await askAgent(question);
+
+    // 3. Lưu câu trả lời của AI lên Firestore
+    await _addMessageToFirestore(answer, false);
 
     setState(() {
       _isTyping = false;
-      _conversations.add({
-        'text': answer,
-        'isUser': false,
-        'time': _getCurrentTime(),
-      });
       _isLoading = false;
-    });
-
-    // Scroll to bottom
-    Future.delayed(const Duration(milliseconds: 100), () {
-      _scrollController.animateTo(
-        0,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
     });
   }
 

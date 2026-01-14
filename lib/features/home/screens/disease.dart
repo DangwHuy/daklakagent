@@ -429,7 +429,7 @@ class _AnalyzeDiseaseScreenState extends State<AnalyzeDiseaseScreen> {
           child: ElevatedButton.icon(
             onPressed: _navigateToExpert,
             icon: const Icon(Icons.support_agent),
-            label: const Text("Hỏi Chuyên Gia Về Bệnh Này"),
+            label: const Text("Hỏi Chuyên Sâu Về Bệnh Này"),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.teal[700],
               foregroundColor: Colors.white,

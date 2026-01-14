@@ -359,7 +359,7 @@ class HomeScreen extends StatelessWidget {
           ),
           _FeatureCard(
             icon: Icons.forum_outlined,
-            label: "Hỏi đáp chuyên gia",
+            label: "AI Phân Tích Chuyên Sâu",
             color: Colors.purple,
             onTap: () {
               Navigator.push(
