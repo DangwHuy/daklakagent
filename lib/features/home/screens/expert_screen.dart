@@ -15,6 +15,10 @@
        <intent>
            <action android:name="android.speech.RecognitionService" />
        </intent>
+       <!-- QUERIES CHO TEXT-TO-SPEECH (QUAN TRỌNG ĐỂ ĐỌC ĐƯỢC) -->
+       <intent>
+           <action android:name="android.intent.action.TTS_SERVICE" />
+       </intent>
    </queries>
 
 2. iOS (ios/Runner/Info.plist):
@@ -33,6 +37,7 @@ import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
 import 'package:flutter_markdown/flutter_markdown.dart'; // FEATURE 2: Hiển thị Markdown đẹp
 import 'package:speech_to_text/speech_to_text.dart' as stt; // FEATURE 3: Giọng nói
+import 'package:flutter_tts/flutter_tts.dart'; // đọc kết quả trả về
 
 class ExpertScreen extends StatefulWidget {
   final String? initialQuestion;
@@ -70,6 +75,10 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
   bool _speechEnabled = false;
   String _speechError = ''; // Biến lưu lỗi cụ thể để hiển thị
 
+  // --- BIẾN CHO TEXT TO SPEECH (ĐỌC VĂN BẢN) ---
+  late FlutterTts _flutterTts;
+  String? _currentReadingText; // Biến để kiểm soát đoạn đang đọc
+
   @override
   void initState() {
     super.initState();
@@ -81,6 +90,9 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
     // Khởi tạo Speech to Text
     _speech = stt.SpeechToText();
     _initSpeech();
+
+    // Khởi tạo Text to Speech
+    _initTts();
 
     // 1. Lắng nghe dữ liệu từ Firestore theo thời gian thực (Real-time)
     _listenToChatHistory();
@@ -173,6 +185,46 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
     setState(() => _isListening = false);
   }
 
+  // Hàm cấu hình TTS (Copy hàm này vào trong class)
+  void _initTts() async { // Thêm async để chờ cấu hình
+    _flutterTts = FlutterTts();
+
+    // Cấu hình tiếng Việt - Quan trọng: Chờ setLanguage xong mới chạy tiếp
+    // Nếu máy chưa có tiếng Việt, nó sẽ dùng tiếng Anh mặc định gây lỗi đọc không dấu
+    await _flutterTts.setLanguage("vi-VN");
+
+    await _flutterTts.setPitch(1.0);
+    await _flutterTts.setSpeechRate(0.5); // Tốc độ vừa phải
+
+    // Khi đọc xong hoặc hủy thì reset icon
+    _flutterTts.setCompletionHandler(() {
+      if (mounted) setState(() => _currentReadingText = null);
+    });
+    _flutterTts.setCancelHandler(() {
+      if (mounted) setState(() => _currentReadingText = null);
+    });
+    _flutterTts.setErrorHandler((msg) {
+      if (mounted) setState(() => _currentReadingText = null);
+    });
+  }
+
+  // Hàm xử lý việc Đọc/Dừng (Copy hàm này vào trong class)
+  Future<void> _speak(String text) async {
+    // Đảm bảo set lại ngôn ngữ trước mỗi lần đọc để tránh bị reset về mặc định
+    await _flutterTts.setLanguage("vi-VN");
+
+    if (_currentReadingText == text) {
+      // Nếu đang đọc chính đoạn này thì DỪNG
+      await _flutterTts.stop();
+      if (mounted) setState(() => _currentReadingText = null);
+    } else {
+      // Nếu đang đọc đoạn khác hoặc chưa đọc thì ĐỌC MỚI
+      await _flutterTts.stop();
+      if (mounted) setState(() => _currentReadingText = text);
+      await _flutterTts.speak(text);
+    }
+  }
+
   // --- LOGIC FIRESTORE (MỚI) ---
 
   void _listenToChatHistory() {
@@ -259,7 +311,6 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
     }
   }
 
-  // ... (Giữ nguyên phần FAQ Data để code gọn)
   final List<Map<String, dynamic>> faqData = [
     {
       'question': 'Sầu riêng tôi bị vàng lá, phải làm sao?',
@@ -361,7 +412,6 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
             _buildInputSection(),
           ],
         ),
-        // Bỏ bottomNavigationBar để tránh xung đột với bàn phím
       ),
     );
   }
@@ -400,7 +450,7 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Chuyên Gia Sầu Riêng', // Đổi tên hiển thị cho phù hợp
+                      'Chuyên Gia Sầu Riêng',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -431,9 +481,8 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
                   ],
                 ),
               ),
-              // Nút xóa lịch sử trên mây
               IconButton(
-                icon: const Icon(Icons.cloud_off, color: Colors.white70),
+                icon: const Icon(Icons.delete_sweep, color: Colors.white70),
                 onPressed: () {
                   showDialog(
                     context: context,
@@ -500,15 +549,11 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.all(16),
-      // Giữ nguyên logic hiển thị danh sách
       itemCount: _conversations.length + (_isTyping ? 1 : 0),
       itemBuilder: (context, index) {
         if (_isTyping && index == _conversations.length) {
           return _buildTypingIndicator();
         }
-
-        // Nếu đang typing thì index cuối cùng là indicator, còn lại là msg
-        // Nếu không typing thì index map thẳng vào conversation
         if (index < _conversations.length) {
           return _buildMessageBubble(_conversations[index]);
         }
@@ -517,7 +562,6 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
     );
   }
 
-  // ... (Các Widget EmptyState, SuggestedChip, TypingIndicator giữ nguyên để giao diện đẹp)
   Widget _buildEmptyState() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -565,7 +609,6 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
             ),
           ),
           const SizedBox(height: 32),
-          // ... (Phần Chip gợi ý giữ nguyên)
           Wrap(
             spacing: 10,
             runSpacing: 10,
@@ -679,6 +722,7 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
   Widget _buildMessageBubble(Map<String, dynamic> message) {
     final isUser = message['isUser'] ?? false;
     final text = message['text'] ?? '';
+    final bool isReadingThis = _currentReadingText == text; // Kiểm tra trạng thái đọc
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -693,7 +737,7 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
           Flexible(
             child: Container(
               constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.85, // Tăng width một chút cho dễ đọc
+                maxWidth: MediaQuery.of(context).size.width * 0.85,
               ),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -724,30 +768,54 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'Chuyên Gia Sầu Riêng',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                              color: Color(0xFF6C63FF),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF4CAF50),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Text(
-                              'AI',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
+                          Row(
+                            children: [
+                              const Text(
+                                'Chuyên Gia Sầu Riêng',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: Color(0xFF6C63FF),
+                                ),
                               ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF4CAF50),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Text(
+                                  'AI',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          // Nút Loa (Đọc/Dừng)
+                          InkWell(
+                            onTap: () => _speak(text),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  isReadingThis ? Icons.stop_circle : Icons.volume_up,
+                                  size: 20,
+                                  color: isReadingThis ? Colors.red : Colors.grey[600],
+                                ),
+                                if (isReadingThis) ...[
+                                  const SizedBox(width: 4),
+                                  const Text(
+                                    'Dừng',
+                                    style: TextStyle(fontSize: 12, color: Colors.red),
+                                  ),
+                                ]
+                              ],
                             ),
                           ),
                         ],
@@ -756,21 +824,20 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
                   // FEATURE 2: SỬ DỤNG MARKDOWN BODY
                   MarkdownBody(
                     data: text,
-                    selectable: true, // Cho phép copy text
+                    selectable: true,
                     styleSheet: MarkdownStyleSheet(
                       p: TextStyle(
                         fontSize: 15,
                         height: 1.6,
                         color: isUser ? Colors.white : const Color(0xFF2D3748),
                       ),
-                      strong: TextStyle( // In đậm
+                      strong: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: isUser ? Colors.white : const Color(0xFF2D3748),
                       ),
-                      listBullet: TextStyle( // Gạch đầu dòng
+                      listBullet: TextStyle(
                         color: isUser ? Colors.white70 : const Color(0xFF6C63FF),
                       ),
-                      // Màu cho blockquote, code, table nếu có...
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -794,7 +861,6 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
     );
   }
 
-  // ... (Avatar Widget và FAQ Tab giữ nguyên)
   Widget _buildAgentAvatar() {
     return Container(
       width: 40,
@@ -922,7 +988,6 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
                     ],
                   ),
                   const SizedBox(height: 12),
-                  // FAQ vẫn dùng Text thường vì ngắn gọn
                   Text(
                     faq['answer']!,
                     style: const TextStyle(
@@ -942,7 +1007,6 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
 
   Widget _buildInputSection() {
     return Container(
-      // Dùng SafeArea để tránh phần tai thỏ/phím điều hướng nếu cần
       child: SafeArea(
         top: false,
         child: Container(
@@ -950,7 +1014,6 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
             left: 16,
             right: 16,
             top: 16,
-            // Thêm padding bottom nhỏ nếu cần thiết, nhưng SafeArea thường đã lo việc này
             bottom: 16,
           ),
           decoration: BoxDecoration(
@@ -972,7 +1035,7 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
                       color: _isListening
-                          ? Colors.redAccent // Viền đỏ khi đang nghe
+                          ? Colors.redAccent
                           : (_isLoading ? const Color(0xFF6C63FF).withOpacity(0.3) : Colors.transparent),
                       width: 2,
                     ),
@@ -998,7 +1061,6 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
                               horizontal: 20,
                               vertical: 14,
                             ),
-                            // Giữ icon chat bubble cũ
                             prefixIcon: Icon(
                               Icons.chat_bubble_outline,
                               color: Colors.grey[400],
@@ -1007,11 +1069,9 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
                           ),
                         ),
                       ),
-                      // FEATURE 3: NÚT MICRO TRONG Ô NHẬP LIỆU
                       Padding(
                         padding: const EdgeInsets.only(right: 8.0),
                         child: GestureDetector(
-                          // Cấu hình: Bấm 1 cái để Bật/Tắt (Dễ dùng hơn nhấn giữ)
                           onTap: () {
                             if (_isListening) {
                               _stopListening();
@@ -1102,7 +1162,6 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
     final question = _questionController.text.trim();
     _questionController.clear();
 
-    // 1. Lưu câu hỏi của User lên Firestore ngay lập tức
     await _addMessageToFirestore(question, true);
 
     setState(() {
@@ -1110,10 +1169,8 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
       _isTyping = true;
     });
 
-    // 2. Gọi AI
     final answer = await askAgent(question);
 
-    // 3. Lưu câu trả lời của AI lên Firestore
     await _addMessageToFirestore(answer, false);
 
     setState(() {
@@ -1132,6 +1189,7 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
     _questionController.dispose();
     _scrollController.dispose();
     _animationController.dispose();
+    _flutterTts.stop(); // Tắt loa khi thoát
     super.dispose();
   }
 }

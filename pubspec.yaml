@@ -21,6 +21,7 @@ dependencies:
   intl: ^0.18.1  # ← Thêm cái này nếu chưa có
   image_picker: ^1.0.7  # Để chụp/chọn ảnh
   speech_to_text: ^7.0.0
+  flutter_tts: ^4.2.5
 dev_dependencies:
   flutter_test:
     sdk: flutter
