@@ -109,6 +109,10 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
   bool _isSendingCommand = false;
   StreamSubscription? _controlSub;
 
+  // [MỚI] Biến lưu lịch sử độ ẩm cho biểu đồ
+  List<Map<String, dynamic>> _soilHistory = [];
+  StreamSubscription? _sensorSub;
+
   // Danh sách địa điểm hỗ trợ
   final Map<String, Map<String, double>> locations = {
     "Krông Pắc": {"lat": 12.69, "lon": 108.30, "cao_do": 500},
@@ -145,6 +149,7 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
     _fetchWeather(selectedLocation);
     _loadFarmConfig();
     _listenToControlConfig(); // Bắt đầu lắng nghe cấu hình
+    _listenToSensorData(); // [MỚI] Bắt đầu lắng nghe dữ liệu cảm biến
     _totalTreesController.addListener(() => setState(() {}));
     _waterReserveController.addListener(() => setState(() {}));
   }
@@ -154,7 +159,49 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
     _totalTreesController.dispose();
     _waterReserveController.dispose();
     _controlSub?.cancel();
+    _sensorSub?.cancel(); // [MỚI] Hủy lắng nghe
     super.dispose();
+  }
+
+  // --- [SỬA LỖI QUAN TRỌNG] LẮNG NGHE DỮ LIỆU CẢM BIẾN (TÍCH LŨY BIỂU ĐỒ) ---
+  void _listenToSensorData() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    // [ĐÃ SỬA] Trỏ đúng vào config/pump_control nơi ESP32 đang ghi dữ liệu
+    final docRef = FirebaseFirestore.instance
+        .collection('artifacts')
+        .doc(_appId)
+        .collection('users')
+        .doc(user.uid)
+        .collection('config')
+        .doc('pump_control');
+
+    _sensorSub = docRef.snapshots().listen((snapshot) {
+      if (snapshot.exists && snapshot.data() != null) {
+        final data = snapshot.data() as Map<String, dynamic>;
+        int soil = (data['soil'] as num?)?.toInt() ?? 0;
+
+        setState(() {
+          // Cập nhật giá trị hiện tại
+          _realtimeSoilMoisture = soil;
+
+          // [MỚI] Thêm vào lịch sử biểu đồ
+          DateTime now = DateTime.now();
+          String timeStr = "${now.hour}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}";
+
+          _soilHistory.add({
+            'value': soil,
+            'time': timeStr,
+          });
+
+          // Giới hạn chỉ giữ 10 điểm dữ liệu gần nhất để biểu đồ không bị tràn
+          if (_soilHistory.length > 10) {
+            _soilHistory.removeAt(0);
+          }
+        });
+      }
+    });
   }
 
   // --- [SỬA LỖI] LẮNG NGHE & TỰ KHỞI TẠO CẤU HÌNH ---
@@ -275,6 +322,138 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi lưu: $e')));
     }
+  }
+
+  // --- [MỚI] CÔNG CỤ TÍNH THỂ TÍCH THỰC TẾ ---
+  void _showVolumeCalculator() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        // Biến cục bộ trong Dialog
+        String shape = 'rect'; // 'rect' hoặc 'circle'
+        final TextEditingController cLength = TextEditingController();
+        final TextEditingController cWidth = TextEditingController();
+        final TextEditingController cDepth = TextEditingController();
+        final TextEditingController cDiameter = TextEditingController();
+        final TextEditingController cDistance = TextEditingController();
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Row(
+                children: const [
+                  Icon(Icons.calculate, color: Colors.blue),
+                  SizedBox(width: 8),
+                  Text("Tính thể tích hồ"),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Chọn loại hồ
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ChoiceChip(
+                          label: const Text('Hình Chữ Nhật'),
+                          selected: shape == 'rect',
+                          onSelected: (b) => setDialogState(() => shape = 'rect'),
+                        ),
+                        const SizedBox(width: 8),
+                        ChoiceChip(
+                          label: const Text('Tròn/Giếng'),
+                          selected: shape == 'circle',
+                          onSelected: (b) => setDialogState(() => shape = 'circle'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    if (shape == 'rect') ...[
+                      TextField(
+                        controller: cLength,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Chiều Dài (m)', border: OutlineInputBorder()),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: cWidth,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Chiều Rộng (m)', border: OutlineInputBorder()),
+                      ),
+                    ] else ...[
+                      TextField(
+                        controller: cDiameter,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Đường kính miệng hồ (m)', border: OutlineInputBorder()),
+                      ),
+                    ],
+
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: cDepth,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Tổng độ sâu của hồ (m)', border: OutlineInputBorder()),
+                    ),
+
+                    const Divider(height: 24, thickness: 2),
+
+                    // Phần quan trọng: Mực nước thực tế
+                    TextField(
+                      controller: cDistance,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: 'Khoảng cách mặt đất -> mặt nước (m)',
+                        hintText: 'Nhập 0 nếu hồ đầy',
+                        border: const OutlineInputBorder(),
+                        fillColor: Colors.blue[50],
+                        filled: true,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(child: const Text("Hủy"), onPressed: () => Navigator.pop(context)),
+                ElevatedButton(
+                  child: const Text("Tính & Áp dụng"),
+                  onPressed: () {
+                    double depth = double.tryParse(cDepth.text) ?? 0;
+                    double distance = double.tryParse(cDistance.text) ?? 0;
+
+                    // Tính chiều cao nước thực tế
+                    double waterHeight = depth - distance;
+                    if (waterHeight < 0) waterHeight = 0;
+
+                    double volume = 0;
+                    if (shape == 'rect') {
+                      double l = double.tryParse(cLength.text) ?? 0;
+                      double w = double.tryParse(cWidth.text) ?? 0;
+                      volume = l * w * waterHeight;
+                    } else {
+                      double d = double.tryParse(cDiameter.text) ?? 0;
+                      double r = d / 2;
+                      volume = 3.14159 * r * r * waterHeight;
+                    }
+
+                    // Cập nhật vào ô nhập liệu chính
+                    setState(() {
+                      _waterReserveController.text = volume.toStringAsFixed(1);
+                    });
+                    Navigator.pop(context);
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text("Đã cập nhật: Mực nước cao ${waterHeight.toStringAsFixed(1)}m. Thể tích: ${volume.toStringAsFixed(1)} m³"))
+                    );
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   void _confirmIrrigation() async {
@@ -588,7 +767,7 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
     );
   }
 
-  // --- LOGIC AI GEMINI (NÂNG CẤP ĐỌC IOT) ---
+  // --- LOGIC AI GEMINI ---
   Future<void> _askGemini() async {
     if (apiKey.isEmpty) {
       setState(() => _aiError = "Đang chạy trong môi trường demo không có API Key.");
@@ -720,6 +899,9 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
             // --- [MỚI] IOT DASHBOARD (THAY THẾ HEADER THỜI TIẾT CŨ) ---
             _buildIoTDashboard(),
 
+            // --- [MỚI] BIỂU ĐỒ ĐỘ ẨM (VỊ TRÍ MỚI) ---
+            _buildSoilChart(),
+
             // --- HEADER DỰ BÁO ---
             if (_isForecastLoading)
               const LinearProgressIndicator(minHeight: 2, color: Colors.orange)
@@ -837,6 +1019,121 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
     );
   }
 
+  // --- [MỚI] WIDGET BIỂU ĐỒ THỰC TẾ ---
+  Widget _buildSoilChart() {
+    if (_soilHistory.isEmpty) {
+      return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.all(20),
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Column(
+            children: const [
+              CircularProgressIndicator(strokeWidth: 2),
+              SizedBox(height: 12),
+              Text("Đang thu thập dữ liệu biểu đồ...", style: TextStyle(color: Colors.grey)),
+            ],
+          )
+      );
+    }
+
+    // Tìm giá trị max để scale biểu đồ
+    double maxVal = 100;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 5)],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: const [
+              Text("📈 Biến động độ ẩm (Real-time)",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+              Icon(Icons.bar_chart, color: Colors.blueGrey),
+            ],
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            height: 180,
+            child: Row(
+              children: [
+                // Trục Y (0 - 100%)
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: const [
+                    Text("100", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                    Text("75", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                    Text("50", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                    Text("25", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                    Text("0", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                  ],
+                ),
+                const SizedBox(width: 10),
+                // Các cột biểu đồ
+                Expanded(
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _soilHistory.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    itemBuilder: (context, index) {
+                      final item = _soilHistory[index];
+                      int val = item['value'];
+                      String time = item['time'];
+
+                      // Màu sắc
+                      Color color;
+                      if (val < 40) color = Colors.redAccent;
+                      else if (val < 70) color = Colors.orangeAccent;
+                      else color = Colors.green;
+
+                      return Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text("$val", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color)),
+                          const SizedBox(height: 4),
+                          Container(
+                            width: 16,
+                            height: (val / 100) * 120, // Max height logic relative to container
+                            decoration: BoxDecoration(
+                              color: color,
+                              borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [color.withOpacity(0.5), color],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            time.length > 5 ? time.substring(0, 5) : time,
+                            style: const TextStyle(fontSize: 10, color: Colors.grey),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // --- [SỬA LỖI] WIDGET DASHBOARD IOT HIỂN THỊ DỮ LIỆU THẬT ---
   Widget _buildIoTDashboard() {
     final user = FirebaseAuth.instance.currentUser;
@@ -944,7 +1241,7 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
                           Column(
                             children: [
                               Text("$soil%", style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                              const Text("Độ Ẩm Đất", style: TextStyle(color: Colors.white70, fontSize: 10)),
+                              const Text("Đất", style: TextStyle(color: Colors.white70, fontSize: 10)),
                             ],
                           )
                         ],
@@ -1306,6 +1603,10 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
                     filled: true,
                     fillColor: Colors.white,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.calculate),
+                      onPressed: _showVolumeCalculator,
+                    ),
                     suffixText: 'm³',
                   ),
                 ),
@@ -1728,6 +2029,10 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
                 bgColor = Colors.orange[100]!;
                 iconColor = Colors.orange[700]!;
                 icon = Icons.cloud_off;
+              } else if (status == 3) {
+                bgColor = Colors.green[100]!;
+                iconColor = Colors.green[700]!;
+                icon = Icons.spa;
               }
 
               if (isPast) {
@@ -1776,13 +2081,16 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: const [
               Icon(Icons.water_drop, size: 12, color: Colors.blue),
-              Text(' Cần tưới ', style: TextStyle(fontSize: 11)),
-              SizedBox(width: 8),
+              Text(' Tưới ', style: TextStyle(fontSize: 10)),
+              SizedBox(width: 4),
               Icon(Icons.cloud_off, size: 12, color: Colors.orange),
-              Text(' Hoãn (Mưa) ', style: TextStyle(fontSize: 11)),
-              SizedBox(width: 8),
+              Text(' Mưa ', style: TextStyle(fontSize: 10)),
+              SizedBox(width: 4),
+              Icon(Icons.spa, size: 12, color: Colors.green),
+              Text(' Đủ ẩm ', style: TextStyle(fontSize: 10)),
+              SizedBox(width: 4),
               Icon(Icons.circle_outlined, size: 12, color: Colors.grey),
-              Text(' Nghỉ', style: TextStyle(fontSize: 11)),
+              Text(' Nghỉ', style: TextStyle(fontSize: 10)),
             ],
           ),
         ],
@@ -1824,10 +2132,16 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
       int status = 0;
       if (basePattern[i]) {
         if (predictedRain > 5.0) {
-          status = 2;
+          status = 2; // Mưa -> Hoãn
         } else {
-          status = 1;
+          status = 1; // Nắng -> Tưới
         }
+
+        // [MỚI] Nếu là hôm nay và đất đủ ẩm -> Chuyển sang Status 3 (Đủ ẩm)
+        if (isToday && _realtimeSoilMoisture != null && _realtimeSoilMoisture! > 70) {
+          status = 3;
+        }
+
       } else {
         status = 0;
       }
