@@ -38,7 +38,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
     switch (actionCode) {
       case 'OPEN_PRICE':
-        targetScreen = const PriceScreen();
+        targetScreen = const AgriPriceHome();
         actionName = "Bảng Giá";
         break;
       case 'OPEN_WATER':

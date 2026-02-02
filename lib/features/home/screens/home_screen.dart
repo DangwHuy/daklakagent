@@ -331,7 +331,7 @@ class HomeScreen extends StatelessWidget {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const PriceScreen()),
+                MaterialPageRoute(builder: (context) => const AgriPriceHome()),
               );
             },
           ),
