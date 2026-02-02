@@ -1,10 +1,10 @@
-//Ai Chat
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart'; // Để bắt sự kiện cuộn
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:daklakagent/features/ai/services/ai_service.dart';
-
-// --- IMPORT CÁC MÀN HÌNH CHỨC NĂNG ---
+import 'package:flutter_markdown/flutter_markdown.dart';
+// --- IMPORT CÁC MÀN HÌNH CHỨC NĂNG (Giữ nguyên của bác) ---
 import 'package:daklakagent/features/home/screens/price_screen.dart';
 import 'package:daklakagent/features/home/screens/irrigation_screen.dart';
 import 'package:daklakagent/features/home/screens/pest_disease_screen.dart';
@@ -21,144 +21,117 @@ class AiChatScreen extends StatefulWidget {
 class _AiChatScreenState extends State<AiChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final AiService _aiService = AiService();
-  bool _isLoading = false;
   final ScrollController _scrollController = ScrollController();
 
-  final List<String> _suggestions = [
-    "Giá cà phê hôm nay?",
-    "Lịch tưới cho sầu riêng",
-    "Tìm chuyên gia tư vấn",
-    "Tra cứu bệnh nấm hồng",
+  bool _isLoading = false; // Trạng thái đang gửi tin
+  bool _isRecommendationVisible = true; // Trạng thái hiện menu gợi ý
+
+  // Dữ liệu menu nông nghiệp (Giao diện mới)
+  final List<Map<String, dynamic>> _recommendations = [
+    {"icon": Icons.price_change, "color": Colors.orange, "title": "Giá nông sản", "subtitle": "Cập nhật giá sầu riêng, cà phê.", "query": "Giá nông sản hôm nay"},
+    {"icon": Icons.water_drop, "color": Colors.blue, "title": "Lịch Tưới", "subtitle": "Tra cứu lịch tưới nước.", "query": "Lịch tưới nước cho cây"},
+    {"icon": Icons.bug_report, "color": Colors.redAccent, "title": "Tra cứu sâu bệnh", "subtitle": "Nhận diện bệnh và cách phòng trừ.", "query": "Cách trị sâu bệnh"},
+    {"icon": Icons.support_agent, "color": Colors.green, "title": "Hỏi đáp chuyên gia", "subtitle": "Tham gia diễn đàn kỹ thuật.", "query": "Tôi muốn hỏi chuyên gia"},
+    {"icon": Icons.calendar_month, "color": Colors.purple, "title": "Đặt lịch chuyên gia", "subtitle": "Hẹn gặp kỹ sư tại vườn.", "query": "Đặt lịch hẹn kỹ sư"},
   ];
 
-  // --- HÀM ĐIỀU HƯỚNG TỪ MÃ ACTION ---
+  // --- 1. LOGIC ĐIỀU HƯỚNG (Giữ nguyên) ---
   void _performAction(String actionCode) {
     Widget? targetScreen;
-    String actionName = "";
-
     switch (actionCode) {
-      case 'OPEN_PRICE':
-        targetScreen = const AgriPriceHome();
-        actionName = "Bảng Giá";
-        break;
-      case 'OPEN_WATER':
-        targetScreen = const IrrigationScreen();
-        actionName = "Lịch Tưới";
-        break;
-      case 'OPEN_PEST':
-        targetScreen = const PestDiseaseScreen();
-        actionName = "Sâu Bệnh";
-        break;
-      case 'OPEN_FORUM':
-        targetScreen = const ExpertScreen();
-        actionName = "Hỏi Đáp";
-        break;
-      case 'OPEN_BOOKING':
-        targetScreen = const FindExpertScreen();
-        actionName = "Đặt Lịch";
-        break;
+      case 'OPEN_PRICE': targetScreen = const AgriPriceHome(); break;
+      case 'OPEN_WATER': targetScreen = const IrrigationScreen(); break;
+      case 'OPEN_PEST': targetScreen = const PestDiseaseScreen(); break;
+      case 'OPEN_FORUM': targetScreen = const ExpertScreen(); break;
+      case 'OPEN_BOOKING': targetScreen = const FindExpertScreen(); break;
     }
-
     if (targetScreen != null) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => targetScreen!),
-      );
+      Navigator.push(context, MaterialPageRoute(builder: (context) => targetScreen!));
     }
   }
 
-  // --- HÀM GỬI TIN NHẮN ---
+  // --- 2. LOGIC GỬI TIN NHẮN (Giữ nguyên logic, thêm xử lý UI) ---
   void _sendMessage(String text) async {
     if (text.trim().isEmpty) return;
-
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    setState(() => _isLoading = true);
+    // Cập nhật UI ngay lập tức
+    setState(() {
+      _isLoading = true;
+      _isRecommendationVisible = false; // Ẩn gợi ý khi bắt đầu chat
+    });
     _controller.clear();
-    _scrollToBottom();
+
+    // Cuộn xuống dưới cùng
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(0.0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+    }
 
     try {
-      // 1. Lưu tin nhắn User
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('ai_chat_history')
-          .add({
+      // A. Lưu tin nhắn User
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).collection('ai_chat_history').add({
         'text': text,
         'isUser': true,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      // 2. Gửi lên AI
-      String responseRaw = await _aiService.sendMessage(text);
+      // B. Gọi AI
+      // Thêm dấu phẩy và ngoặc vuông [] vào sau biến text
+      String responseRaw = await _aiService.sendMessage(text, []);
 
-      // 3. Phân tích Action Tag
+      // C. Xử lý Action Tag
       String cleanResponse = responseRaw;
       String? actionCode;
 
-      if (responseRaw.contains('[ACTION:OPEN_PRICE]')) {
-        cleanResponse = responseRaw.replaceAll('[ACTION:OPEN_PRICE]', '');
-        actionCode = 'OPEN_PRICE';
-      } else if (responseRaw.contains('[ACTION:OPEN_WATER]')) {
-        cleanResponse = responseRaw.replaceAll('[ACTION:OPEN_WATER]', '');
-        actionCode = 'OPEN_WATER';
-      } else if (responseRaw.contains('[ACTION:OPEN_PEST]')) {
-        cleanResponse = responseRaw.replaceAll('[ACTION:OPEN_PEST]', '');
-        actionCode = 'OPEN_PEST';
-      } else if (responseRaw.contains('[ACTION:OPEN_FORUM]')) {
-        cleanResponse = responseRaw.replaceAll('[ACTION:OPEN_FORUM]', '');
-        actionCode = 'OPEN_FORUM';
-      } else if (responseRaw.contains('[ACTION:OPEN_BOOKING]')) {
-        cleanResponse = responseRaw.replaceAll('[ACTION:OPEN_BOOKING]', '');
-        actionCode = 'OPEN_BOOKING';
+      final actions = ['OPEN_PRICE', 'OPEN_WATER', 'OPEN_PEST', 'OPEN_FORUM', 'OPEN_BOOKING'];
+      for (var act in actions) {
+        if (responseRaw.contains('[ACTION:$act]')) {
+          cleanResponse = responseRaw.replaceAll('[ACTION:$act]', '');
+          actionCode = act;
+          break;
+        }
       }
 
-      // 4. Lưu tin nhắn AI (kèm action nếu có)
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('ai_chat_history')
-          .add({
+      // D. Lưu tin nhắn AI
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).collection('ai_chat_history').add({
         'text': cleanResponse.trim(),
         'isUser': false,
-        'action': actionCode, // Lưu mã hành động vào DB
+        'action': actionCode,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      if (mounted) {
-        setState(() => _isLoading = false);
-        _scrollToBottom();
-      }
+      if (mounted) setState(() => _isLoading = false);
     } catch (e) {
-      if(mounted) setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
       print("Lỗi chat AI: $e");
     }
   }
 
-  void _scrollToBottom() {
-    // Delay nhẹ để list kịp render item mới
-    Future.delayed(const Duration(milliseconds: 200), () {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          0.0, // Vì reverse: true, 0.0 là đáy (mới nhất)
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
-
-  void _clearHistory() async {
+  // --- 3. LOGIC XÓA LỊCH SỬ (TẠO CHAT MỚI) ---
+  // Hàm xử lý khi bấm nút Cây bút (Tạo đoạn chat mới)
+  void _startNewChat() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
+
+    // 1. CẬP NHẬT GIAO DIỆN NGAY LẬP TỨC
+    setState(() {
+      _isRecommendationVisible = true; // <--- DÒNG QUAN TRỌNG NHẤT: Bắt buộc phải là true để hiện lại menu
+      _isLoading = false;              // Tắt xoay vòng nếu đang treo
+      _controller.clear();             // Xóa chữ đang nhập dở
+    });
+
+    // 2. Xóa dữ liệu trên Firestore (chạy ngầm)
     final batch = FirebaseFirestore.instance.batch();
     var snapshots = await FirebaseFirestore.instance
         .collection('users')
         .doc(user.uid)
         .collection('ai_chat_history')
         .get();
-    for (var doc in snapshots.docs) batch.delete(doc.reference);
+
+    for (var doc in snapshots.docs) {
+      batch.delete(doc.reference);
+    }
     await batch.commit();
   }
 
@@ -167,155 +140,174 @@ class _AiChatScreenState extends State<AiChatScreen> {
     final user = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F9FF), // Màu nền xanh nhạt chuẩn Mimo
+
+      // --- APP BAR ---
       appBar: AppBar(
-        title: const Row(children: [Icon(Icons.smart_toy), SizedBox(width: 10), Text("Trợ Lý AI")]),
-        backgroundColor: Colors.green[700],
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.black54),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: !_isRecommendationVisible
+            ? const Text("Trợ lý Nông nghiệp", style: TextStyle(color: Colors.black87, fontSize: 16))
+            : null,
+        centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.delete_outline),
-            onPressed: _clearHistory,
-          )
+            tooltip: "Tạo trò chuyện mới",
+            icon: const Icon(Icons.edit_square, color: Colors.blue),
+            onPressed: _startNewChat,
+          ),
+          const SizedBox(width: 8),
         ],
       ),
+
       body: Column(
         children: [
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(user?.uid)
-                  .collection('ai_chat_history')
-                  .orderBy('createdAt', descending: true)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                final docs = snapshot.data!.docs;
-
-                if (docs.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.spa, size: 60, color: Colors.green[200]),
-                        const SizedBox(height: 10),
-                        const Text("Chào bác! Tôi có thể giúp gì hôm nay?", style: TextStyle(color: Colors.grey, fontSize: 16)),
-                      ],
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  controller: _scrollController,
-                  reverse: true,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: docs.length,
-                  itemBuilder: (context, index) {
-                    final data = docs[index].data() as Map<String, dynamic>;
-                    final isUser = data['isUser'] ?? false;
-                    final text = data['text'] ?? "";
-                    final String? action = data['action']; // Lấy action từ DB
-
-                    return Align(
-                      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(vertical: 5),
-                        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-                        child: Column(
-                          crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                          children: [
-                            // Bong bóng chat
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: isUser ? Colors.green[600] : Colors.grey[200],
-                                borderRadius: BorderRadius.only(
-                                  topLeft: const Radius.circular(15),
-                                  topRight: const Radius.circular(15),
-                                  bottomLeft: isUser ? const Radius.circular(15) : const Radius.circular(0),
-                                  bottomRight: isUser ? const Radius.circular(0) : const Radius.circular(15),
-                                ),
-                              ),
-                              child: Text(
-                                text,
-                                style: TextStyle(color: isUser ? Colors.white : Colors.black87, fontSize: 16),
-                              ),
-                            ),
-
-                            // Nút hành động (Nếu có action và là tin nhắn AI)
-                            if (!isUser && action != null)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 5),
-                                child: ElevatedButton.icon(
-                                  onPressed: () => _performAction(action),
-                                  icon: const Icon(Icons.open_in_new, size: 16),
-                                  label: Text(_getActionLabel(action)),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.blue[50],
-                                    foregroundColor: Colors.blue[800],
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    elevation: 0,
-                                    side: BorderSide(color: Colors.blue.withOpacity(0.3)),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-
-          if (_isLoading)
-            const Padding(padding: EdgeInsets.all(8.0), child: LinearProgressIndicator(color: Colors.green)),
-
-          if (!_isLoading)
-            SizedBox(
-              height: 50,
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                scrollDirection: Axis.horizontal,
-                itemCount: _suggestions.length,
-                separatorBuilder: (c, i) => const SizedBox(width: 8),
-                itemBuilder: (context, index) => ActionChip(
-                  label: Text(_suggestions[index]),
-                  onPressed: () => _sendMessage(_suggestions[index]),
-                  backgroundColor: Colors.green[50],
-                  labelStyle: TextStyle(color: Colors.green[800]),
-                ),
-              ),
-            ),
-
-          Container(
-            padding: const EdgeInsets.all(10),
-            color: Colors.white,
-            child: Row(
+          // --- PHẦN 1: HEADER & GỢI Ý (Có Animation) ---
+          AnimatedSize(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            child: _isRecommendationVisible
+                ? Column(
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    decoration: InputDecoration(
-                      hintText: "Nhập câu hỏi...",
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)),
-                      filled: true,
-                      fillColor: Colors.grey[100],
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                // Lời chào
+                Padding(
+                  padding: const EdgeInsets.only(top: 5, bottom: 10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                    onSubmitted: _sendMessage,
+                    child: const Text("Chào, tôi là Trợ lý Nông nghiệp", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
                   ),
                 ),
-                const SizedBox(width: 8),
-                CircleAvatar(
-                  backgroundColor: Colors.green,
-                  child: IconButton(
-                      icon: const Icon(Icons.send, color: Colors.white),
-                      onPressed: () => _sendMessage(_controller.text)
+
+                // Khung Menu Gợi ý
+                Container(
+                  margin: const EdgeInsets.only(top: 0, bottom: 20, left: 16, right: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEBF5FF),
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 16, left: 4),
+                        child: Text("Khuyến nghị 👍", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      ),
+                      ..._recommendations.map((item) => _buildRecommendationItem(item)),
+                    ],
                   ),
                 )
               ],
+            )
+                : const SizedBox.shrink(),
+          ),
+
+          // --- PHẦN 2: DANH SÁCH CHAT (STREAM FIRESTORE) ---
+          Expanded(
+            child: NotificationListener<UserScrollNotification>(
+              onNotification: (notification) {
+                // Logic: Kéo xuống ẩn gợi ý, Kéo lên hiện gợi ý (nếu chưa có tin nhắn nhiều)
+                if (notification.direction == ScrollDirection.reverse) {
+                  if (_isRecommendationVisible) setState(() => _isRecommendationVisible = false);
+                } else if (notification.direction == ScrollDirection.forward) {
+                  // Chỉ hiện lại nếu người dùng muốn xem lại và scroll lên đỉnh
+                  // (Logic tùy chỉnh, ở đây mình để đơn giản là không hiện lại nếu đã chat để tránh rối)
+                }
+                return true;
+              },
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(user?.uid)
+                    .collection('ai_chat_history')
+                    .orderBy('createdAt', descending: true)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                  final docs = snapshot.data!.docs;
+
+                  // Nếu đã có tin nhắn trong lịch sử, tự động ẩn khuyến nghị để vào thẳng chat
+                  if (docs.isNotEmpty && _isRecommendationVisible && !_isLoading) {
+                    // Dùng Future.microtask để tránh lỗi setState khi đang build
+                    Future.microtask(() {
+                      if(mounted && _isRecommendationVisible) setState(() => _isRecommendationVisible = false);
+                    });
+                  }
+
+                  return ListView.builder(
+                    controller: _scrollController,
+                    reverse: true,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    itemCount: docs.length,
+                    itemBuilder: (context, index) {
+                      final data = docs[index].data() as Map<String, dynamic>;
+                      final isUser = data['isUser'] ?? false;
+                      final text = data['text'] ?? "";
+                      final String? action = data['action'];
+
+                      return _buildChatBubble(text, isUser, action);
+                    },
+                  );
+                },
+              ),
+            ),
+          ),
+
+          // Loading Indicator
+          if (_isLoading)
+            const Padding(padding: EdgeInsets.all(8.0), child: CircularProgressIndicator(strokeWidth: 2)),
+
+          // --- PHẦN 3: INPUT VIÊN THUỐC ---
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            color: const Color(0xFFF5F9FF),
+            child: SafeArea(
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(30),
+                      border: Border.all(color: Colors.blue.withOpacity(0.5), width: 1.5),
+                      boxShadow: [BoxShadow(color: Colors.blue.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _controller,
+                            decoration: const InputDecoration(
+                              hintText: "Hỏi tôi bất cứ gì...",
+                              hintStyle: TextStyle(color: Colors.grey, fontWeight: FontWeight.w400),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            onSubmitted: _sendMessage,
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () => _sendMessage(_controller.text),
+                          child: const Icon(Icons.send_rounded, color: Colors.blueAccent),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text("Nội dung tạo bởi AI. Vui lòng sử dụng chỉ để tham khảo.",
+                        style: TextStyle(fontSize: 10, color: Colors.grey)),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -323,7 +315,114 @@ class _AiChatScreenState extends State<AiChatScreen> {
     );
   }
 
-  // Helper để lấy tên nút hiển thị
+  // --- WIDGET CON: ITEM GỢI Ý ---
+  Widget _buildRecommendationItem(Map<String, dynamic> item) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.05), spreadRadius: 2, blurRadius: 5)],
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: item['color'].withOpacity(0.1), shape: BoxShape.circle),
+          child: Icon(item['icon'], color: item['color']),
+        ),
+        title: Text(item['title'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+        subtitle: Text(item['subtitle'], style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        onTap: () => _sendMessage(item['query']), // Tự động gửi câu hỏi mẫu
+      ),
+    );
+  }
+
+  // --- WIDGET CON: BONG BÓNG CHAT ---
+  // --- WIDGET CON: BONG BÓNG CHAT (ĐÃ SỬA ĐỂ HIỂN THỊ MARKDOWN) ---
+  Widget _buildChatBubble(String text, bool isUser, String? action) {
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+        decoration: BoxDecoration(
+          color: isUser ? Colors.blue : Colors.white, // User: Xanh, AI: Trắng
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(16),
+            topRight: const Radius.circular(16),
+            bottomLeft: isUser ? const Radius.circular(16) : Radius.zero,
+            bottomRight: isUser ? Radius.zero : const Radius.circular(16),
+          ),
+          boxShadow: [if (!isUser) BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5, offset: const Offset(0, 2))],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // --- THAY ĐỔI Ở ĐÂY: DÙNG MARKDOWN BODY ---
+            MarkdownBody(
+              data: text,
+              styleSheet: MarkdownStyleSheet(
+                // Chỉnh màu chữ: User màu trắng, AI màu đen
+                p: TextStyle(
+                  color: isUser ? Colors.white : Colors.black87,
+                  fontSize: 15,
+                  height: 1.4, // Giãn dòng cho dễ đọc
+                ),
+                // Chỉnh in đậm (**text**)
+                strong: TextStyle(
+                    color: isUser ? Colors.white : Colors.black,
+                    fontWeight: FontWeight.bold
+                ),
+                // Chỉnh tiêu đề (# Title) - làm cho giá tiền to rõ hơn
+                h1: TextStyle(
+                    color: isUser ? Colors.white : Colors.black,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18
+                ),
+                h2: TextStyle(
+                    color: isUser ? Colors.white : Colors.blue[800], // Tiêu đề con màu xanh đậm cho đẹp
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16
+                ),
+                // Chỉnh list (gạch đầu dòng)
+                listBullet: TextStyle(
+                  color: isUser ? Colors.white : Colors.black87,
+                ),
+              ),
+            ),
+
+            // Nút hành động (Giữ nguyên code cũ)
+            if (!isUser && action != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: InkWell(
+                  onTap: () => _performAction(action),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.touch_app, size: 16, color: Colors.blue),
+                        const SizedBox(width: 6),
+                        Text(_getActionLabel(action), style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 13)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   String _getActionLabel(String action) {
     switch (action) {
       case 'OPEN_PRICE': return "Xem Bảng Giá";

@@ -7,7 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 // --- CONFIGURATION ---
-const String apiKey = ""; // API Key Gemini
+  const String apiKey = ""; // API Key Gemini
 const String openWeatherApiKey = "4be89a65fe75c2f972c0f24084943bc1"; // API Key OpenWeatherMap
 
 // --- MAIN ENTRY POINT ---

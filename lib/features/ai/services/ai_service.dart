@@ -1,78 +1,37 @@
-// Sever AI
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class AiService {
-  // API Key bạn đã cung cấp
-  static const String _apiKey = "";
+  // 10.0.2.2 là địa chỉ IP để máy ảo Android gọi về máy tính (localhost) của bác
+  // Nếu bác dùng máy thật, hãy đổi thành IP của máy tính (ví dụ: 192.168.1.5)
+  final String apiUrl = "https://flowery-nonrespectably-rene.ngrok-free.dev/chat";
 
-  // Endpoint gốc (KHÔNG bao gồm key ở đây để tránh bị lặp)
-  static const String _baseUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
-  Future<String> sendMessage(String message) async {
+
+  Future<String> sendMessage(String message, List<Map<String, String>> history) async {
     try {
-      // Ghép key vào URL tại đây
-      final url = Uri.parse("$_baseUrl?key=$_apiKey");
-
-      // --- CẤU HÌNH TRÍ TUỆ NHÂN TẠO & ĐIỀU HƯỚNG ---
-      final systemContext = """
-        Bạn là 'Trợ lý Nông nghiệp Đăk Lăk' chuyên nghiệp và thân thiện.
-        Trả lời ngắn gọn, súc tích, dùng từ ngữ địa phương Tây Nguyên thân mật (xưng hô 'tôi' và 'bà con' hoặc 'bác').
-        
-        QUY TẮC ĐIỀU HƯỚNG (RẤT QUAN TRỌNG):
-        Nếu người dùng hỏi về các chức năng sau, hãy trả lời ngắn gọn và THÊM THẺ HÀNH ĐỘNG (Tag) vào cuối câu:
-
-        1. Muốn xem GIÁ CẢ thị trường, giá cà phê, tiêu... 
-           -> Thêm cuối câu: [ACTION:OPEN_PRICE]
-           
-        2. Muốn xem LỊCH TƯỚI, chế độ nước, độ ẩm đất...
-           -> Thêm cuối câu: [ACTION:OPEN_WATER]
-           
-        3. Muốn tra cứu SÂU BỆNH, thuốc bảo vệ thực vật...
-           -> Thêm cuối câu: [ACTION:OPEN_PEST]
-           
-        4. Muốn HỎI ĐÁP chuyên gia, diễn đàn...
-           -> Thêm cuối câu: [ACTION:OPEN_FORUM]
-           
-        5. Muốn ĐẶT LỊCH HẸN trực tiếp với chuyên gia, tìm chuyên gia tư vấn riêng...
-           -> Thêm cuối câu: [ACTION:OPEN_BOOKING]
-
-        Ví dụ:
-        - User: "Giá sầu riêng nay bao nhiêu?"
-        - AI: "Dạ, giá sầu riêng hôm nay đang dao động từ 75k - 85k tùy loại. Bác xem bảng giá chi tiết nhé. [ACTION:OPEN_PRICE]"
-        
-        - User: "Tôi muốn hẹn gặp chuyên gia"
-        - AI: "Dạ được, bác có thể tìm và đặt lịch với các chuyên gia uy tín tại đây ạ. [ACTION:OPEN_BOOKING]"
-      """;
-
       final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse(apiUrl),
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
         body: jsonEncode({
-          "contents": [
-            {
-              "parts": [
-                {"text": "$systemContext\n\nCâu hỏi: $message"}
-              ]
-            }
-          ]
+          "message": message,
+          "history": history, // Gửi lịch sử để Python xử lý Memory (RAG)
         }),
-      );
+      ).timeout(const Duration(seconds: 30)); // Đợi tối đa 30s vì RAG tìm tài liệu hơi lâu
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        // Trích xuất câu trả lời từ JSON của Gemini
-        if (data['candidates'] != null && data['candidates'].isNotEmpty) {
-          return data['candidates'][0]['content']['parts'][0]['text'];
-        }
-        return "Xin lỗi bác, hệ thống đang bận, bác hỏi lại sau nhé.";
+        // utf8.decode để không bị lỗi font tiếng Việt khi nhận từ Python
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        return data['response'];
       } else {
-        // In lỗi ra console để dễ debug
-        print("Lỗi Gemini: ${response.body}");
-        return "Mạng hơi yếu, bác thử lại sau nhé (Lỗi: ${response.statusCode}).";
+        print("Lỗi Server: ${response.body}");
+        return "Bác thông cảm, bộ não AI đang bận tí (Lỗi: ${response.statusCode})";
       }
     } catch (e) {
-      return "Có lỗi xảy ra: $e";
+      print("Lỗi kết nối AiService: $e");
+      return "Không kết nối được với Server Python. Bác nhớ bật server.py lên nhé!";
     }
   }
 }
