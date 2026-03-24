@@ -362,7 +362,7 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
                         ),
                         const SizedBox(width: 8),
                         ChoiceChip(
-                          label: const Text('Tròn/Giếng'),
+                          label: const Text('Tròn'),
                           selected: shape == 'circle',
                           onSelected: (b) => setDialogState(() => shape = 'circle'),
                         ),
@@ -838,7 +838,7 @@ class _IrrigationScreenState extends State<IrrigationScreen> {
 
     try {
       final url = Uri.parse(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=$apiKey');
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey');
 
       final response = await http.post(
         url,
