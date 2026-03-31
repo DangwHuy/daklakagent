@@ -470,7 +470,7 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
                         ),
                         const SizedBox(width: 6),
                         const Text(
-                          'Kết nối Server RAG VietGAP',
+                          'Trực tuyến',
                           style: TextStyle(
                             color: Colors.white70,
                             fontSize: 14,
@@ -525,7 +525,7 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
                 SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Đã đồng bộ dữ liệu Firestore & Server',
+                    'Đã đồng bộ dữ liệu',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 13,
@@ -600,7 +600,7 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
           ),
           const SizedBox(height: 12),
           Text(
-            'Agent đã kết nối với Server VietGAP.\nBà con cứ yên tâm hỏi nhé!',
+            'Quy trình chuẩn VietGAP.\nBà con cứ yên tâm hỏi nhé!',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 16,
@@ -773,7 +773,7 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
                           Row(
                             children: [
                               const Text(
-                                'Chuyên Gia Sầu Riêng',
+                                'Chuyên Gia Sầu Riêng AI',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 13,

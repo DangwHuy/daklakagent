@@ -410,58 +410,54 @@ class _AgriPriceHomeState extends State<AgriPriceHome> {
             ),
             const SizedBox(width: 16),
 
-            // Cột 2: Tên & Giá
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // 1. Tên sản phẩm/Khu vực (Tự động xuống dòng)
                   Text(
                     item['name'].toString().toUpperCase(),
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[600], letterSpacing: 0.5),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey[800],
+                      height: 1.3, // Khoảng cách dòng cho thoáng
+                    ),
+                    softWrap: true, // Cho phép xuống dòng
                   ),
-                  const SizedBox(height: 4),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      Text(
-                        item['price'],
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red[700]),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(item['unit'], style: TextStyle(fontSize: 14, color: Colors.grey[500])),
-                    ],
+
+                  const SizedBox(height: 8),
+
+                  // 2. Giá và Đơn vị (Dùng RichText để đơn vị dính liền vào giá)
+                  RichText(
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: item['price'],
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red[700],
+                          ),
+                        ),
+                        const TextSpan(text: ' '), // Khoảng trắng nhỏ
+                        TextSpan(
+                          text: item['unit'],
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.normal,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
 
-            // Cột 3: Tăng giảm
-            if (change.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isUp ? Colors.green[50] : (isDown ? Colors.red[50] : Colors.grey[100]),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                        isUp ? Icons.arrow_drop_up : (isDown ? Icons.arrow_drop_down : Icons.remove),
-                        color: isUp ? Colors.green : (isDown ? Colors.red : Colors.grey),
-                        size: 20
-                    ),
-                    Text(
-                      change.replaceAll('+', '').replaceAll('-', ''),
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: isUp ? Colors.green[700] : (isDown ? Colors.red[700] : Colors.grey[700])
-                      ),
-                    ),
-                  ],
-                ),
-              )
+
+
           ],
         ),
       ),
@@ -1393,40 +1389,47 @@ class AITrendWidget extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  // Icon AI với nền tròn nhẹ
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: config.color.withOpacity(0.1),
-                      shape: BoxShape.circle,
+              // Bọc phần tiêu đề trong Expanded để nó tự co giãn và xuống dòng nếu cần
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: config.color.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.psychology_outlined, color: config.color, size: 22),
                     ),
-                    child: Icon(Icons.psychology_outlined, color: config.color, size: 22),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    "AI Phân tích",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 17,
-                      color: Colors.black87, // Để màu đen cho sang, chỉ nhấn màu ở icon/nhãn
+                    const SizedBox(width: 10),
+                    // Dùng Flexible hoặc để Text tự nhiên trong Expanded
+                    Flexible(
+                      child: Text(
+                        "AI Phân tích",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 17,
+                          color: Colors.black87,
+                        ),
+                        overflow: TextOverflow.visible, // Đảm bảo chữ có thể xuống dòng
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
 
-              // Nhãn dán (Badge) - Dạng Pill hiện đại
+              const SizedBox(width: 8), // Khoảng cách nhỏ để không dính vào Badge
+
+              // Nhãn dán (Badge) - Giữ nguyên kích thước cố định
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: config.color.withOpacity(0.12), // Nền nhạt
+                  color: config.color.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(30),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Chấm tròn nhấp nháy (giả lập bằng icon)
                     Icon(Icons.fiber_manual_record, color: config.color, size: 10),
                     const SizedBox(width: 6),
                     Text(

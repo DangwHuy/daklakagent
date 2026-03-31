@@ -2,29 +2,92 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
+
 import 'price_screen.dart';
 import 'irrigation_screen.dart';
 import 'pest_disease_screen.dart';
 import 'expert_screen.dart' hide AnalyzeDiseaseScreen;
 import 'FarmerView.dart';
+import 'disease.dart';
 
-
-// [THÊM MỚI] Import màn hình Chat AI
+// Import màn hình Chat AI, Thời tiết & Profile mới
 import 'package:daklakagent/features/ai/screens/ai_chat.dart';
 import 'package:daklakagent/features/weather/Screens/weather_screen.dart';
-import 'disease.dart';
+import 'package:daklakagent/features/home/screens/profile_screen.dart';
+
 // ==========================================
-// GIAO DIỆN CHÍNH (HOME SCREEN) V3.6 (AI UPDATE)
+// MÀN HÌNH CHÍNH CÓ BOTTOM NAVIGATION BAR (V4.0)
+// ==========================================
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  int _selectedIndex = 0;
+
+  // Danh sách các màn hình tương ứng với các Tab ở Bottom Navigation
+  final List<Widget> _screens = [
+    const HomeContent(), // Tab 0: Trang chủ
+    const WeatherScreen(initialLocation: 'Buôn Ma Thuột'), // Tab 1: Thời tiết
+    const AiChatScreen(), // Tab 2: Trợ lý AI
+    const ProfileScreen(), // Tab 3: Cá nhân (Giao diện Profile đầy đủ)
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: _screens[_selectedIndex],
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: (int index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
+        backgroundColor: Colors.white,
+        elevation: 10,
+        indicatorColor: Colors.green[100],
+        destinations: [
+          NavigationDestination(
+            selectedIcon: Icon(Icons.home, color: Colors.green[800], size: 28),
+            icon: const Icon(Icons.home_outlined, color: Colors.grey),
+            label: 'Trang chủ',
+          ),
+          NavigationDestination(
+            selectedIcon: Icon(Icons.cloud, color: Colors.green[800], size: 28),
+            icon: const Icon(Icons.cloud_outlined, color: Colors.grey),
+            label: 'Thời tiết',
+          ),
+          NavigationDestination(
+            selectedIcon: Icon(Icons.smart_toy, color: Colors.green[800], size: 28),
+            icon: const Icon(Icons.smart_toy_outlined, color: Colors.grey),
+            label: 'Trợ lý AI',
+          ),
+          NavigationDestination(
+            selectedIcon: Icon(Icons.person, color: Colors.green[800], size: 28),
+            icon: const Icon(Icons.person_outline, color: Colors.grey),
+            label: 'Cá nhân',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// NỘI DUNG TRANG CHỦ (HomeContent)
 // ==========================================
 
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+class HomeContent extends StatelessWidget {
+  const HomeContent({super.key});
 
   void _handleSignOut(BuildContext context) async {
     await FirebaseAuth.instance.signOut();
   }
 
-  // [THÊM MỚI] Hàm mở màn hình Chat AI
   void _openAiChat(BuildContext context) {
     Navigator.push(
       context,
@@ -34,12 +97,9 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-
     return Scaffold(
       backgroundColor: Colors.grey[50],
 
-      // [THÊM MỚI] Nút nổi AI (Floating Action Button)
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openAiChat(context),
         backgroundColor: Colors.blue[700],
@@ -61,7 +121,6 @@ class HomeScreen extends StatelessWidget {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          // Trigger refresh for weather widget
           await Future.delayed(const Duration(milliseconds: 500));
         },
         color: Colors.green[700],
@@ -81,12 +140,17 @@ class HomeScreen extends StatelessWidget {
                     end: Alignment.bottomRight,
                   ),
                 ),
-                // [CẬP NHẬT] Đổi child thành Column để chứa thêm Thanh tìm kiếm AI
                 child: Column(
                   children: [
-                    _buildWelcomeCard(user?.email),
+                    // LẮNG NGHE SỰ THAY ĐỔI CỦA USER ĐỂ CẬP NHẬT GIAO DIỆN
+                    StreamBuilder<User?>(
+                      stream: FirebaseAuth.instance.userChanges(),
+                      builder: (context, snapshot) {
+                        final user = snapshot.data ?? FirebaseAuth.instance.currentUser;
+                        return _buildWelcomeCard(user);
+                      },
+                    ),
                     const SizedBox(height: 20),
-                    // [THÊM MỚI] Thanh tìm kiếm AI
                     _buildAiSearchBar(context),
                   ],
                 ),
@@ -94,7 +158,7 @@ class HomeScreen extends StatelessWidget {
 
               const SizedBox(height: 16),
 
-              // 🔴 THÔNG ĐIỆP CHIA SẺ VỚI BÀ CON ĐẮK LẮK (GIỮ NGUYÊN)
+              // THÔNG ĐIỆP CHIA SẺ VỚI BÀ CON ĐẮK LẮK
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Container(
@@ -204,10 +268,7 @@ class HomeScreen extends StatelessWidget {
               ),
 
               const SizedBox(height: 12),
-
-              // 👇 WIDGET CHÍNH - PHÂN TÍCH V3.5
               const ProWeatherCardV35(),
-
               const SizedBox(height: 24),
 
               // Tiện ích
@@ -227,7 +288,7 @@ class HomeScreen extends StatelessWidget {
 
               const SizedBox(height: 12),
               _buildGridMenu(context),
-              const SizedBox(height: 80), // [CẬP NHẬT] Thêm padding dưới để không bị nút FAB che
+              const SizedBox(height: 80),
             ],
           ),
         ),
@@ -235,7 +296,6 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // [THÊM MỚI] Widget Thanh tìm kiếm AI
   Widget _buildAiSearchBar(BuildContext context) {
     return InkWell(
       onTap: () => _openAiChat(context),
@@ -276,16 +336,27 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildWelcomeCard(String? email) {
+  // CARD HIỂN THỊ AVATAR & TÊN ĐÃ ĐƯỢC NÂNG CẤP ĐỂ TỰ ĐỘNG LẤY ẢNH URL
+  Widget _buildWelcomeCard(User? user) {
+    // Lấy tên hiển thị, nếu không có thì lấy email, không có nữa thì gán mặc định
+    String displayName = user?.displayName ?? user?.email ?? "Nhà nông 4.0";
+    String? photoUrl = user?.photoURL;
+
     return Row(
       children: [
         Container(
-          padding: const EdgeInsets.all(12),
+          padding: photoUrl == null ? const EdgeInsets.all(12) : EdgeInsets.zero,
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(12),
+            shape: BoxShape.circle,
           ),
-          child: const Icon(Icons.person, color: Colors.white, size: 32),
+          child: photoUrl != null
+              ? CircleAvatar(
+            radius: 24,
+            backgroundImage: NetworkImage(photoUrl),
+            backgroundColor: Colors.transparent,
+          )
+              : const Icon(Icons.person, color: Colors.white, size: 32),
         ),
         const SizedBox(width: 16),
         Expanded(
@@ -298,7 +369,7 @@ class HomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                email ?? "Nhà nông 4.0",
+                displayName,
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -369,11 +440,10 @@ class HomeScreen extends StatelessWidget {
             },
           ),
           _FeatureCard(
-            icon: Icons.calendar_month_outlined, // Icon lịch
+            icon: Icons.calendar_month_outlined,
             label: "Đặt lịch Chuyên gia",
-            color: Colors.teal, // Màu khác biệt
+            color: Colors.teal,
             onTap: () {
-              // Chuyển sang màn hình Tìm & Đặt lịch
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const FindExpertScreen()),
@@ -381,17 +451,17 @@ class HomeScreen extends StatelessWidget {
             },
           ),
           _FeatureCard(
-            icon: Icons.camera_alt_outlined, // Icon camera/phân tích ảnh
+            icon: Icons.camera_alt_outlined,
             label: "Phân tích ảnh bệnh",
-            color: Colors.green, // Gợi ý: màu xanh nông nghiệp
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const AnalyzeDiseaseScreen(),
-                  ),
-                );
-              },
+            color: Colors.green,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AnalyzeDiseaseScreen(),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -409,7 +479,6 @@ class ProWeatherCardV35 extends StatefulWidget {
 class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
   late Future<Map<String, dynamic>> _dataFuture;
 
-  // ⚠️ THAY LINK NGROK MỚI CỦA BẠN Ở ĐÂY
   final String pythonApiUrl = 'https://arica-baldish-consuelo.ngrok-free.dev/api/phan-tich-sau-rieng';
 
   @override
@@ -471,12 +540,11 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
 
         if (listData.isEmpty) return const Text("Không có dữ liệu");
 
-        // Hiển thị danh sách các thẻ rút gọn theo chiều ngang
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start, // Giúp các thẻ căn đỉnh
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: listData.map((item) => _buildSmartCardShort(item)).toList(),
           ),
         );
@@ -485,7 +553,6 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
   }
 
   Widget _buildSmartCardShort(dynamic item) {
-    // --- Lấy dữ liệu ---
     String khuVuc = item['khu_vuc'] ?? 'N/A';
     double nhietDo = (item['nhiet_do'] as num?)?.toDouble() ?? 0.0;
     double doAm = (item['do_am'] as num?)?.toDouble() ?? 0.0;
@@ -500,20 +567,18 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
     int chiSoNam = (item['chi_so_nguy_co_nam'] as num?)?.toInt() ?? 0;
     int chiSoStress = (item['chi_so_stress_nhiet'] as num?)?.toInt() ?? 0;
 
-    // --- LOGIC XÁC ĐỊNH MÀU SẮC VÀ TRẠNG THÁI ---
-    // Tìm chỉ số rủi ro cao nhất để quyết định màu
     int maxRisk = [chiSoLuLut, chiSoNam, chiSoStress].reduce((curr, next) => curr > next ? curr : next);
 
-    Color statusColor = const Color(0xFF2E7D32); // Màu xanh lá đậm (Giống hình)
+    Color statusColor = const Color(0xFF2E7D32);
     String statusText = "Môi trường ổn định";
     IconData statusIcon = Icons.check_box;
 
     if (maxRisk >= 70) {
-      statusColor = const Color(0xFFD32F2F); // Đỏ
+      statusColor = const Color(0xFFD32F2F);
       statusText = "Nguy hiểm (Chi tiết >)";
       statusIcon = Icons.warning;
     } else if (maxRisk >= 40) {
-      statusColor = const Color(0xFFEF6C00); // Cam
+      statusColor = const Color(0xFFEF6C00);
       statusText = "Cảnh báo (Chi tiết >)";
       statusIcon = Icons.info;
     } else {
@@ -523,11 +588,10 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
     return Container(
       width: 340,
       margin: const EdgeInsets.only(right: 16),
-      // ClipRRect để bo góc cho cả ảnh con bên trong
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(20), // Bo góc tổng thể thẻ
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(color: Colors.grey[300]!, width: 1),
           boxShadow: [
             BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
@@ -536,12 +600,10 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // === PHẦN TRÊN (Thông tin thời tiết) ===
             Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
-                  // Dòng 1: Địa điểm (Giống hình 1)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -550,10 +612,7 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
                       Text("$khuVuc (${caoDo}m)", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     ],
                   ),
-
                   const SizedBox(height: 12),
-
-                  // Dòng 2: Icon mây + Nhiệt độ + Mô tả (Căn giữa)
                   Column(
                     children: [
                       Image.network(
@@ -566,47 +625,40 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
                       Text(moTa, style: TextStyle(fontSize: 15, color: Colors.grey[700], fontWeight: FontWeight.w500)),
                     ],
                   ),
-
                   const SizedBox(height: 20),
                   const Divider(height: 1, color: Colors.grey),
                   const SizedBox(height: 20),
-
-                  // Dòng 3: 3 Thông số (Ẩm, Gió, Mưa) - Giống hình 1
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       _buildWeatherStat(Icons.water_drop_outlined, "$doAm%", "(Ẩm)"),
-                      Container(width: 1, height: 30, color: Colors.grey[300]), // Vách ngăn
+                      Container(width: 1, height: 30, color: Colors.grey[300]),
                       _buildWeatherStat(Icons.air, "${gio}m/s", "(Gió)"),
-                      Container(width: 1, height: 30, color: Colors.grey[300]), // Vách ngăn
+                      Container(width: 1, height: 30, color: Colors.grey[300]),
                       _buildWeatherStat(Icons.cloud_queue, "${mua1h}mm", "(Mưa)"),
                     ],
                   ),
                 ],
               ),
             ),
-
-            // === PHẦN DƯỚI: THANH TRẠNG THÁI (MÀU XANH) ===
-            // Thay thế hoàn toàn phần Lũ lụt/Nấm cũ
             InkWell(
               onTap: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (context) => WeatherScreen(
-                      // Lúc này chữ initialLocation sẽ hết báo đỏ
                       initialLocation: khuVuc,
                     ),
                   ),
                 );
               },
               child: Container(
-                width: double.infinity, // Full chiều ngang
+                width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                 decoration: BoxDecoration(
-                  color: statusColor, // Màu thay đổi theo mức độ nguy hiểm
+                  color: statusColor,
                   borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(19), // Bo góc dưới trùng với thẻ cha
+                    bottomLeft: Radius.circular(19),
                     bottomRight: Radius.circular(19),
                   ),
                 ),
@@ -620,7 +672,6 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
                       style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                     ),
                     const Spacer(),
-                    // Icon lấp lánh ở góc phải giống hình
                     const Icon(Icons.auto_awesome, color: Colors.white70, size: 18),
                   ],
                 ),
@@ -632,7 +683,6 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
     );
   }
 
-  // Widget con hiển thị thông số (Ẩm, Gió, Mưa)
   Widget _buildWeatherStat(IconData icon, String value, String label) {
     return Column(
       children: [
@@ -648,120 +698,8 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
       ],
     );
   }
-
-  // Widget con hiển thị dòng chi tiết trong Dialog
-  Widget _buildRiskRow(String label, int value) {
-    Color color = value > 50 ? Colors.red : Colors.green;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-          Text("$value/100", style: TextStyle(color: color, fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
-  }
-
-  // Widget hiển thị Tag nhỏ (Nghỉ ngơi, Cảnh báo)
-  Widget _buildTag(String text, MaterialColor color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        border: Border.all(color: color, width: 0.5),
-        borderRadius: BorderRadius.circular(12),
-        color: Colors.white,
-      ),
-      child: Text(text, style: TextStyle(fontSize: 10, color: color[800], fontWeight: FontWeight.bold)),
-    );
-  }
-
-  // Widget thông tin nhỏ (Mưa, Gió...)
-  Widget _buildMiniInfo(IconData icon, String value, String label) {
-    return Column(
-      children: [
-        Icon(icon, size: 18, color: Colors.grey[700]),
-        const SizedBox(height: 4),
-        Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-        Text(label, style: TextStyle(fontSize: 9, color: Colors.grey[500])),
-      ],
-    );
-  }
-
-  // Widget thẻ LŨ LỤT (To)
-  Widget _buildRiskCardBig(String label, int value, IconData icon, MaterialColor color) {
-    // Logic màu sắc: Nếu an toàn (thấp) thì màu xanh, cao thì màu đỏ
-    Color bgColor = value < 30 ? Colors.green[50]! : Colors.red[50]!;
-    Color borderColor = value < 30 ? Colors.green[200]! : Colors.red[200]!;
-    Color iconColor = value < 30 ? Colors.green[700]! : Colors.red;
-    Color dotColor = value < 30 ? Colors.green : Colors.red;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor, width: 1.5),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 24, color: Colors.grey[700]), // Icon nhà
-          const SizedBox(width: 8),
-          Icon(Icons.circle, size: 12, color: dotColor), // Chấm tròn màu
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87)),
-          ),
-          RichText(
-            text: TextSpan(
-              children: [
-                TextSpan(text: "$value", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87)),
-                TextSpan(text: "/100", style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Widget thẻ Nấm/Nhiệt (Nhỏ)
-  Widget _buildRiskCardSmall(String label, int value, IconData icon, MaterialColor color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      decoration: BoxDecoration(
-        color: color[50], // Màu nền nhạt theo theme
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color[200]!, width: 1.5),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 20, color: color[700]),
-              const SizedBox(width: 8),
-              Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color[900])),
-            ],
-          ),
-          RichText(
-            text: TextSpan(
-              children: [
-                TextSpan(text: "$value", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color[800])),
-                TextSpan(text: "/100", style: TextStyle(fontSize: 10, color: Colors.grey[600])),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
-// ==========================================
-// WIDGET THẺ CHỨC NĂNG
-// ==========================================
 class _FeatureCard extends StatelessWidget {
   final IconData icon;
   final String label;
