@@ -3,6 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
+// Import màn hình Chat (Hãy sửa lại đường dẫn nếu thư mục của bạn khác)
+import 'package:daklakagent/features/home/screens/chat_screen.dart';
+
 class FindExpertScreen extends StatefulWidget {
   const FindExpertScreen({super.key});
 
@@ -14,6 +17,18 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchText = "";
   bool _isBooking = false;
+
+  // NEW: Khởi tạo danh sách các bộ lọc chuyên môn
+  final List<String> _categories = [
+    'Tất cả',
+    'Giám sát hệ thống',
+    'Lúa, cây có múi, cây ăn trái',
+    'Cà phê, hồ tiêu, sầu riêng, Cây công nghiệp',
+    'Sầu riêng',
+    'Hỗ trợ hệ thống',
+    'Kỹ thuật hệ thống'
+  ];
+  String _selectedCategory = "Tất cả"; // NEW: Trạng thái bộ lọc hiện tại
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +42,6 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
-          // NÚT XEM LỊCH ĐÃ ĐẶT
           IconButton(
             onPressed: () {
               Navigator.push(
@@ -62,125 +76,167 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
           ),
         ),
       ),
-      // --- STREAM 1: LẤY DANH SÁCH LỊCH ĐÃ ĐẶT CỦA NÔNG DÂN ---
-      // Mục đích: Để biết giờ nào đã đặt rồi thì ẩn đi, tránh spam
-      body: StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('appointments')
-              .where('farmerId', isEqualTo: user?.uid)
-              .snapshots(),
-          builder: (context, appointmentSnapshot) {
-            // Tạo một Set chứa các key "expertId_timestamp" đã đặt
-            Set<String> bookedSlots = {};
+      // UPDATED: Bọc StreamBuilder bằng Column để chèn thanh Filter nằm ngang ở trên cùng
+      body: Column(
+        children: [
+          _buildCategoryFilter(), // NEW: Component thanh lọc
 
-            if (appointmentSnapshot.hasData) {
-              for (var doc in appointmentSnapshot.data!.docs) {
-                final data = doc.data() as Map<String, dynamic>;
-                final String expertId = data['expertId'];
-                final Timestamp time = data['time'];
-                // Key duy nhất để nhận diện lịch trùng
-                bookedSlots.add("${expertId}_${time.seconds}");
-              }
-            }
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('appointments')
+                    .where('farmerId', isEqualTo: user?.uid)
+                    .snapshots(),
+                builder: (context, appointmentSnapshot) {
+                  Set<String> bookedSlots = {};
 
-            // --- STREAM 2: LẤY DANH SÁCH CHUYÊN GIA ---
-            return StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .where('role', isEqualTo: 'expert')
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(child: Text("Lỗi tải dữ liệu: ${snapshot.error}"));
-                }
+                  if (appointmentSnapshot.hasData) {
+                    for (var doc in appointmentSnapshot.data!.docs) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final String expertId = data['expertId'];
+                      final Timestamp time = data['time'];
+                      bookedSlots.add("${expertId}_${time.seconds}");
+                    }
+                  }
 
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: Colors.green));
-                }
+                  return StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('users')
+                        .where('role', isEqualTo: 'expert')
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) {
+                        return Center(child: Text("Lỗi tải dữ liệu: ${snapshot.error}"));
+                      }
 
-                final now = DateTime.now();
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator(color: Colors.green));
+                      }
 
-                var experts = snapshot.data!.docs.map((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  final expertInfo = data['expertInfo'] as Map<String, dynamic>? ?? {};
+                      final now = DateTime.now();
 
-                  List<dynamic> rawSlots = expertInfo['availableSlots'] ?? [];
+                      var experts = snapshot.data!.docs.map((doc) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        final expertInfo = data['expertInfo'] as Map<String, dynamic>? ?? {};
 
-                  // LỌC SLOT:
-                  // 1. Phải là tương lai (isAfter now)
-                  // 2. Chưa bị đặt (không nằm trong bookedSlots)
-                  List<DateTime> validSlots = rawSlots
-                      .map((e) => (e as Timestamp).toDate())
-                      .where((date) {
-                    // Kiểm tra trùng lịch
-                    final String key = "${doc.id}_${(date.millisecondsSinceEpoch / 1000).floor()}";
-                    bool isBooked = bookedSlots.contains(key);
+                        List<dynamic> rawSlots = expertInfo['availableSlots'] ?? [];
 
-                    return date.isAfter(now) && !isBooked; // Chỉ lấy nếu chưa đặt
-                  })
-                      .toList();
+                        List<DateTime> validSlots = rawSlots
+                            .map((e) => (e as Timestamp).toDate())
+                            .where((date) {
+                          final String key = "${doc.id}_${(date.millisecondsSinceEpoch / 1000).floor()}";
+                          bool isBooked = bookedSlots.contains(key);
+                          return date.isAfter(now) && !isBooked;
+                        }).toList();
 
-                  validSlots.sort();
+                        validSlots.sort();
 
-                  return {
-                    'id': doc.id,
-                    'name': data['displayName'] ?? "Chuyên gia",
-                    'photoUrl': data['photoUrl'] ?? "",
-                    'specialty': expertInfo['specialty'] ?? "Nông nghiệp",
-                    'bio': expertInfo['bio'] ?? "",
-                    'isOnline': expertInfo['isOnline'] ?? false,
-                    'validSlots': validSlots,
-                  };
-                }).toList();
+                        return {
+                          'id': doc.id,
+                          'name': data['displayName'] ?? "Chuyên gia",
+                          'photoUrl': data['photoUrl'] ?? "",
+                          'specialty': expertInfo['specialty'] ?? "Nông nghiệp",
+                          'bio': expertInfo['bio'] ?? "",
+                          'isOnline': expertInfo['isOnline'] ?? false,
+                          // NEW: Thêm trường dữ liệu rating và booking count (fallback nếu db chưa có)
+                          'rating': expertInfo['rating']?.toDouble() ?? 5.0,
+                          'bookingCount': expertInfo['bookingCount'] ?? 0,
+                          'validSlots': validSlots,
+                        };
+                      }).toList();
 
-                // Lọc chuyên gia (Logic cũ)
-                experts = experts.where((e) {
-                  final bool isOnline = e['isOnline'] as bool;
-                  final List slots = e['validSlots'] as List;
-                  final String name = (e['name'] as String).toLowerCase();
-                  final String specialty = (e['specialty'] as String).toLowerCase();
+                      experts = experts.where((e) {
+                        final bool isOnline = e['isOnline'] as bool;
+                        final List slots = e['validSlots'] as List;
+                        final String name = (e['name'] as String).toLowerCase();
+                        final String specialty = (e['specialty'] as String).toLowerCase();
 
-                  bool passStatus = isOnline && slots.isNotEmpty;
-                  bool passSearch = _searchText.isEmpty || name.contains(_searchText) || specialty.contains(_searchText);
+                        // UPDATED: Logic lọc kết hợp tìm kiếm Text và Thể loại (Category)
+                        bool passStatus = isOnline && slots.isNotEmpty;
+                        bool passSearch = _searchText.isEmpty || name.contains(_searchText) || specialty.contains(_searchText);
+                        bool passCategory = _selectedCategory == 'Tất cả' || specialty.contains(_selectedCategory.toLowerCase());
 
-                  return passStatus && passSearch;
-                }).toList();
+                        return passStatus && passSearch && passCategory;
+                      }).toList();
 
-                experts.sort((a, b) {
-                  DateTime firstSlotA = (a['validSlots'] as List<DateTime>).first;
-                  DateTime firstSlotB = (b['validSlots'] as List<DateTime>).first;
-                  return firstSlotA.compareTo(firstSlotB);
-                });
+                      experts.sort((a, b) {
+                        DateTime firstSlotA = (a['validSlots'] as List<DateTime>).first;
+                        DateTime firstSlotB = (b['validSlots'] as List<DateTime>).first;
+                        return firstSlotA.compareTo(firstSlotB);
+                      });
 
-                if (experts.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.event_available, size: 80, color: Colors.grey[300]),
-                        const SizedBox(height: 10),
-                        Text(
-                          bookedSlots.isNotEmpty
-                              ? "Bạn đã đặt hết lịch rảnh hiện có!"
-                              : "Hiện không có chuyên gia nào rảnh.",
-                          style: TextStyle(color: Colors.grey[600], fontSize: 16),
-                        ),
-                      ],
-                    ),
+                      if (experts.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.event_available, size: 80, color: Colors.grey[300]),
+                              const SizedBox(height: 10),
+                              Text(
+                                bookedSlots.isNotEmpty
+                                    ? "Bạn đã đặt hết lịch rảnh hiện có!"
+                                    : "Hiện không có chuyên gia nào rảnh.",
+                                style: TextStyle(color: Colors.grey[600], fontSize: 16),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      return ListView.builder(
+                        padding: const EdgeInsets.all(12),
+                        itemCount: experts.length,
+                        itemBuilder: (context, index) {
+                          final expert = experts[index];
+                          return _buildExpertCard(context, expert);
+                        },
+                      );
+                    },
                   );
                 }
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-                return ListView.builder(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: experts.length,
-                  itemBuilder: (context, index) {
-                    final expert = experts[index];
-                    return _buildExpertCard(context, expert);
-                  },
-                );
+  // NEW: Component Thanh Filter Ngang
+  Widget _buildCategoryFilter() {
+    return Container(
+      height: 50,
+      margin: const EdgeInsets.only(top: 8, bottom: 4),
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        itemCount: _categories.length,
+        itemBuilder: (context, index) {
+          final category = _categories[index];
+          final isSelected = _selectedCategory == category;
+
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(category),
+              selected: isSelected,
+              onSelected: (bool selected) {
+                if (selected) {
+                  setState(() => _selectedCategory = category);
+                }
               },
-            );
-          }
+              selectedColor: Colors.green[100],
+              backgroundColor: Colors.white,
+              labelStyle: TextStyle(
+                color: isSelected ? Colors.green[800] : Colors.grey[700],
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(color: isSelected ? Colors.green : Colors.grey[300]!),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -192,13 +248,12 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
     final String expertId = expert['id'];
 
     return Card(
-      elevation: 4,
-      shadowColor: Colors.black12,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 6, // UPDATED: Tăng đổ bóng
+      shadowColor: Colors.black26, // UPDATED: Màu bóng đổ nổi bật hơn
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), // UPDATED: Bo góc mềm mại hơn
       margin: const EdgeInsets.only(bottom: 16),
       child: Column(
         children: [
-          // Phần Header: Avatar + Tên
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -207,7 +262,7 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                 Stack(
                   children: [
                     CircleAvatar(
-                      radius: 30,
+                      radius: 32, // UPDATED: Tăng nhẹ avatar
                       backgroundColor: Colors.blue[50],
                       backgroundImage: expert['photoUrl'] != ""
                           ? NetworkImage(expert['photoUrl'])
@@ -239,9 +294,24 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                         expert['name'],
                         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
-                      const SizedBox(height: 4),
+
+                      // NEW: Hàng hiển thị Rating (Sao) & Lượt book
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          const Icon(Icons.star, color: Colors.amber, size: 16),
+                          const SizedBox(width: 4),
+                          Text("${expert['rating']}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          const SizedBox(width: 12),
+                          const Icon(Icons.people_alt_outlined, color: Colors.grey, size: 16),
+                          const SizedBox(width: 4),
+                          Text("${expert['bookingCount']} lượt đặt", style: TextStyle(color: Colors.grey[700], fontSize: 13)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), // UPDATED: Tăng padding tag
                         decoration: BoxDecoration(
                           color: Colors.blue[50],
                           borderRadius: BorderRadius.circular(8),
@@ -258,6 +328,62 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
+
+                      // NEW: Nút Hành động (Action Buttons) đã được gắn chức năng
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                final currentUser = FirebaseAuth.instance.currentUser;
+                                if (currentUser == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Vui lòng đăng nhập!")));
+                                  return;
+                                }
+
+                                // Tạo ID phòng chat duy nhất: ID nông dân + "_" + ID chuyên gia
+                                final String chatRoomId = "${currentUser.uid}_$expertId";
+
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => ChatScreen(
+                                      chatRoomId: chatRoomId,
+                                      peerId: expertId,
+                                      peerName: expert['name'],
+                                      peerAvatar: expert['photoUrl'],
+                                    ),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.chat_bubble_outline, size: 16),
+                              label: const Text("Đặt câu hỏi", style: TextStyle(fontSize: 12)),
+                              style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.green[700],
+                                  side: BorderSide(color: Colors.green[700]!),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  padding: const EdgeInsets.symmetric(vertical: 8)
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => _showContactBottomSheet(context, expert), // Gọi hàm hiển thị BottomSheet
+                              icon: const Icon(Icons.phone_in_talk, size: 16),
+                              label: const Text("Liên hệ", style: TextStyle(fontSize: 12)),
+                              style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green[700],
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(vertical: 8)
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
                     ],
                   ),
                 ),
@@ -267,15 +393,14 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
 
           const Divider(height: 1, indent: 16, endIndent: 16),
 
-          // Phần Lịch: Hiển thị ngang
           Container(
             padding: const EdgeInsets.all(16),
             width: double.infinity,
             decoration: BoxDecoration(
               color: Colors.grey[50],
               borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(16),
-                bottomRight: Radius.circular(16),
+                bottomLeft: Radius.circular(20), // UPDATED: Bo theo container cha
+                bottomRight: Radius.circular(20), // UPDATED: Bo theo container cha
               ),
             ),
             child: Column(
@@ -355,10 +480,8 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
     );
   }
 
-  // --- HÀM ĐẶT LỊCH (ĐÃ THÊM SĐT VÀ ĐỊA CHỈ CHO CHUYÊN GIA THẤY) ---
   void _showBookingDialog(BuildContext context, String expertName, DateTime time, String expertId) {
     final TextEditingController noteController = TextEditingController();
-    // 2 Controller mới để nhận thông tin liên hệ của nông dân
     final TextEditingController phoneController = TextEditingController();
     final TextEditingController addressController = TextEditingController();
 
@@ -380,7 +503,6 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                     Text("Thời gian: ${DateFormat('HH:mm - dd/MM/yyyy').format(time)}", style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
                     const Divider(height: 20),
 
-                    // --- PHẦN NHẬP THÔNG TIN LIÊN HỆ (QUAN TRỌNG) ---
                     const Text("Thông tin liên hệ của bạn:", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
                     const SizedBox(height: 10),
                     TextField(
@@ -441,7 +563,6 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                       final user = FirebaseAuth.instance.currentUser;
                       if (user == null) throw Exception("Bạn chưa đăng nhập!");
 
-                      // Lưu lịch hẹn kèm SĐT và Địa chỉ để chuyên gia thấy
                       await FirebaseFirestore.instance.collection('appointments').add({
                         'farmerId': user.uid,
                         'farmerName': user.displayName ?? "Nông dân",
@@ -450,8 +571,8 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                         'time': Timestamp.fromDate(time),
                         'status': 'pending',
                         'note': noteController.text.trim(),
-                        'farmerPhone': phoneController.text.trim(), // Lưu SĐT
-                        'farmerAddress': addressController.text.trim(), // Lưu Địa chỉ
+                        'farmerPhone': phoneController.text.trim(),
+                        'farmerAddress': addressController.text.trim(),
                         'createdAt': FieldValue.serverTimestamp(),
                       });
 
@@ -475,7 +596,87 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
       ),
     );
   }
+
+  // THÊM HÀM NÀY XUỐNG DƯỚI CÙNG CỦA STATE CLASS (Bên trong _FindExpertScreenState)
+  void _showContactBottomSheet(BuildContext context, Map<String, dynamic> expert) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        // Truy vấn Firestore để lấy SĐT và Email thực tế của chuyên gia
+        return FutureBuilder<DocumentSnapshot>(
+          future: FirebaseFirestore.instance.collection('users').doc(expert['id']).get(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const SizedBox(height: 200, child: Center(child: CircularProgressIndicator(color: Colors.green)));
+            }
+
+            final data = snapshot.data?.data() as Map<String, dynamic>?;
+            final phone = data?['phoneNumber'] ?? data?['phone'] ?? "Chưa cập nhật SĐT";
+            final email = data?['email'] ?? "Chưa cập nhật Email";
+
+            return Container(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40, height: 5,
+                      decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text("Liên hệ: ${expert['name']}", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  const Text("Bạn có thể liên hệ trực tiếp với chuyên gia qua các kênh sau:", style: TextStyle(color: Colors.grey)),
+                  const SizedBox(height: 20),
+
+                  // Nút Gọi điện
+                  Container(
+                    decoration: BoxDecoration(color: Colors.green[50], borderRadius: BorderRadius.circular(15)),
+                    child: ListTile(
+                      leading: const CircleAvatar(backgroundColor: Colors.green, child: Icon(Icons.phone, color: Colors.white)),
+                      title: const Text("Số điện thoại"),
+                      subtitle: Text(phone, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () {
+                        // Nếu có thư viện url_launcher, bạn có thể gọi: launchUrlString("tel://$phone")
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Đang gọi $phone...")));
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Nút Gửi Email
+                  Container(
+                    decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(15)),
+                    child: ListTile(
+                      leading: const CircleAvatar(backgroundColor: Colors.blue, child: Icon(Icons.email, color: Colors.white)),
+                      title: const Text("Email hỗ trợ"),
+                      subtitle: Text(email, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () {
+                        // Nếu có url_launcher: launchUrlString("mailto:$email")
+                        Navigator.pop(context);
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 }
+
 class FarmerAppointmentsScreen extends StatelessWidget {
   const FarmerAppointmentsScreen({super.key});
 
@@ -494,7 +695,7 @@ class FarmerAppointmentsScreen extends StatelessWidget {
         stream: FirebaseFirestore.instance
             .collection('appointments')
             .where('farmerId', isEqualTo: user?.uid)
-            .orderBy('createdAt', descending: true) // Mới nhất lên đầu
+            .orderBy('createdAt', descending: true)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) return Center(child: Text("Lỗi: ${snapshot.error}"));
@@ -510,7 +711,6 @@ class FarmerAppointmentsScreen extends StatelessWidget {
             itemCount: docs.length,
             itemBuilder: (context, index) {
               final data = docs[index].data() as Map<String, dynamic>;
-              // Thêm ID để sau này có thể dùng nếu cần
               data['id'] = docs[index].id;
 
               final DateTime time = (data['time'] as Timestamp).toDate();
@@ -571,7 +771,6 @@ class FarmerAppointmentsScreen extends StatelessWidget {
     );
   }
 
-  // --- HÀM HIỂN THỊ CHI TIẾT LỊCH HẸN ---
   void _showAppointmentDetails(BuildContext context, Map<String, dynamic> data) {
     final String status = data['status'] ?? 'pending';
     final String expertName = data['expertName'] ?? 'Chuyên gia';
@@ -596,7 +795,6 @@ class FarmerAppointmentsScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Thông tin chung
                 _buildDetailRow("Chuyên gia:", expertName),
                 const SizedBox(height: 8),
                 _buildDetailRow("Thời gian:", DateFormat('HH:mm - dd/MM/yyyy').format(time)),
@@ -604,9 +802,7 @@ class FarmerAppointmentsScreen extends StatelessWidget {
                 _buildDetailRow("Ghi chú của bạn:", data['note'] ?? "Không có"),
                 const Divider(height: 20),
 
-                // XỬ LÝ THEO TRẠNG THÁI
                 if (status == 'cancelled') ...[
-                  // 1. Trường hợp bị HỦY
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
@@ -631,7 +827,6 @@ class FarmerAppointmentsScreen extends StatelessWidget {
                     ),
                   )
                 ] else if (status == 'confirmed') ...[
-                  // 2. Trường hợp ĐÃ XÁC NHẬN -> Hiện thông tin chuyên gia
                   const Text("Thông tin liên hệ chuyên gia:", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
                   const SizedBox(height: 10),
                   FutureBuilder<DocumentSnapshot>(
@@ -671,7 +866,6 @@ class FarmerAppointmentsScreen extends StatelessWidget {
                     },
                   )
                 ] else ...[
-                  // 3. Trường hợp ĐANG CHỜ
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(

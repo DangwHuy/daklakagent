@@ -55,9 +55,6 @@ class _AgriPriceHomeState extends State<AgriPriceHome> {
       if (_selectedCrop == 'Cà Phê') docId = 'Coffee';
       if (_selectedCrop == 'Hồ Tiêu') docId = 'Pepper';
 
-      // Giả lập delay mạng nhẹ để thấy hiệu ứng loading
-      // await Future.delayed(const Duration(milliseconds: 500));
-
       DocumentSnapshot doc = await FirebaseFirestore.instance
           .collection('Price')
           .doc(docId)
@@ -76,8 +73,9 @@ class _AgriPriceHomeState extends State<AgriPriceHome> {
       List<dynamic> rawList = data['latest_data'] ?? [];
       String updated = data['updated_at'] ?? DateTime.now().toIso8601String();
 
+      // ĐỒNG BỘ TẠI ĐÂY:
       if (_selectedCrop == 'Sầu Riêng') {
-        _processDurianData(rawList);
+        _processDurianData(rawList); // Sử dụng hàm mới viết ở trên
       } else {
         _processGeneralData(rawList);
       }
@@ -96,46 +94,31 @@ class _AgriPriceHomeState extends State<AgriPriceHome> {
   }
 
   void _processDurianData(List<dynamic> rawList) {
-    List<Map<String, dynamic>> prices = rawList.map((e) => Map<String, dynamic>.from(e)).toList();
-    List<String> types = prices.map((e) => e['loai']?.toString() ?? 'Khác').toSet().toList();
-
-    String currentType = _selectedDurianType ?? (types.isNotEmpty ? types.first : '');
-    if (!types.contains(currentType) && types.isNotEmpty) currentType = types.first;
-
-    _rawDurianData = prices;
-    _durianTypes = types;
-    _selectedDurianType = currentType;
-
-    _filterDurianDisplay();
-  }
-
-  void _filterDurianDisplay() {
-    final selectedRow = _rawDurianData.firstWhere(
-            (item) => item['loai'] == _selectedDurianType,
-        orElse: () => {}
-    );
-
     List<Map<String, dynamic>> tempList = [];
-    if (selectedRow.isNotEmpty) {
-      selectedRow.forEach((key, value) {
-        if (key != 'loai' && value != null) {
-          tempList.add({
-            'name': key,
-            'price': value.toString(),
-            'unit': 'đ/kg',
 
-            // --- SỬA ĐOẠN NÀY ---
-            // Đường dẫn phải chính xác từng chữ cái (Hoa/Thường)
-            'icon': 'Images/Durian.png',
+    for (var item in rawList) {
+      // Lấy tên loại (VD: Sầu riêng Thái (VIP A))
+      String name = item['loai']?.toString() ?? 'Sầu riêng';
 
-            // Icon dự phòng nếu ảnh lỗi
-            'color': Colors.orangeAccent,
-          });
-        }
+      // Lấy giá (Vì bảng sầu riêng mới chỉ có 1 cột giá chung, không chia vùng)
+      String price = item['gia']?.toString() ?? '0';
+      String change = item['thay_doi']?.toString() ?? '-';
+
+      tempList.add({
+        'name': name,
+        'price': price,
+        'unit': 'đ/kg',
+        'icon': 'Images/Durian.png',
+        'text_icon': '🍈',
+        'color': Colors.green,
+        'change': change
       });
     }
+
     setState(() {
       _displayList = tempList;
+      _durianTypes = []; // Xóa các Chip chọn loại (Ri6, Thái...) vì đã hiện hết ở danh sách
+      _selectedDurianType = null;
     });
   }
 
@@ -320,7 +303,6 @@ class _AgriPriceHomeState extends State<AgriPriceHome> {
                                     setState(() {
                                       _selectedDurianType = type;
                                     });
-                                    _filterDurianDisplay();
                                   }
                                 },
                               ),
@@ -480,16 +462,10 @@ class _AgriPriceHomeState extends State<AgriPriceHome> {
 // --- 1. MODEL DỮ LIỆU ---
 class PricePoint {
   final DateTime date;
-  final double mienTay;
-  final double mienDong;
-  final double tayNguyen;
   final Map<String, double> provincePrices;
 
   PricePoint({
     required this.date,
-    this.mienTay = 0,
-    this.mienDong = 0,
-    this.tayNguyen = 0,
     this.provincePrices = const {},
   });
 }
@@ -570,19 +546,52 @@ class _PriceChartWidgetState extends State<PriceChartWidget> {
     if (mounted) setState(() => _isLoading = false);
   }
 
+  // Hàm tính toán dải giá trị để biểu đồ luôn nằm trong khung hình
+  double _getMinY() {
+    double min = double.maxFinite;
+
+    for (var p in _visibleDataPoints) {
+      double pPrice = p.provincePrices[_selectedProvince] ?? 0;
+
+      if (pPrice > 0 && pPrice < min) {
+        min = pPrice;
+      }
+    }
+
+    return min == double.maxFinite ? 0 : min * 0.95;
+  }
   double _parsePrice(dynamic priceRaw) {
     if (priceRaw == null) return 0;
-    String cleanStr = priceRaw.toString().replaceAll('.', '').replaceAll(',', '');
-    // Xử lý range giá (50000-60000)
+
+    String cleanStr = priceRaw
+        .toString()
+        .replaceAll('.', '')
+        .replaceAll(',', '');
+
+    // Có dạng khoảng giá: 50000-60000
     if (cleanStr.contains('-')) {
-      try {
-        var parts = cleanStr.split('-');
-        double min = double.parse(parts[0].trim());
-        double max = double.parse(parts[1].trim());
+      var parts = cleanStr.split('-');
+      if (parts.length == 2) {
+        double min = double.tryParse(parts[0].trim()) ?? 0;
+        double max = double.tryParse(parts[1].trim()) ?? 0;
         return (min + max) / 2;
-      } catch (_) { return 0; }
+      }
     }
+
     return double.tryParse(cleanStr.trim()) ?? 0;
+  }
+  double _getMaxY() {
+    double max = 0;
+
+    for (var p in _visibleDataPoints) {
+      double pPrice = p.provincePrices[_selectedProvince] ?? 0;
+
+      if (pPrice > max) {
+        max = pPrice;
+      }
+    }
+
+    return max == 0 ? 100000 : max * 1.05;
   }
 
   // --- 2. LOGIC LẤY DỰ ĐOÁN (NEW) ---
@@ -634,12 +643,6 @@ class _PriceChartWidgetState extends State<PriceChartWidget> {
   }
 
   Future<void> _fetchHistoryData() async {
-    // ... (Giữ nguyên logic cũ của bạn ở đây)
-    // Lưu ý: Đã xoá setState isLoading ở đây để gom vào hàm _fetchData chung
-
-    // Copy lại logic fetch history cũ vào đây...
-    // Để ngắn gọn tôi tóm tắt lại logic gán _allDataPoints và _availableProvinces
-
     String collectionId = switch (widget.cropType) {
       'Cà Phê' => 'Coffee',
       'Hồ Tiêu' => 'Pepper',
@@ -648,62 +651,79 @@ class _PriceChartWidgetState extends State<PriceChartWidget> {
     };
 
     try {
+      // 1. THÊM orderBy để đảm bảo lấy được các ngày gần đây nhất
       QuerySnapshot snapshot = await FirebaseFirestore.instance
-          .collection('Price').doc(collectionId).collection('History')
-          .limit(365).get();
-
+          .collection('Price')
+          .doc(collectionId)
+          .collection('History')
+          .orderBy(FieldPath.documentId, descending: true) // Lấy ngày mới nhất lên đầu
+          .limit(100) // Chỉ cần 100 ngày gần nhất là thừa đủ cho biểu đồ
+          .get();
+      print("--- DEBUG FIREBASE ---");
+      print("Số lượng document lấy được: ${snapshot.docs.length}");
+      if (snapshot.docs.isNotEmpty) {
+        print("ID của document đầu tiên: ${snapshot.docs.first.id}");
+        print("Data của document đầu tiên: ${snapshot.docs.first.data()}");
+      }
       List<PricePoint> tempPoints = [];
       Set<String> foundProvinces = {};
 
       for (var doc in snapshot.docs) {
         DateTime? date;
-        try { date = DateTime.parse(doc.id); } catch (_) { continue; }
+        try {
+          date = DateTime.parse(doc.id.trim());
+        } catch (_) { continue; }
+
         Map<String, dynamic> docData = doc.data() as Map<String, dynamic>;
 
-        if (widget.cropType == 'Sầu Riêng') {
-          List<dynamic> dataList = docData['data'] ?? docData['latest_data'] ?? [];
-          String targetType = widget.selectedSubCrop ?? 'Sầu riêng Ri6 đẹp';
-          var targetItem = dataList.firstWhere((item) => item['loai'] == targetType, orElse: () => null);
+        // 2. Đảm bảo lấy đúng field 'data' như trong hình Firestore
+        List<dynamic> dataList = docData['data'] ?? docData['latest_data'] ?? [];
 
-          if (targetItem != null) {
-            tempPoints.add(PricePoint(
-              date: date,
-              mienTay: _parsePrice(targetItem['Khu vực - Miền Tây Nam bộ'] ?? targetItem['Khu vực-Miền Tây Nam bộ']),
-              mienDong: _parsePrice(targetItem['Khu vực - Miền Đông Nam bộ'] ?? targetItem['Khu vực-Miền Đông Nam bộ']),
-              tayNguyen: _parsePrice(targetItem['Khu vực - Tây Nguyên'] ?? targetItem['Khu vực-Tây Nguyên']),
-            ));
+        Map<String, double> pricesMap = {};
+        for (var item in dataList) {
+          // 1. Tự động lấy Tên (Vùng/Loại): Thử lấy 'location', nếu null thì lấy 'loai'
+          String loc = (item['location'] ?? item['loai'])?.toString() ?? '';
+
+          // 2. Tự động lấy Giá: Thử lấy 'price', nếu null thì lấy 'gia'
+          // Hàm _parsePrice của bạn sẽ tự xử lý chuỗi "150.000 - 160.000"
+          double price = _parsePrice(item['price'] ?? item['gia'] ?? 0);
+
+          if (loc.isNotEmpty && price > 0) {
+            pricesMap[loc] = price;
+            foundProvinces.add(loc);
           }
-        } else {
-          List<dynamic> dataList = docData['data'] ?? [];
-          Map<String, double> pricesMap = {};
-          for (var item in dataList) {
-            String loc = item['location'] ?? '';
-            double price = _parsePrice(item['price']);
-            if (loc.isNotEmpty && price > 0) {
-              pricesMap[loc] = price;
-              foundProvinces.add(loc);
-            }
-          }
-          if (pricesMap.isNotEmpty) tempPoints.add(PricePoint(date: date, provincePrices: pricesMap));
         }
+
+        if (pricesMap.isNotEmpty) {
+          tempPoints.add(PricePoint(date: date, provincePrices: pricesMap));
+        }
+
       }
 
+      // Sắp xếp lại theo thời gian xuôi (từ cũ đến mới) để vẽ biểu đồ
       tempPoints.sort((a, b) => a.date.compareTo(b.date));
 
       if (mounted) {
         setState(() {
           _allDataPoints = tempPoints;
-          if (widget.cropType != 'Sầu Riêng') {
-            _availableProvinces = foundProvinces.toList()..sort();
-            if (_selectedProvince.isEmpty && _availableProvinces.isNotEmpty) {
-              if (_availableProvinces.contains('Đắk Lắk')) _selectedProvince = 'Đắk Lắk';
-              else _selectedProvince = _availableProvinces.first;
+          _availableProvinces = foundProvinces.toList()..sort();
+
+          if (_availableProvinces.isNotEmpty) {
+            // Nếu chưa chọn hoặc loại cũ không tồn tại trong data mới
+            if (_selectedProvince.isEmpty || !_availableProvinces.contains(_selectedProvince)) {
+              // Ưu tiên chọn Ri6 nếu có, không thì lấy loại đầu tiên
+              _selectedProvince = _availableProvinces.firstWhere(
+                      (element) => element.contains('Ri6'),
+                  orElse: () => _availableProvinces.first
+              );
             }
           }
           _updateVisibleData();
         });
       }
-    } catch (e) { print(e); }
+    } catch (e) {
+      debugPrint("Lỗi Fetch History: $e");
+    }
   }
 
   void _updateVisibleData() {
@@ -730,14 +750,8 @@ class _PriceChartWidgetState extends State<PriceChartWidget> {
       PricePoint first = _visibleDataPoints.first;
       double priceLast = 0;
       double priceFirst = 0;
-
-      if (isDurian) {
-        priceLast = last.mienTay > 0 ? last.mienTay : (last.tayNguyen > 0 ? last.tayNguyen : last.mienDong);
-        priceFirst = first.mienTay > 0 ? first.mienTay : (first.tayNguyen > 0 ? first.tayNguyen : first.mienDong);
-      } else {
-        priceLast = last.provincePrices[_selectedProvince] ?? 0;
-        priceFirst = first.provincePrices[_selectedProvince] ?? 0;
-      }
+      priceLast = last.provincePrices[_selectedProvince] ?? 0;
+      priceFirst = first.provincePrices[_selectedProvince] ?? 0;
       currentPrice = priceLast;
       growth = priceLast - priceFirst;
     }
@@ -781,34 +795,19 @@ class _PriceChartWidgetState extends State<PriceChartWidget> {
 
           if (_isLoading) const Center(child: CircularProgressIndicator())
           else ...[
-            if (isDurian) _buildDurianControls() else _buildProvinceSelector(),
             const SizedBox(height: 20),
 
             // BIỂU ĐỒ
+
+            _buildProvinceSelector(),
+            const SizedBox(height: 20),
             SizedBox(
               height: 220,
               child: _visibleDataPoints.isEmpty
                   ? const Center(child: Text("Không có dữ liệu"))
-                  : isDurian
-                  ? (_currentTabIndex == 0 ? _buildDurianLineChart() : _buildDurianBarChart())
-                  : _buildSingleLineChart(),
+                  : _buildSingleLineChart(), // Dùng chung hàm biểu đồ đơn giống Cafe
             ),
 
-            // CHÚ THÍCH CHART SẦU RIÊNG
-            if (isDurian && _currentTabIndex == 0)
-              Padding(
-                padding: const EdgeInsets.only(top: 8.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _buildLegendItem("Miền Tây", _colMienTay),
-                    const SizedBox(width: 12),
-                    _buildLegendItem("Miền Đông", _colMienDong),
-                    const SizedBox(width: 12),
-                    _buildLegendItem("Tây Nguyên", _colTayNguyen),
-                  ],
-                ),
-              ),
 
             const SizedBox(height: 20),
             const Divider(height: 1),
@@ -994,45 +993,54 @@ class _PriceChartWidgetState extends State<PriceChartWidget> {
             children: [
               Text(
                 widget.cropType == 'Sầu Riêng'
-                    ? (widget.selectedSubCrop ?? 'Sầu Riêng')
+                    ? "${widget.cropType} - ${_selectedProvince.isNotEmpty ? _selectedProvince : (widget.selectedSubCrop ?? 'Chọn loại')}"
                     : "Giá ${widget.cropType} - $_selectedProvince",
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
-                maxLines: 2, overflow: TextOverflow.ellipsis,
+                // --- SỬA CHỖ NÀY ---
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                  height: 1.2, // Khoảng cách giữa các dòng cho thoáng khi xuống hàng
+                ),
+                softWrap: true, // Cho phép tự động xuống hàng khi hết chiều ngang
+                maxLines: null, // Không giới hạn số dòng (hoặc để 3-4 nếu bạn muốn giới hạn)
+                // ------------------
               ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  Text("${NumberFormat('#,###').format(currentPrice)} đ", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black)),
-                  const SizedBox(width: 8),
-                  if (_visibleDataPoints.isNotEmpty)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                          color: growth >= 0 ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(4)
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(growth >= 0 ? Icons.arrow_upward : Icons.arrow_downward, size: 14, color: growth >= 0 ? Colors.green : Colors.red),
-                          Text(" ${NumberFormat('#,###').format(growth.abs())}", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: growth >= 0 ? Colors.green : Colors.red)),
-                        ],
-                      ),
-                    )
-                ],
-              )
+              const SizedBox(height: 8), // Tăng khoảng cách một chút cho thoáng
+              Text(
+                "${NumberFormat('#,###').format(currentPrice)} đ",
+                style: const TextStyle(
+                    fontSize: 24, // Có thể tăng size lên một chút vì giờ nó là tâm điểm
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black
+                ),
+              ),
             ],
           ),
         ),
+        // Giữ nguyên phần chọn W, M, Y bên phải
         Row(
           children: ['W', 'M', 'Y'].map((time) {
             bool isSelected = _selectedTimeFrame == time;
             return GestureDetector(
-              onTap: () => setState(() { _selectedTimeFrame = time; _updateVisibleData(); }),
+              onTap: () => setState(() {
+                _selectedTimeFrame = time;
+                _updateVisibleData();
+              }),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 margin: const EdgeInsets.only(left: 4),
-                decoration: isSelected ? BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(8)) : null,
-                child: Text(time, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: isSelected ? Colors.green : Colors.grey[400])),
+                decoration: isSelected
+                    ? BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(8))
+                    : null,
+                child: Text(
+                    time,
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: isSelected ? Colors.green : Colors.grey[400]
+                    )
+                ),
               ),
             );
           }).toList(),
@@ -1066,32 +1074,9 @@ class _PriceChartWidgetState extends State<PriceChartWidget> {
     );
   }
 
-  Widget _buildDurianControls() {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(12)),
-          child: Row(children: [_buildTabButton("So sánh", 0), _buildTabButton("Theo vùng", 1)]),
-        ),
-      ],
-    );
-  }
 
-  Widget _buildTabButton(String title, int index) {
-    bool isActive = _currentTabIndex == index;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _currentTabIndex = index),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(color: isActive ? Colors.white : Colors.transparent, borderRadius: BorderRadius.circular(10), boxShadow: isActive ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))] : null),
-          alignment: Alignment.center,
-          child: Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: isActive ? Colors.black : Colors.grey)),
-        ),
-      ),
-    );
-  }
+
+
 
   Widget _buildSingleLineChart() {
     List<FlSpot> spots = [];
@@ -1103,241 +1088,96 @@ class _PriceChartWidgetState extends State<PriceChartWidget> {
 
     return LineChart(
       LineChartData(
-        gridData: const FlGridData(show: false),
-        titlesData: _buildTitlesData(),
-        borderData: FlBorderData(show: false),
+        minY: _getMinY(),
+        maxY: _getMaxY(),
+        // --- THÊM PHẦN NÀY ĐỂ TÙY CHỈNH TOOLTIP ---
         lineTouchData: LineTouchData(
           touchTooltipData: LineTouchTooltipData(
-            getTooltipColor: (touchedSpot) => Colors.blueGrey.withOpacity(0.9),
-            getTooltipItems: (touchedSpots) {
+            getTooltipColor: (touchedSpot) => Colors.green, // Nền trắng cho nổi bật
+            tooltipRoundedRadius: 8,
+            getTooltipItems: (List<LineBarSpot> touchedSpots) {
               return touchedSpots.map((spot) {
-                DateTime date = _visibleDataPoints[spot.spotIndex].date;
-                return LineTooltipItem("${DateFormat('dd/MM').format(date)}\n${NumberFormat('#,###').format(spot.y)}", const TextStyle(color: Colors.white, fontWeight: FontWeight.bold));
+                // Định dạng số: 94,000
+                final String formattedValue = NumberFormat('#,###').format(spot.y);
+
+                return LineTooltipItem(
+                  formattedValue,
+                  const TextStyle(
+                    color: Color(0xFFFFFFFF), // Màu xanh đậm giống màu chủ đạo của bạn
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                );
               }).toList();
             },
           ),
         ),
+        // ------------------------------------------
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey.withOpacity(0.1), strokeWidth: 1),
+        ),
+        titlesData: _buildTitlesData(),
+        borderData: FlBorderData(show: false),
         lineBarsData: [
           LineChartBarData(
-            spots: spots, isCurved: true, color: _primaryChartColor, barWidth: 3, dotData: const FlDotData(show: false),
-            belowBarData: BarAreaData(show: true, gradient: LinearGradient(colors: [_primaryChartColor.withOpacity(0.3), _primaryChartColor.withOpacity(0.0)], begin: Alignment.topCenter, end: Alignment.bottomCenter)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDurianLineChart() {
-    return LineChart(
-      LineChartData(
-        gridData: const FlGridData(show: false),
-        titlesData: _buildTitlesData(),
-        borderData: FlBorderData(show: false),
-        lineTouchData: LineTouchData(
-          handleBuiltInTouches: true,
-          touchTooltipData: LineTouchTooltipData(
-            // Màu nền của Tooltip
-            getTooltipColor: (touchedSpot) => Colors.blueGrey.withOpacity(0.9),
-            tooltipRoundedRadius: 8,
-            tooltipPadding: const EdgeInsets.all(12), // Tăng khoảng cách lề cho thoáng
-
-            getTooltipItems: (List<LineBarSpot> touchedSpots) {
-              // 1. Sắp xếp thứ tự hiển thị: Miền Tây (0) -> Miền Đông (1) -> Tây Nguyên (2)
-              // Để đảm bảo dòng nào cũng hiện đúng vị trí
-              touchedSpots.sort((a, b) => a.barIndex.compareTo(b.barIndex));
-
-              return touchedSpots.map((spot) {
-                // Lấy dữ liệu
-                final pricePoint = _visibleDataPoints[spot.spotIndex];
-                final dateStr = DateFormat('dd/MM').format(pricePoint.date);
-                final priceStr = NumberFormat('#,###').format(spot.y);
-
-                // Xác định tên vùng và màu sắc dựa trên barIndex
-                // 0: Miền Tây, 1: Miền Đông, 2: Tây Nguyên (theo thứ tự add vào lineBarsData)
-                String regionName;
-                if (spot.barIndex == 0) regionName = "Miền Tây";
-                else if (spot.barIndex == 1) regionName = "Miền Đông";
-                else regionName = "Tây Nguyên";
-
-                // Style cho chữ
-                final TextStyle labelStyle = const TextStyle(
-                    color: Colors.white70, fontSize: 12, fontWeight: FontWeight.normal
-                );
-                final TextStyle valueStyle = const TextStyle(
-                    color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold
-                );
-
-                // --- LOGIC HIỂN THỊ ---
-                // Chỉ hiển thị Ngày tháng ở dòng đầu tiên (item đầu tiên trong danh sách)
-                if (spot == touchedSpots.first) {
-                  return LineTooltipItem(
-                    '$dateStr\n', // Dòng 1: Ngày tháng (In đậm, to hơn)
-                    const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                    children: [
-                      TextSpan(text: '$regionName: ', style: labelStyle),
-                      TextSpan(text: priceStr, style: valueStyle),
-                    ],
-                  );
-                } else {
-                  // Các dòng sau: Chỉ hiện Tên vùng + Giá (Không hiện lại ngày)
-                  return LineTooltipItem(
-                    '', // Text chính để trống
-                    const TextStyle(fontSize: 0), // Hack để ẩn dòng trống
-                    children: [
-                      TextSpan(text: '$regionName: ', style: labelStyle),
-                      TextSpan(text: priceStr, style: valueStyle),
-                    ],
-                  );
-                }
-              }).toList();
-            },
-          ),
-        ),
-        lineBarsData: [
-          _buildLineSeries(_visibleDataPoints.map((e) => FlSpot(_visibleDataPoints.indexOf(e).toDouble(), e.mienTay)).toList(), _colMienTay),
-          _buildLineSeries(_visibleDataPoints.map((e) => FlSpot(_visibleDataPoints.indexOf(e).toDouble(), e.mienDong)).toList(), _colMienDong),
-          _buildLineSeries(_visibleDataPoints.map((e) => FlSpot(_visibleDataPoints.indexOf(e).toDouble(), e.tayNguyen)).toList(), _colTayNguyen),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDurianBarChart() {
-    if (_visibleDataPoints.isEmpty) return const Center(child: Text("Không có dữ liệu"));
-
-    return BarChart(
-      BarChartData(
-        alignment: BarChartAlignment.spaceAround,
-        maxY: _getMaxY() * 1.1, // Tăng thêm 10% chiều cao để tooltip không bị che
-        barTouchData: BarTouchData(
-          enabled: true,
-          touchTooltipData: BarTouchTooltipData(
-            getTooltipColor: (group) => Colors.blueGrey.withOpacity(0.9),
-            tooltipPadding: const EdgeInsets.all(8),
-            tooltipMargin: 8,
-            getTooltipItem: (group, groupIndex, rod, rodIndex) {
-              // Logic hiển thị Tooltip cho từng cột
-              String regionName;
-              if (rodIndex == 0) regionName = "Miền Tây";
-              else if (rodIndex == 1) regionName = "Miền Đông";
-              else regionName = "Tây Nguyên";
-
-              return BarTooltipItem(
-                '$regionName\n',
-                const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                children: <TextSpan>[
-                  TextSpan(
-                    text: NumberFormat('#,###').format(rod.toY),
-                    style: const TextStyle(color: Colors.yellow, fontSize: 12, fontWeight: FontWeight.w500),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-        titlesData: FlTitlesData(
-          show: true,
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 30,
-              getTitlesWidget: (double value, TitleMeta meta) {
-                int index = value.toInt();
-                if (index < 0 || index >= _visibleDataPoints.length) return const SizedBox();
-
-                // Chỉ hiện ngày nếu không quá dày đặc
-                // Nếu xem tuần (7 ngày) thì hiện hết, xem tháng thì hiện thưa ra
-                if (_selectedTimeFrame == 'M' && index % 5 != 0) return const SizedBox();
-
-                return SideTitleWidget(
-                  axisSide: meta.axisSide,
-                  space: 4,
-                  child: Text(
-                    DateFormat('dd/MM').format(_visibleDataPoints[index].date),
-                    style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold),
-                  ),
-                );
-              },
+            spots: spots,
+            isCurved: true,
+            color: _primaryChartColor,
+            barWidth: 3,
+            dotData: FlDotData(show: spots.length < 10),
+            belowBarData: BarAreaData(
+                show: true,
+                gradient: LinearGradient(
+                    colors: [_primaryChartColor.withOpacity(0.2), _primaryChartColor.withOpacity(0.0)],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter
+                )
             ),
           ),
-          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        ),
-        gridData: const FlGridData(show: false),
-        borderData: FlBorderData(show: false),
-        barGroups: _visibleDataPoints.asMap().entries.map((entry) {
-          int index = entry.key;
-          PricePoint point = entry.value;
-
-          return BarChartGroupData(
-            x: index,
-            barRods: [
-              _buildBarRod(point.mienTay, _colMienTay),
-              _buildBarRod(point.mienDong, _colMienDong),
-              _buildBarRod(point.tayNguyen, _colTayNguyen),
-            ],
-            barsSpace: 4, // Khoảng cách giữa các cột trong cùng 1 ngày
-          );
-        }).toList(),
+        ],
       ),
     );
   }
 
-  // Hàm phụ để tạo cột cho gọn code
-  BarChartRodData _buildBarRod(double y, Color color) {
-    return BarChartRodData(
-      toY: y,
-      color: color,
-      width: 6, // Độ rộng của cột
-      borderRadius: const BorderRadius.only(topLeft: Radius.circular(2), topRight: Radius.circular(2)),
-      backDrawRodData: BackgroundBarChartRodData(
-        show: true,
-        toY: _getMaxY() * 1.1, // Cột mờ làm nền (tùy chọn)
-        color: Colors.grey.withOpacity(0.05),
-      ),
-    );
-  }
-
-  // Hàm tính giá trị lớn nhất để scale biểu đồ
-  double _getMaxY() {
-    double max = 0;
-    for (var p in _visibleDataPoints) {
-      if (p.mienTay > max) max = p.mienTay;
-      if (p.mienDong > max) max = p.mienDong;
-      if (p.tayNguyen > max) max = p.tayNguyen;
-    }
-    return max == 0 ? 100000 : max; // Fallback
-  }
-
-  LineChartBarData _buildLineSeries(List<FlSpot> spots, Color color) {
-    final validSpots = spots.where((spot) => spot.y > 0).toList();
-    if (validSpots.isEmpty) return LineChartBarData(spots: []);
-    return LineChartBarData(spots: validSpots, isCurved: true, color: color, barWidth: 3, dotData: const FlDotData(show: false));
-  }
-
-  Widget _buildLegendItem(String label, Color color) {
-    return Row(children: [Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)), const SizedBox(width: 4), Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold))]);
-  }
 
   FlTitlesData _buildTitlesData() {
-    double interval = 1;
-    if (_selectedTimeFrame == 'M') interval = 5;
-    if (_selectedTimeFrame == 'Y') interval = 30;
-
     return FlTitlesData(
       show: true,
       rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
       topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-      leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+      // HIỆN TRỤC GIÁ BÊN TRÁI
+      leftTitles: AxisTitles(
+        sideTitles: SideTitles(
+          showTitles: true,
+          reservedSize: 45,
+          getTitlesWidget: (value, meta) {
+            // Chỉ hiện 3-4 mốc giá cho đỡ rối
+            if (value == meta.min || value == meta.max) return const SizedBox();
+            return Text(
+              "${(value / 1000).toStringAsFixed(0)}k", // Hiện kiểu 90k, 95k
+              style: const TextStyle(color: Colors.grey, fontSize: 10),
+            );
+          },
+        ),
+      ),
       bottomTitles: AxisTitles(
         sideTitles: SideTitles(
-          showTitles: true, reservedSize: 30, interval: interval,
+          showTitles: true,
+          reservedSize: 30,
+          interval: _selectedTimeFrame == 'W' ? 1 : (_selectedTimeFrame == 'M' ? 5 : 30),
           getTitlesWidget: (double value, TitleMeta meta) {
             int index = value.toInt();
             if (index < 0 || index >= _visibleDataPoints.length) return const SizedBox();
-            if (index % interval.toInt() != 0 && _selectedTimeFrame != 'W') return const SizedBox();
-            return SideTitleWidget(axisSide: meta.axisSide, space: 4, child: Text(DateFormat('dd/MM').format(_visibleDataPoints[index].date), style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)));
+            return SideTitleWidget(
+                axisSide: meta.axisSide,
+                space: 8,
+                child: Text(
+                    DateFormat('dd/MM').format(_visibleDataPoints[index].date),
+                    style: const TextStyle(color: Colors.grey, fontSize: 10)
+                )
+            );
           },
         ),
       ),

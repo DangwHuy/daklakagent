@@ -25,6 +25,7 @@ dependencies:
   flutter_tts: ^4.2.5
   firebase_storage: ^13.2.0
   url_launcher: ^6.3.2
+  uuid: ^4.4.2
 dev_dependencies:
   flutter_test:
     sdk: flutter
