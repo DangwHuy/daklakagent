@@ -15,6 +15,8 @@ import 'package:daklakagent/features/ai/screens/ai_chat.dart';
 import 'package:daklakagent/features/weather/Screens/weather_screen.dart';
 import 'package:daklakagent/features/home/screens/profile_screen.dart';
 
+import '../widgets/banner_carousel.dart';
+
 // ==========================================
 // MÀN HÌNH CHÍNH CÓ BOTTOM NAVIGATION BAR (V4.0)
 // ==========================================
@@ -156,76 +158,11 @@ class HomeContent extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 16),
+              const BannerCarousel(),
 
-              // THÔNG ĐIỆP CHIA SẺ VỚI BÀ CON ĐẮK LẮK
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.red[50]!, Colors.orange[50]!],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.red[200]!, width: 2),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.red.withOpacity(0.15),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.red[300]!, width: 2),
-                        ),
-                        child: Icon(Icons.favorite, color: Colors.red[600], size: 32),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                const Text(
-                                  "Chúc bà con năm mới bội thu!",
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.red,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              " và Cà phê vẫn giữ giá tốt. Trời Đắk Lắk đang se lạnh, bà con nhớ giữ ấm và thăm vườn thường xuyên nhé. Vụ mùa bội thu đang chờ phía trước! 🌱",
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey[800],
-                                height: 1.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              const SizedBox(height: 20),
 
-              const SizedBox(height: 16),
+
 
               // Tiêu đề phân tích
               Padding(
