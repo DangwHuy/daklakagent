@@ -18,7 +18,6 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
   String _searchText = "";
   bool _isBooking = false;
 
-  // NEW: Khởi tạo danh sách các bộ lọc chuyên môn
   final List<String> _categories = [
     'Tất cả',
     'Giám sát hệ thống',
@@ -28,7 +27,7 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
     'Hỗ trợ hệ thống',
     'Kỹ thuật hệ thống'
   ];
-  String _selectedCategory = "Tất cả"; // NEW: Trạng thái bộ lọc hiện tại
+  String _selectedCategory = "Tất cả";
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +41,17 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          // NEW: THÊM NÚT XEM TIN NHẮN CHO NÔNG DÂN
+          IconButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const FarmerChatListScreen()),
+              );
+            },
+            icon: const Icon(Icons.chat_bubble_outline),
+            tooltip: "Tin nhắn",
+          ),
           IconButton(
             onPressed: () {
               Navigator.push(
@@ -76,11 +86,9 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
           ),
         ),
       ),
-      // UPDATED: Bọc StreamBuilder bằng Column để chèn thanh Filter nằm ngang ở trên cùng
       body: Column(
         children: [
-          _buildCategoryFilter(), // NEW: Component thanh lọc
-
+          _buildCategoryFilter(),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
@@ -138,7 +146,6 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                           'specialty': expertInfo['specialty'] ?? "Nông nghiệp",
                           'bio': expertInfo['bio'] ?? "",
                           'isOnline': expertInfo['isOnline'] ?? false,
-                          // NEW: Thêm trường dữ liệu rating và booking count (fallback nếu db chưa có)
                           'rating': expertInfo['rating']?.toDouble() ?? 5.0,
                           'bookingCount': expertInfo['bookingCount'] ?? 0,
                           'validSlots': validSlots,
@@ -151,7 +158,6 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                         final String name = (e['name'] as String).toLowerCase();
                         final String specialty = (e['specialty'] as String).toLowerCase();
 
-                        // UPDATED: Logic lọc kết hợp tìm kiếm Text và Thể loại (Category)
                         bool passStatus = isOnline && slots.isNotEmpty;
                         bool passSearch = _searchText.isEmpty || name.contains(_searchText) || specialty.contains(_searchText);
                         bool passCategory = _selectedCategory == 'Tất cả' || specialty.contains(_selectedCategory.toLowerCase());
@@ -201,7 +207,6 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
     );
   }
 
-  // NEW: Component Thanh Filter Ngang
   Widget _buildCategoryFilter() {
     return Container(
       height: 50,
@@ -248,9 +253,9 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
     final String expertId = expert['id'];
 
     return Card(
-      elevation: 6, // UPDATED: Tăng đổ bóng
-      shadowColor: Colors.black26, // UPDATED: Màu bóng đổ nổi bật hơn
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), // UPDATED: Bo góc mềm mại hơn
+      elevation: 6,
+      shadowColor: Colors.black26,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       margin: const EdgeInsets.only(bottom: 16),
       child: Column(
         children: [
@@ -262,11 +267,9 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                 Stack(
                   children: [
                     CircleAvatar(
-                      radius: 32, // UPDATED: Tăng nhẹ avatar
+                      radius: 32,
                       backgroundColor: Colors.blue[50],
-                      backgroundImage: expert['photoUrl'] != ""
-                          ? NetworkImage(expert['photoUrl'])
-                          : null,
+                      backgroundImage: expert['photoUrl'] != "" ? NetworkImage(expert['photoUrl']) : null,
                       child: expert['photoUrl'] == ""
                           ? Text((expert['name'] as String)[0], style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue))
                           : null,
@@ -290,12 +293,7 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        expert['name'],
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-
-                      // NEW: Hàng hiển thị Rating (Sao) & Lượt book
+                      Text(expert['name'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 6),
                       Row(
                         children: [
@@ -309,13 +307,9 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                         ],
                       ),
                       const SizedBox(height: 8),
-
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), // UPDATED: Tăng padding tag
-                        decoration: BoxDecoration(
-                          color: Colors.blue[50],
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(8)),
                         child: Text(
                           expert['specialty'],
                           style: TextStyle(fontSize: 12, color: Colors.blue[800], fontWeight: FontWeight.w600),
@@ -328,8 +322,6 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-
-                      // NEW: Nút Hành động (Action Buttons) đã được gắn chức năng
                       const SizedBox(height: 12),
                       Row(
                         children: [
@@ -341,10 +333,7 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Vui lòng đăng nhập!")));
                                   return;
                                 }
-
-                                // Tạo ID phòng chat duy nhất: ID nông dân + "_" + ID chuyên gia
                                 final String chatRoomId = "${currentUser.uid}_$expertId";
-
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
@@ -370,7 +359,7 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: ElevatedButton.icon(
-                              onPressed: () => _showContactBottomSheet(context, expert), // Gọi hàm hiển thị BottomSheet
+                              onPressed: () => _showContactBottomSheet(context, expert),
                               icon: const Icon(Icons.phone_in_talk, size: 16),
                               label: const Text("Liên hệ", style: TextStyle(fontSize: 12)),
                               style: ElevatedButton.styleFrom(
@@ -390,18 +379,13 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
               ],
             ),
           ),
-
           const Divider(height: 1, indent: 16, endIndent: 16),
-
           Container(
             padding: const EdgeInsets.all(16),
             width: double.infinity,
             decoration: BoxDecoration(
               color: Colors.grey[50],
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(20), // UPDATED: Bo theo container cha
-                bottomRight: Radius.circular(20), // UPDATED: Bo theo container cha
-              ),
+              borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(20), bottomRight: Radius.circular(20)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -410,10 +394,7 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                   children: [
                     const Icon(Icons.access_time_filled, size: 16, color: Colors.green),
                     const SizedBox(width: 6),
-                    Text(
-                      "Lịch rảnh sắp tới:",
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey[700]),
-                    ),
+                    Text("Lịch rảnh sắp tới:", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey[700])),
                   ],
                 ),
                 const SizedBox(height: 10),
@@ -460,20 +441,12 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
           color: Colors.white,
           border: Border.all(color: Colors.green),
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(color: Colors.green.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, 2))
-          ],
+          boxShadow: [BoxShadow(color: Colors.green.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, 2))],
         ),
         child: Column(
           children: [
-            Text(
-              timeStr,
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 14),
-            ),
-            Text(
-              dateStr,
-              style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-            ),
+            Text(timeStr, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 14)),
+            Text(dateStr, style: TextStyle(fontSize: 10, color: Colors.grey[600])),
           ],
         ),
       ),
@@ -502,7 +475,6 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                     const SizedBox(height: 8),
                     Text("Thời gian: ${DateFormat('HH:mm - dd/MM/yyyy').format(time)}", style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
                     const Divider(height: 20),
-
                     const Text("Thông tin liên hệ của bạn:", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
                     const SizedBox(height: 10),
                     TextField(
@@ -510,7 +482,6 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                       keyboardType: TextInputType.phone,
                       decoration: const InputDecoration(
                         labelText: "Số điện thoại (*)",
-                        hintText: "Để chuyên gia gọi lại",
                         border: OutlineInputBorder(),
                         contentPadding: EdgeInsets.all(12),
                         prefixIcon: Icon(Icons.phone),
@@ -521,13 +492,11 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                       controller: addressController,
                       decoration: const InputDecoration(
                         labelText: "Địa chỉ / Khu vực",
-                        hintText: "VD: Thôn 3, Cư M'gar",
                         border: OutlineInputBorder(),
                         contentPadding: EdgeInsets.all(12),
                         prefixIcon: Icon(Icons.location_on),
                       ),
                     ),
-
                     const SizedBox(height: 15),
                     const Text("Mô tả vấn đề:", style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 5),
@@ -540,12 +509,8 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                         contentPadding: EdgeInsets.all(12),
                       ),
                     ),
-
                     if (_isBooking)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 20),
-                        child: Center(child: CircularProgressIndicator()),
-                      ),
+                      const Padding(padding: EdgeInsets.only(top: 20), child: Center(child: CircularProgressIndicator())),
                   ],
                 ),
               ),
@@ -557,7 +522,6 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Vui lòng nhập số điện thoại!"), backgroundColor: Colors.red));
                       return;
                     }
-
                     setDialogState(() => _isBooking = true);
                     try {
                       final user = FirebaseAuth.instance.currentUser;
@@ -574,13 +538,12 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                         'farmerPhone': phoneController.text.trim(),
                         'farmerAddress': addressController.text.trim(),
                         'createdAt': FieldValue.serverTimestamp(),
+                        'isRated': false, // NEW: Thêm cờ đánh giá
                       });
 
                       if (mounted) {
                         Navigator.pop(dialogContext);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Đã gửi yêu cầu thành công!"), backgroundColor: Colors.green),
-                        );
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Đã gửi yêu cầu thành công!"), backgroundColor: Colors.green));
                       }
                     } catch (e) {
                       setDialogState(() => _isBooking = false);
@@ -597,22 +560,17 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
     );
   }
 
-  // THÊM HÀM NÀY XUỐNG DƯỚI CÙNG CỦA STATE CLASS (Bên trong _FindExpertScreenState)
   void _showContactBottomSheet(BuildContext context, Map<String, dynamic> expert) {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
-        // Truy vấn Firestore để lấy SĐT và Email thực tế của chuyên gia
         return FutureBuilder<DocumentSnapshot>(
           future: FirebaseFirestore.instance.collection('users').doc(expert['id']).get(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const SizedBox(height: 200, child: Center(child: CircularProgressIndicator(color: Colors.green)));
             }
-
             final data = snapshot.data?.data() as Map<String, dynamic>?;
             final phone = data?['phoneNumber'] ?? data?['phone'] ?? "Chưa cập nhật SĐT";
             final email = data?['email'] ?? "Chưa cập nhật Email";
@@ -623,19 +581,12 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Center(
-                    child: Container(
-                      width: 40, height: 5,
-                      decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10)),
-                    ),
-                  ),
+                  Center(child: Container(width: 40, height: 5, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10)))),
                   const SizedBox(height: 20),
                   Text("Liên hệ: ${expert['name']}", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   const Text("Bạn có thể liên hệ trực tiếp với chuyên gia qua các kênh sau:", style: TextStyle(color: Colors.grey)),
                   const SizedBox(height: 20),
-
-                  // Nút Gọi điện
                   Container(
                     decoration: BoxDecoration(color: Colors.green[50], borderRadius: BorderRadius.circular(15)),
                     child: ListTile(
@@ -644,15 +595,12 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                       subtitle: Text(phone, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                       onTap: () {
-                        // Nếu có thư viện url_launcher, bạn có thể gọi: launchUrlString("tel://$phone")
                         Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Đang gọi $phone...")));
                       },
                     ),
                   ),
                   const SizedBox(height: 12),
-
-                  // Nút Gửi Email
                   Container(
                     decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(15)),
                     child: ListTile(
@@ -661,7 +609,6 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                       subtitle: Text(email, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                       onTap: () {
-                        // Nếu có url_launcher: launchUrlString("mailto:$email")
                         Navigator.pop(context);
                       },
                     ),
@@ -677,8 +624,117 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
   }
 }
 
-class FarmerAppointmentsScreen extends StatelessWidget {
+class FarmerAppointmentsScreen extends StatefulWidget {
   const FarmerAppointmentsScreen({super.key});
+
+  @override
+  State<FarmerAppointmentsScreen> createState() => _FarmerAppointmentsScreenState();
+}
+
+class _FarmerAppointmentsScreenState extends State<FarmerAppointmentsScreen> {
+  // NEW: Hàm tính toán và submit rating
+  Future<void> _submitRatingHandler(String expertId, int stars, String appointmentId) async {
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final expertRef = firestore.collection('users').doc(expertId);
+
+      // 1. Lấy thông tin hiện tại của chuyên gia
+      final docSnap = await expertRef.get();
+      final data = docSnap.data() as Map<String, dynamic>? ?? {};
+      final expertInfo = data['expertInfo'] as Map<String, dynamic>? ?? {};
+
+      double currentRating = expertInfo['rating']?.toDouble() ?? 5.0;
+      int currentCount = expertInfo['ratingCount'] ?? 0;
+
+      // 2. Tính trung bình cộng mới (Rolling average)
+      final int newCount = currentCount + 1;
+      final double newAvg = ((currentRating * currentCount) + stars) / newCount;
+
+      // 3. Dùng batch để cập nhật cả 2 nơi cùng lúc (atomic)
+      final batch = firestore.batch();
+
+      // Cập nhật rating vào hồ sơ chuyên gia
+      batch.update(expertRef, {
+        'expertInfo.rating': double.parse(newAvg.toStringAsFixed(1)),
+        'expertInfo.ratingCount': newCount,
+      });
+
+      // Cập nhật cờ vào lịch hẹn để không đánh giá lại
+      final appRef = firestore.collection('appointments').doc(appointmentId);
+      batch.update(appRef, {
+        'isRated': true,
+        'ratingValue': stars,
+      });
+
+      await batch.commit();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Đánh giá thành công! Cảm ơn bạn."), backgroundColor: Colors.green),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Lỗi đánh giá: $e")));
+    }
+  }
+
+  // NEW: Hàm hiển thị Popup Đánh giá sao
+  void _showRatingDialog(BuildContext context, String expertId, String expertName, String appointmentId) {
+    int selectedStars = 5;
+
+    showDialog(
+        context: context,
+        builder: (dialogContext) {
+          return StatefulBuilder(
+              builder: (context, setDialogState) {
+                return AlertDialog(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                  title: const Text("Đánh giá tư vấn", textAlign: TextAlign.center),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text("Chất lượng tư vấn của chuyên gia\n$expertName?", textAlign: TextAlign.center),
+                      const SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(5, (index) {
+                          return IconButton(
+                            iconSize: 36,
+                            icon: Icon(
+                              index < selectedStars ? Icons.star : Icons.star_border,
+                              color: Colors.amber,
+                            ),
+                            onPressed: () {
+                              setDialogState(() {
+                                selectedStars = index + 1;
+                              });
+                            },
+                          );
+                        }),
+                      ),
+                      Text("$selectedStars Sao", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+                    ],
+                  ),
+                  actionsAlignment: MainAxisAlignment.center,
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      child: const Text("Hủy", style: TextStyle(color: Colors.grey)),
+                    ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                      onPressed: () {
+                        Navigator.pop(dialogContext); // Đóng popup
+                        _submitRatingHandler(expertId, selectedStars, appointmentId);
+                      },
+                      child: const Text("Gửi đánh giá"),
+                    ),
+                  ],
+                );
+              }
+          );
+        }
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -711,7 +767,8 @@ class FarmerAppointmentsScreen extends StatelessWidget {
             itemCount: docs.length,
             itemBuilder: (context, index) {
               final data = docs[index].data() as Map<String, dynamic>;
-              data['id'] = docs[index].id;
+              final String appointmentId = docs[index].id;
+              data['id'] = appointmentId;
 
               final DateTime time = (data['time'] as Timestamp).toDate();
               final String expertName = data['expertName'] ?? "Chuyên gia";
@@ -719,7 +776,9 @@ class FarmerAppointmentsScreen extends StatelessWidget {
 
               Color statusColor = Colors.orange;
               String statusText = "Chờ xác nhận";
-              if (status == 'confirmed') {
+
+              // UPDATED: 'accepted' cũng được coi như 'confirmed'
+              if (status == 'confirmed' || status == 'accepted') {
                 statusColor = Colors.green;
                 statusText = "Đã xác nhận";
               } else if (status == 'cancelled') {
@@ -736,7 +795,7 @@ class FarmerAppointmentsScreen extends StatelessWidget {
                   leading: CircleAvatar(
                     backgroundColor: statusColor.withOpacity(0.1),
                     child: Icon(
-                        status == 'confirmed' ? Icons.check_circle : (status == 'cancelled' ? Icons.cancel : Icons.access_time),
+                        (status == 'confirmed' || status == 'accepted') ? Icons.check_circle : (status == 'cancelled' ? Icons.cancel : Icons.access_time),
                         color: statusColor
                     ),
                   ),
@@ -775,8 +834,11 @@ class FarmerAppointmentsScreen extends StatelessWidget {
     final String status = data['status'] ?? 'pending';
     final String expertName = data['expertName'] ?? 'Chuyên gia';
     final String expertId = data['expertId'];
+    final String appointmentId = data['id'];
     final DateTime time = (data['time'] as Timestamp).toDate();
     final String? cancelReason = data['cancelReason'];
+    final bool isRated = data['isRated'] ?? false;
+    final int? ratingValue = data['ratingValue'];
 
     showDialog(
       context: context,
@@ -826,7 +888,8 @@ class FarmerAppointmentsScreen extends StatelessWidget {
                       ],
                     ),
                   )
-                ] else if (status == 'confirmed') ...[
+                ] else if (status == 'confirmed' || status == 'accepted') ...[
+                  // KHI LỊCH ĐÃ ĐƯỢC XÁC NHẬN / ACCEPTED
                   const Text("Thông tin liên hệ chuyên gia:", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
                   const SizedBox(height: 10),
                   FutureBuilder<DocumentSnapshot>(
@@ -853,14 +916,45 @@ class FarmerAppointmentsScreen extends StatelessWidget {
                           const SizedBox(height: 8),
                           _buildContactRow(Icons.location_on, address),
                           const SizedBox(height: 12),
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8)),
-                            child: const Text(
-                              "Bạn có thể đến địa chỉ trên hoặc gọi điện để được tư vấn.",
-                              style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
-                            ),
-                          )
+
+                          // NEW: PHẦN HIỂN THỊ RATING
+                          const Divider(),
+                          if (isRated)
+                            Center(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(10)),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Text("Bạn đã đánh giá: ", style: TextStyle(fontWeight: FontWeight.w500)),
+                                    Row(
+                                      children: List.generate(5, (index) => Icon(
+                                        index < (ratingValue ?? 5) ? Icons.star : Icons.star_border,
+                                        color: Colors.amber,
+                                        size: 18,
+                                      )),
+                                    )
+                                  ],
+                                ),
+                              ),
+                            )
+                          else
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: () {
+                                  Navigator.pop(context); // Tắt popup chi tiết
+                                  _showRatingDialog(context, expertId, expertName, appointmentId); // Mở popup đánh giá
+                                },
+                                icon: const Icon(Icons.star_outline, color: Colors.amber),
+                                label: const Text("Đánh giá chuyên gia này", style: TextStyle(color: Colors.black87)),
+                                style: OutlinedButton.styleFrom(
+                                    side: const BorderSide(color: Colors.amber),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
+                                ),
+                              ),
+                            )
                         ],
                       );
                     },
@@ -912,6 +1006,161 @@ class FarmerAppointmentsScreen extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(child: Text(text)),
       ],
+    );
+  }
+}
+
+// NEW: MÀN HÌNH DANH SÁCH TIN NHẮN CỦA NÔNG DÂN
+class FarmerChatListScreen extends StatelessWidget {
+  const FarmerChatListScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final currentUserId = FirebaseAuth.instance.currentUser!.uid;
+
+    return Scaffold(
+      backgroundColor: Colors.grey[100],
+      appBar: AppBar(
+        title: const Text("Tin nhắn của tôi", style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.green[700],
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('chat_rooms')
+            .where('users', arrayContains: currentUserId) // Dùng Firebase lọc cho chuẩn và nhanh
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator(color: Colors.green));
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text("Lỗi: ${snapshot.error}", style: const TextStyle(color: Colors.red)));
+          }
+
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return _buildEmptyState();
+          }
+
+          var docs = snapshot.data!.docs.toList();
+
+          // Sắp xếp tin nhắn mới nhất lên đầu ngay tại Dart
+          docs.sort((a, b) {
+            final dataA = a.data() as Map<String, dynamic>;
+            final dataB = b.data() as Map<String, dynamic>;
+            final Timestamp? timeA = dataA['lastMessageTime'];
+            final Timestamp? timeB = dataB['lastMessageTime'];
+
+            if (timeA == null && timeB == null) return 0;
+            if (timeA == null) return 1;
+            if (timeB == null) return -1;
+
+            return timeB.compareTo(timeA);
+          });
+
+          return ListView.builder(
+            padding: const EdgeInsets.only(top: 8),
+            itemCount: docs.length,
+            itemBuilder: (context, index) {
+              final data = docs[index].data() as Map<String, dynamic>;
+              final roomId = docs[index].id;
+
+              String peerId = "";
+              List<dynamic> users = data.containsKey('users') ? data['users'] : [];
+
+              if (users.isNotEmpty) {
+                peerId = users.firstWhere((id) => id != currentUserId, orElse: () => "");
+              }
+
+              // Fallback cho phòng chat cũ nếu lỗi
+              if (peerId.isEmpty && roomId.contains("_")) {
+                final parts = roomId.split("_");
+                peerId = parts.firstWhere((id) => id != currentUserId, orElse: () => "");
+              }
+
+              if (peerId.isEmpty) return const SizedBox.shrink();
+
+              return FutureBuilder<DocumentSnapshot>(
+                future: FirebaseFirestore.instance.collection('users').doc(peerId).get(),
+                builder: (context, userSnapshot) {
+                  if (!userSnapshot.hasData) return const SizedBox.shrink();
+
+                  final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
+                  if (userData == null) return const SizedBox.shrink();
+
+                  final peerName = userData['displayName'] ?? "Chuyên gia";
+                  final peerAvatar = userData['photoUrl'] ?? "";
+
+                  DateTime? time;
+                  if (data['lastMessageTime'] != null) {
+                    time = (data['lastMessageTime'] as Timestamp).toDate();
+                  }
+
+                  return Card(
+                    elevation: 2,
+                    shadowColor: Colors.black12,
+                    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      leading: CircleAvatar(
+                        radius: 26,
+                        backgroundColor: Colors.green[50],
+                        backgroundImage: peerAvatar.isNotEmpty ? NetworkImage(peerAvatar) : null,
+                        child: peerAvatar.isEmpty
+                            ? Text(peerName[0], style: TextStyle(color: Colors.green[800], fontWeight: FontWeight.bold, fontSize: 20))
+                            : null,
+                      ),
+                      title: Text(peerName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 4.0),
+                        child: Text(
+                          data['lastMessage'] ?? "Nhấn vào để xem tin nhắn...",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: Colors.grey[700]),
+                        ),
+                      ),
+                      trailing: time != null
+                          ? Text(DateFormat('HH:mm').format(time), style: TextStyle(color: Colors.grey[500], fontSize: 12))
+                          : null,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChatScreen(
+                              chatRoomId: roomId,
+                              peerId: peerId,
+                              peerName: peerName,
+                              peerAvatar: peerAvatar,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.chat_bubble_outline, size: 80, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          const Text("Chưa có cuộc trò chuyện nào.", style: TextStyle(color: Colors.grey, fontSize: 16)),
+          const SizedBox(height: 8),
+          Text("Hãy đặt câu hỏi cho chuyên gia để bắt đầu.", style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+        ],
+      ),
     );
   }
 }

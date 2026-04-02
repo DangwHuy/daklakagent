@@ -8,6 +8,18 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'expert_screen.dart'; // 1. IMPORT FILE CHUYÊN GIA
 
+// ============================================================================
+// ĐỊNH NGHĨA MÀU SẮC CHUẨN UI/UX (Dribbble Aesthetic)
+// ============================================================================
+class AppColors {
+  static const Color primary = Color(0xFF2D6A4F); // Xanh ngọc lục bảo đậm
+  static const Color background = Color(0xFFF8F9FA); // Trắng nhạt (Off-white)
+  static const Color surface = Colors.white;
+  static const Color textDark = Color(0xFF212529);
+  static const Color textLight = Color(0xFFADB5BD);
+}
+
+// Chuẩn đoạn bệnh bằng hình ảnh
 class AnalyzeDiseaseScreen extends StatefulWidget {
   const AnalyzeDiseaseScreen({super.key});
 
@@ -24,6 +36,10 @@ class _AnalyzeDiseaseScreenState extends State<AnalyzeDiseaseScreen> {
   bool _isLoading = false;
   Map<String, dynamic>? _resultData;
   final ImagePicker _picker = ImagePicker();
+
+  // ============================================================================
+  // LOGIC XỬ LÝ (GIỮ NGUYÊN 100% CỦA BẠN)
+  // ============================================================================
 
   Future<void> _pickImage(ImageSource source) async {
     final XFile? pickedFile = await _picker.pickImage(source: source);
@@ -161,14 +177,18 @@ class _AnalyzeDiseaseScreenState extends State<AnalyzeDiseaseScreen> {
     );
   }
 
+  // ============================================================================
+  // GIAO DIỆN NGƯỜI DÙNG (NÂNG CẤP LÊN CHUẨN DRIBBBLE)
+  // ============================================================================
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA), // Màu nền xám nhẹ hiện đại
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         centerTitle: true,
-        title: const Text("Chẩn Đoán Sầu Riêng", style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: const Color(0xFF1B5E20),
+        title: const Text("Chẩn Đoán Sầu Riêng", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
@@ -180,18 +200,23 @@ class _AnalyzeDiseaseScreenState extends State<AnalyzeDiseaseScreen> {
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         child: Column(
           children: [
             _buildImageDisplay(),
             const SizedBox(height: 24),
-            _buildControlButtons(),
+
+            if (!_isLoading) _buildControlButtons(),
+
             const SizedBox(height: 24),
 
             if (_isLoading)
               _buildLoading()
             else if (_resultData != null)
               _buildResultCard(),
+
+            const SizedBox(height: 40),
           ],
         ),
       ),
@@ -203,18 +228,18 @@ class _AnalyzeDiseaseScreenState extends State<AnalyzeDiseaseScreen> {
       height: 340,
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         child: Stack(
           alignment: Alignment.center,
           children: [
@@ -223,37 +248,44 @@ class _AnalyzeDiseaseScreenState extends State<AnalyzeDiseaseScreen> {
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.add_a_photo_outlined, size: 64, color: Colors.grey[300]),
-                  const SizedBox(height: 16),
+                  Icon(Icons.add, size: 48, color: Colors.grey[300]),
+                  const SizedBox(height: 12),
                   Text(
-                    "Chưa có ảnh nào",
-                    style: TextStyle(color: Colors.grey[400], fontSize: 16),
+                    "Chẩn đoán có ảnh nào",
+                    style: TextStyle(color: Colors.grey[400], fontSize: 16, fontWeight: FontWeight.w500),
                   ),
                 ],
               ),
 
-            // Hiển thị ảnh
+            // Hiển thị ảnh gốc
             if (_image != null && _processedImageBytes == null)
               Image.file(_image!, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
 
+            // Hiển thị ảnh xử lý
             if (_processedImageBytes != null)
-              Image.memory(_processedImageBytes!, fit: BoxFit.contain, width: double.infinity, height: double.infinity),
+              Image.memory(_processedImageBytes!, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
 
-            // Nút xóa ảnh (nếu cần)
+            // Nút xóa ảnh
             if (_image != null && !_isLoading)
               Positioned(
-                top: 10,
-                right: 10,
-                child: IconButton(
-                  onPressed: () {
+                top: 12,
+                right: 12,
+                child: InkWell(
+                  onTap: () {
                     setState(() {
                       _image = null;
                       _processedImageBytes = null;
                       _resultData = null;
                     });
                   },
-                  icon: const Icon(Icons.close, color: Colors.white),
-                  style: IconButton.styleFrom(backgroundColor: Colors.black54),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.5),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.close, color: Colors.white, size: 20),
+                  ),
                 ),
               )
           ],
@@ -266,66 +298,47 @@ class _AnalyzeDiseaseScreenState extends State<AnalyzeDiseaseScreen> {
     return Row(
       children: [
         Expanded(
-          child: _buildBigButton(
-            icon: Icons.camera_alt_rounded,
-            label: "Chụp Ảnh",
-            color: const Color(0xFF2E7D32),
-            onTap: () => _pickImage(ImageSource.camera),
+          child: ElevatedButton.icon(
+            onPressed: () => _pickImage(ImageSource.camera),
+            icon: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
+            label: const Text("Chụp Ảnh", style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
           ),
         ),
         const SizedBox(width: 16),
         Expanded(
-          child: _buildBigButton(
-            icon: Icons.photo_library_rounded,
-            label: "Thư Viện",
-            color: const Color(0xFF43A047),
-            isOutlined: true,
-            onTap: () => _pickImage(ImageSource.gallery),
+          child: OutlinedButton.icon(
+            onPressed: () => _pickImage(ImageSource.gallery),
+            icon: const Icon(Icons.image_outlined, color: AppColors.primary, size: 20),
+            label: const Text("Thư Viện", style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            style: OutlinedButton.styleFrom(
+              backgroundColor: AppColors.surface,
+              foregroundColor: AppColors.primary,
+              side: const BorderSide(color: AppColors.primary, width: 1.5),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildBigButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-    bool isOutlined = false
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        boxShadow: isOutlined ? [] : [
-          BoxShadow(color: color.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))
-        ],
-      ),
-      child: ElevatedButton.icon(
-        onPressed: onTap,
-        icon: Icon(icon, color: isOutlined ? color : Colors.white),
-        label: Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: isOutlined ? Colors.white : color,
-          foregroundColor: isOutlined ? color : Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          elevation: isOutlined ? 0 : 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: isOutlined ? BorderSide(color: color, width: 2) : BorderSide.none,
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildLoading() {
     return Column(
-      children: const [
-        CircularProgressIndicator(color: Color(0xFF2E7D32)),
-        SizedBox(height: 16),
+      children: [
+        const SizedBox(height: 20),
+        const CircularProgressIndicator(color: AppColors.primary),
+        const SizedBox(height: 16),
         Text(
           "AI đang phân tích...",
-          style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey, fontSize: 16),
+          style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey[600], fontSize: 16),
         ),
       ],
     );
@@ -336,7 +349,7 @@ class _AnalyzeDiseaseScreenState extends State<AnalyzeDiseaseScreen> {
     bool isHealthy = status == "Cây Khỏe Mạnh";
     bool isSevere = status.contains("CẢNH BÁO") || status.contains("Nặng");
 
-    Color statusColor = isHealthy ? Colors.green : (isSevere ? Colors.red : Colors.orange.shade800);
+    Color statusColor = isHealthy ? AppColors.primary : (isSevere ? Colors.red[600]! : Colors.orange.shade800);
     List<dynamic> adviceList = _resultData!['advice'] ?? [];
 
     return Column(
@@ -344,42 +357,42 @@ class _AnalyzeDiseaseScreenState extends State<AnalyzeDiseaseScreen> {
         Container(
           width: double.infinity,
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(24),
             border: Border.all(color: statusColor.withOpacity(0.3), width: 1.5),
             boxShadow: [
-              BoxShadow(color: statusColor.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, 10)),
+              BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 16, offset: const Offset(0, 4)),
             ],
           ),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Header trạng thái
               Container(
-                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
                 decoration: BoxDecoration(
-                  color: statusColor,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+                  color: statusColor.withOpacity(0.05),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                 ),
                 child: Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
-                      child: Icon(isHealthy ? Icons.verified : Icons.warning_amber_rounded, color: Colors.white, size: 28),
-                    ),
+                    Icon(isHealthy ? Icons.verified : Icons.warning_rounded, color: statusColor, size: 32),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text("KẾT QUẢ PHÂN TÍCH", style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
-                          Text(status.toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+                          Text("KẾT QUẢ PHÂN TÍCH", style: TextStyle(color: statusColor.withOpacity(0.8), fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                          const SizedBox(height: 4),
+                          Text(status.toUpperCase(), style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 18)),
                         ],
                       ),
                     ),
                   ],
                 ),
               ),
+
+              const Divider(height: 1),
 
               // Body: Lời khuyên
               Padding(
@@ -389,9 +402,9 @@ class _AnalyzeDiseaseScreenState extends State<AnalyzeDiseaseScreen> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.medical_services_outlined, color: Colors.grey[800], size: 22),
+                        Icon(Icons.medical_services_outlined, color: AppColors.textDark, size: 22),
                         const SizedBox(width: 10),
-                        Text("CHẨN ĐOÁN & ĐIỀU TRỊ", style: TextStyle(color: Colors.grey[800], fontWeight: FontWeight.bold, fontSize: 15)),
+                        const Text("CHẨN ĐOÁN & ĐIỀU TRỊ", style: TextStyle(color: AppColors.textDark, fontWeight: FontWeight.bold, fontSize: 15)),
                       ],
                     ),
                     const SizedBox(height: 16),
@@ -403,50 +416,51 @@ class _AnalyzeDiseaseScreenState extends State<AnalyzeDiseaseScreen> {
           ),
         ),
 
-        const SizedBox(height: 20),
+        const SizedBox(height: 24),
 
-        // Nút Đóng Góp Dữ Liệu
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: _saveContribution,
-            icon: const Icon(Icons.cloud_upload_outlined),
-            label: const Text("Lưu & Đóng Góp Dữ Liệu"),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue[700],
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        // Hàng nút đóng góp & Hỏi chuyên gia
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _saveContribution,
+                icon: const Icon(Icons.cloud_upload_outlined, size: 18),
+                label: const Text("Lưu kết quả"),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primary),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
             ),
-          ),
-        ),
-
-        const SizedBox(height: 12),
-
-        // --- NÚT HỎI CHUYÊN GIA ---
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: _navigateToExpert,
-            icon: const Icon(Icons.support_agent),
-            label: const Text("Hỏi Chuyên Sâu Về Bệnh Này"),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.teal[700],
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _navigateToExpert,
+                icon: const Icon(Icons.support_agent, size: 18),
+                label: const Text("Hỏi chuyên gia"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       ],
     );
   }
 
+  // Giữ nguyên logic xử lý text, Markdown và Emoji của bạn
   Widget _buildAdviceItem(String text) {
     IconData icon = Icons.circle;
-    Color iconColor = Colors.grey;
-    double iconSize = 6;
-    double topPadding = 8;
+    Color iconColor = AppColors.primary;
+    double iconSize = 8;
+    double topPadding = 6;
 
     if (text.contains("🔴") || text.contains("Cấp bách")) {
       icon = Icons.priority_high; iconColor = Colors.red; iconSize = 18; topPadding = 2;
@@ -458,7 +472,6 @@ class _AnalyzeDiseaseScreenState extends State<AnalyzeDiseaseScreen> {
       icon = Icons.lightbulb_outline; iconColor = Colors.blue; iconSize = 18; topPadding = 2;
     }
 
-    // Xử lý Markdown in đậm
     List<TextSpan> spans = [];
     RegExp exp = RegExp(r"\*\*(.*?)\*\*");
     Iterable<Match> matches = exp.allMatches(text);
@@ -473,7 +486,7 @@ class _AnalyzeDiseaseScreenState extends State<AnalyzeDiseaseScreen> {
       }
       spans.add(TextSpan(
         text: m.group(1),
-        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+        style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark),
       ));
       lastIndex = m.end;
     }
@@ -485,7 +498,7 @@ class _AnalyzeDiseaseScreenState extends State<AnalyzeDiseaseScreen> {
     if (spans.isEmpty) spans.add(TextSpan(text: cleanText));
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -496,7 +509,7 @@ class _AnalyzeDiseaseScreenState extends State<AnalyzeDiseaseScreen> {
           Expanded(
             child: RichText(
               text: TextSpan(
-                style: const TextStyle(fontSize: 15, color: Colors.black87, height: 1.5),
+                style: const TextStyle(fontSize: 15, color: Color(0xFF495057), height: 1.5),
                 children: spans,
               ),
             ),
@@ -507,17 +520,21 @@ class _AnalyzeDiseaseScreenState extends State<AnalyzeDiseaseScreen> {
   }
 }
 
-// --- MÀN HÌNH LỊCH SỬ (HISTORY SCREEN) ---
+// ============================================================================
+// MÀN HÌNH LỊCH SỬ (HISTORY SCREEN) - Nâng cấp nhẹ UI
+// ============================================================================
 class HistoryScreen extends StatelessWidget {
   const HistoryScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text("Lịch Sử Phân Tích"),
-        backgroundColor: const Color(0xFF1B5E20),
+        title: const Text("Lịch Sử Phân Tích", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
+        elevation: 0,
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
@@ -529,16 +546,25 @@ class HistoryScreen extends StatelessWidget {
             return const Center(child: Text("Đã xảy ra lỗi khi tải dữ liệu"));
           }
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator(color: AppColors.primary));
           }
 
           final docs = snapshot.data!.docs;
           if (docs.isEmpty) {
-            return const Center(child: Text("Chưa có lịch sử phân tích nào"));
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.history_rounded, size: 64, color: Colors.grey[300]),
+                  const SizedBox(height: 16),
+                  Text("Chưa có lịch sử phân tích nào", style: TextStyle(color: Colors.grey[500], fontSize: 16)),
+                ],
+              ),
+            );
           }
 
           return ListView.builder(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(16),
             itemCount: docs.length,
             itemBuilder: (context, index) {
               final data = docs[index].data() as Map<String, dynamic>;
@@ -549,13 +575,15 @@ class HistoryScreen extends StatelessWidget {
                   : 'N/A';
 
               bool isHealthy = status == "Cây Khỏe Mạnh";
-              Color color = isHealthy ? Colors.green : Colors.orange.shade800;
+              Color color = isHealthy ? AppColors.primary : Colors.orange.shade800;
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                elevation: 0,
+                color: AppColors.surface,
                 child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   leading: CircleAvatar(
                     backgroundColor: color.withOpacity(0.1),
                     child: Icon(
@@ -565,9 +593,12 @@ class HistoryScreen extends StatelessWidget {
                   ),
                   title: Text(
                     status,
-                    style: TextStyle(fontWeight: FontWeight.bold, color: color),
+                    style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 15),
                   ),
-                  subtitle: Text("Thời gian: $dateStr"),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 4.0),
+                    child: Text("Thời gian: $dateStr", style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                  ),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
                   onTap: () {
                     _showDetailDialog(context, data);
@@ -586,28 +617,51 @@ class HistoryScreen extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      backgroundColor: Colors.transparent,
       builder: (context) => DraggableScrollableSheet(
         initialChildSize: 0.5,
         minChildSize: 0.3,
         maxChildSize: 0.9,
         expand: false,
-        builder: (_, controller) => Padding(
-          padding: const EdgeInsets.all(20),
+        builder: (_, controller) => Container(
+          decoration: const BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.all(24),
           child: ListView(
             controller: controller,
             children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  margin: const EdgeInsets.only(bottom: 24),
+                  decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
               Text(
                 data['status'] ?? "",
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textDark),
                 textAlign: TextAlign.center,
               ),
-              const Divider(height: 30),
-              const Text("Lời khuyên đã lưu:", style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 20),
+                child: Divider(height: 1),
+              ),
+              const Text("Lời khuyên đã lưu:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textDark)),
+              const SizedBox(height: 16),
               ...advice.map((e) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text("• $e"),
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(top: 6, right: 10),
+                      child: Icon(Icons.circle, size: 6, color: AppColors.primary),
+                    ),
+                    Expanded(child: Text(e.toString(), style: const TextStyle(height: 1.5, color: Color(0xFF495057)))),
+                  ],
+                ),
               )),
             ],
           ),
