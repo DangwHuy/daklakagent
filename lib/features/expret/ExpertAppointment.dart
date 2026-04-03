@@ -369,11 +369,19 @@ class _ExpertAppointmentsScreenState extends State<ExpertAppointmentsScreen> wit
     try {
       WriteBatch batch = FirebaseFirestore.instance.batch();
 
+      // 1. Xác nhận lịch hẹn hiện tại
       batch.update(currentDoc.reference, {
         'status': 'confirmed',
         'confirmedAt': FieldValue.serverTimestamp(),
       });
 
+      // 2. ĐÃ THÊM: Cộng lượt tư vấn (bookingCount) lên 1 ngay khi xác nhận
+      final expertRef = FirebaseFirestore.instance.collection('users').doc(expertId);
+      batch.update(expertRef, {
+        'expertInfo.bookingCount': FieldValue.increment(1),
+      });
+
+      // 3. Xử lý trùng lịch (từ chối các yêu cầu khác ở cùng thời gian)
       final conflictQuery = await FirebaseFirestore.instance
           .collection('appointments')
           .where('expertId', isEqualTo: expertId)
@@ -396,7 +404,7 @@ class _ExpertAppointmentsScreenState extends State<ExpertAppointmentsScreen> wit
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Đã nhận lịch! Các lịch trùng giờ khác đã được tự động từ chối.")),
+          const SnackBar(content: Text("Đã nhận lịch và cập nhật lượt tư vấn! Các lịch trùng đã tự động từ chối.")),
         );
       }
     } catch (e) {

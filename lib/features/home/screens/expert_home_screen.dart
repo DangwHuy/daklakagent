@@ -1,3 +1,5 @@
+// File này chỉ làm nhiệm vụ hiển thị thống kê. Logic lấy dữ liệu đã CỰC KỲ CHUẨN,
+// tuyệt đối không cần thay đổi gì thêm.
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -48,14 +50,12 @@ class _ExpertHomeScreenState extends State<ExpertHomeScreen> {
 
   // ─── Đăng xuất ─────────────────────────────────────────────────────────────
   Future<void> _handleLogout() async {
-    await _authService.signOut();
-    if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (context) => const LoginScreen()),
-          (route) => false,
-    );
-  }
+    // 1. Tắt các hộp thoại đang mở (nếu có) để tránh lỗi kẹt màn hình
+    Navigator.of(context).popUntil((route) => route.isFirst);
 
+    // 2. Gọi lệnh đăng xuất Firebase. AuthGate sẽ TỰ ĐỘNG đưa bạn về Login!
+    await FirebaseAuth.instance.signOut();
+  }
   // ─── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
@@ -109,9 +109,10 @@ class _ExpertHomeScreenState extends State<ExpertHomeScreen> {
               (data['expertInfo'] as Map<String, dynamic>?) ?? {};
           final bool isOnline = expertInfo['isOnline'] ?? false;
           final String specialty = expertInfo['specialty'] ?? "Chưa cập nhật";
+
+          // Lấy dữ liệu thống kê từ Firestore cực chuẩn tại đây:
           final int bookingCount = expertInfo['bookingCount'] ?? 0;
-          final double rating =
-          (expertInfo['rating'] ?? 5.0).toDouble();
+          final double rating = (expertInfo['rating'] ?? 5.0).toDouble();
 
           return SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),

@@ -73,29 +73,17 @@ class AuthGate extends StatelessWidget {
 class RoleCheckWrapper extends StatelessWidget {
   const RoleCheckWrapper({super.key});
 
-  // Hàm lấy dữ liệu Role có tối ưu Cache
-  Future<DocumentSnapshot> _fetchUserRole(String uid) {
-    return FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-    // QUAN TRỌNG: Source.serverAndCache
-    // Ý nghĩa: "Hãy tìm trong bộ nhớ máy trước cho nhanh.
-    // Nếu không có mới gọi lên mạng".
-    // Giúp app vào thẳng Home ngay lập tức khi mở lại.
-        .get(const GetOptions(source: Source.serverAndCache));
-  }
-
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
-    // Phòng hờ trường hợp hiếm hoi user bị null
     if (user == null) return const LoginScreen();
 
-    return FutureBuilder<DocumentSnapshot>(
-      future: _fetchUserRole(user.uid),
+    // SỬ DỤNG StreamBuilder để lắng nghe realtime, trị dứt điểm lỗi delay token
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
       builder: (context, snapshot) {
-        // Đang lấy dữ liệu -> Hiện Loading đẹp hơn
+
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(
@@ -104,34 +92,33 @@ class RoleCheckWrapper extends StatelessWidget {
                 children: [
                   CircularProgressIndicator(color: Colors.green),
                   SizedBox(height: 20),
-                  Text(
-                    "Đang đồng bộ dữ liệu nông hộ...",
-                    style: TextStyle(color: Colors.grey),
-                  )
+                  Text("Đang đồng bộ phân quyền...", style: TextStyle(color: Colors.grey))
                 ],
               ),
             ),
           );
         }
 
-        // Xử lý lỗi hoặc không có dữ liệu
+        // BỎ LỆNH ÉP VÀO HOMESCREEN KHI CÓ LỖI.
+        // Thay vào đó hiển thị Loading để chờ Firebase sửa lỗi ngầm.
         if (snapshot.hasError) {
-          // Log lỗi ra console để debug
-          print("Lỗi lấy Role: ${snapshot.error}");
-          // Fallback: Nếu lỗi mạng, cứ cho vào làm Nông dân trước (để không bị chặn cửa)
-          return const HomeScreen();
+          return const Scaffold(
+            body: Center(
+              child: Text("Đang tải lại dữ liệu tài khoản...", style: TextStyle(color: Colors.grey)),
+            ),
+          );
         }
 
+        // Nếu tài khoản chưa có hồ sơ trên Firestore
         if (!snapshot.hasData || !snapshot.data!.exists) {
-          // Tài khoản Auth có, nhưng chưa có hồ sơ trong Firestore -> Tạo mới hoặc mặc định là Farmer
           return const HomeScreen();
         }
 
         // Lấy role an toàn
-        final data = snapshot.data!.data() as Map<String, dynamic>?; // Cast về Map nullable cho an toàn
-        final role = data?['role'] ?? 'farmer'; // Mặc định là farmer
+        final data = snapshot.data!.data() as Map<String, dynamic>?;
+        final role = data?['role'] ?? 'farmer';
 
-        // ĐIỀU HƯỚNG
+        // ĐIỀU HƯỚNG CHUẨN XÁC
         if (role == 'expert') {
           return const ExpertHomeScreen();
         } else {

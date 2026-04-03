@@ -41,7 +41,6 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
-          // NEW: THÊM NÚT XEM TIN NHẮN CHO NÔNG DÂN
           IconButton(
             onPressed: () {
               Navigator.push(
@@ -327,13 +326,33 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                         children: [
                           Expanded(
                             child: OutlinedButton.icon(
-                              onPressed: () {
+                              // ĐÃ SỬA: Hàm async để khởi tạo phòng Chat trước
+                              onPressed: () async {
                                 final currentUser = FirebaseAuth.instance.currentUser;
                                 if (currentUser == null) {
                                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Vui lòng đăng nhập!")));
                                   return;
                                 }
                                 final String chatRoomId = "${currentUser.uid}_$expertId";
+
+                                // --- BẮT ĐẦU FIX LỖI MÀN HÌNH CHAT TRẮNG ---
+                                // Tạo document phòng chat trên Firebase trước khi chuyển trang
+                                final chatRef = FirebaseFirestore.instance.collection('chats').doc(chatRoomId);
+                                final docSnap = await chatRef.get();
+                                if (!docSnap.exists) {
+                                  await chatRef.set({
+                                    'users': [currentUser.uid, expertId],
+                                    'farmerId': currentUser.uid,
+                                    'expertId': expertId,
+                                    'lastMessage': '',
+                                    'lastMessageTime': FieldValue.serverTimestamp(),
+                                    'unreadCountExpert': 0,
+                                    'unreadCountFarmer': 0,
+                                  });
+                                }
+                                // --- KẾT THÚC FIX LỖI ---
+
+                                if (!context.mounted) return;
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
@@ -538,7 +557,7 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                         'farmerPhone': phoneController.text.trim(),
                         'farmerAddress': addressController.text.trim(),
                         'createdAt': FieldValue.serverTimestamp(),
-                        'isRated': false, // NEW: Thêm cờ đánh giá
+                        'isRated': false,
                       });
 
                       if (mounted) {
@@ -632,7 +651,8 @@ class FarmerAppointmentsScreen extends StatefulWidget {
 }
 
 class _FarmerAppointmentsScreenState extends State<FarmerAppointmentsScreen> {
-  // NEW: Hàm tính toán và submit rating
+
+  // ĐÃ SỬA: Hàm đánh giá này CHỈ cập nhật Rating (Không cộng Lượt tư vấn nữa)
   Future<void> _submitRatingHandler(String expertId, int stars, String appointmentId) async {
     try {
       final firestore = FirebaseFirestore.instance;
@@ -646,14 +666,13 @@ class _FarmerAppointmentsScreenState extends State<FarmerAppointmentsScreen> {
       double currentRating = expertInfo['rating']?.toDouble() ?? 5.0;
       int currentCount = expertInfo['ratingCount'] ?? 0;
 
-      // 2. Tính trung bình cộng mới (Rolling average)
+      // 2. Tính trung bình cộng mới
       final int newCount = currentCount + 1;
       final double newAvg = ((currentRating * currentCount) + stars) / newCount;
 
-      // 3. Dùng batch để cập nhật cả 2 nơi cùng lúc (atomic)
       final batch = firestore.batch();
 
-      // Cập nhật rating vào hồ sơ chuyên gia
+      // Cập nhật rating vào hồ sơ chuyên gia (Đã bỏ dòng cộng bookingCount)
       batch.update(expertRef, {
         'expertInfo.rating': double.parse(newAvg.toStringAsFixed(1)),
         'expertInfo.ratingCount': newCount,
@@ -677,7 +696,6 @@ class _FarmerAppointmentsScreenState extends State<FarmerAppointmentsScreen> {
     }
   }
 
-  // NEW: Hàm hiển thị Popup Đánh giá sao
   void _showRatingDialog(BuildContext context, String expertId, String expertName, String appointmentId) {
     int selectedStars = 5;
 
@@ -777,7 +795,6 @@ class _FarmerAppointmentsScreenState extends State<FarmerAppointmentsScreen> {
               Color statusColor = Colors.orange;
               String statusText = "Chờ xác nhận";
 
-              // UPDATED: 'accepted' cũng được coi như 'confirmed'
               if (status == 'confirmed' || status == 'accepted') {
                 statusColor = Colors.green;
                 statusText = "Đã xác nhận";
@@ -889,7 +906,6 @@ class _FarmerAppointmentsScreenState extends State<FarmerAppointmentsScreen> {
                     ),
                   )
                 ] else if (status == 'confirmed' || status == 'accepted') ...[
-                  // KHI LỊCH ĐÃ ĐƯỢC XÁC NHẬN / ACCEPTED
                   const Text("Thông tin liên hệ chuyên gia:", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
                   const SizedBox(height: 10),
                   FutureBuilder<DocumentSnapshot>(
@@ -917,7 +933,6 @@ class _FarmerAppointmentsScreenState extends State<FarmerAppointmentsScreen> {
                           _buildContactRow(Icons.location_on, address),
                           const SizedBox(height: 12),
 
-                          // NEW: PHẦN HIỂN THỊ RATING
                           const Divider(),
                           if (isRated)
                             Center(
@@ -944,8 +959,8 @@ class _FarmerAppointmentsScreenState extends State<FarmerAppointmentsScreen> {
                               width: double.infinity,
                               child: OutlinedButton.icon(
                                 onPressed: () {
-                                  Navigator.pop(context); // Tắt popup chi tiết
-                                  _showRatingDialog(context, expertId, expertName, appointmentId); // Mở popup đánh giá
+                                  Navigator.pop(context);
+                                  _showRatingDialog(context, expertId, expertName, appointmentId);
                                 },
                                 icon: const Icon(Icons.star_outline, color: Colors.amber),
                                 label: const Text("Đánh giá chuyên gia này", style: TextStyle(color: Colors.black87)),
@@ -1010,7 +1025,6 @@ class _FarmerAppointmentsScreenState extends State<FarmerAppointmentsScreen> {
   }
 }
 
-// NEW: MÀN HÌNH DANH SÁCH TIN NHẮN CỦA NÔNG DÂN
 class FarmerChatListScreen extends StatelessWidget {
   const FarmerChatListScreen({super.key});
 
@@ -1028,8 +1042,8 @@ class FarmerChatListScreen extends StatelessWidget {
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
-            .collection('chat_rooms')
-            .where('users', arrayContains: currentUserId) // Dùng Firebase lọc cho chuẩn và nhanh
+            .collection('chats') // ĐÃ SỬA: Dùng 'chats' thay vì 'chat_rooms' để đồng bộ
+            .where('users', arrayContains: currentUserId)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -1045,7 +1059,6 @@ class FarmerChatListScreen extends StatelessWidget {
 
           var docs = snapshot.data!.docs.toList();
 
-          // Sắp xếp tin nhắn mới nhất lên đầu ngay tại Dart
           docs.sort((a, b) {
             final dataA = a.data() as Map<String, dynamic>;
             final dataB = b.data() as Map<String, dynamic>;
@@ -1073,7 +1086,6 @@ class FarmerChatListScreen extends StatelessWidget {
                 peerId = users.firstWhere((id) => id != currentUserId, orElse: () => "");
               }
 
-              // Fallback cho phòng chat cũ nếu lỗi
               if (peerId.isEmpty && roomId.contains("_")) {
                 final parts = roomId.split("_");
                 peerId = parts.firstWhere((id) => id != currentUserId, orElse: () => "");

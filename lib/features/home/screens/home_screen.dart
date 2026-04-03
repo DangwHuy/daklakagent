@@ -14,9 +14,9 @@ import 'disease.dart';
 import 'package:daklakagent/features/ai/screens/ai_chat.dart';
 import 'package:daklakagent/features/weather/Screens/weather_screen.dart';
 import 'package:daklakagent/features/home/screens/profile_screen.dart';
-
+import 'package:daklakagent/features/auth/screens/login_screen.dart';
 import '../widgets/banner_carousel.dart';
-
+import 'dart:convert';
 // ==========================================
 // MÀN HÌNH CHÍNH CÓ BOTTOM NAVIGATION BAR (V4.0)
 // ==========================================
@@ -87,7 +87,21 @@ class HomeContent extends StatelessWidget {
   const HomeContent({super.key});
 
   void _handleSignOut(BuildContext context) async {
-    await FirebaseAuth.instance.signOut();
+    try {
+      // 1. Thực hiện đăng xuất Firebase
+      await FirebaseAuth.instance.signOut();
+
+      // 2. Ép buộc xóa toàn bộ bộ nhớ đệm màn hình và lùi về Login
+      if (!context.mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+            (route) => false,
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Lỗi đăng xuất: $e")),
+      );
+    }
   }
 
   void _openAiChat(BuildContext context) {
