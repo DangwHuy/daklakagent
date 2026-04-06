@@ -34,7 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<Widget> _screens = [
     const HomeContent(), // Tab 0: Trang chủ
     const WeatherScreen(initialLocation: 'Buôn Ma Thuột'), // Tab 1: Thời tiết
-    const AiChatScreen(), // Tab 2: Trợ lý AI
+    const ExpertScreen(), // Tab 2: Trợ lý AI
     const ProfileScreen(), // Tab 3: Cá nhân (Giao diện Profile đầy đủ)
   ];
 

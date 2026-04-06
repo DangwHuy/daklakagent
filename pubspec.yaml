@@ -28,7 +28,7 @@ dependencies:
   uuid: ^4.4.2
   file_picker: ^8.1.2
   excel: ^4.0.6
-  google_sign_in: ^7.2.0
+  google_sign_in: '6.2.1'
 dev_dependencies:
   flutter_test:
     sdk: flutter
