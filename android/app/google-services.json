@@ -12,7 +12,20 @@
           "package_name": "com.example.daklakagent"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "422631118526-eglhtg65bgt7os7pblc2b25qn7s6ddpb.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.daklakagent",
+            "certificate_hash": "575efcabd33ef9df4aee98ab2e4881ac590ce89e"
+          }
+        },
+        {
+          "client_id": "422631118526-6efmbe73pgdua5mg7777sqfkopmedf4a.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBp4Ooqe-eB_HoIuH056kKdMw0rlkvvhr8"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "422631118526-6efmbe73pgdua5mg7777sqfkopmedf4a.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "422631118526-ntam1nat06sbenhstsfrqs6vck1f2rl5.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.daklakagent"
+              }
+            }
+          ]
         }
       }
     }

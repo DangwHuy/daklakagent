@@ -38,7 +38,7 @@ import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
 import 'package:flutter_markdown/flutter_markdown.dart'; // FEATURE 2: Hiển thị Markdown đẹp
 import 'package:speech_to_text/speech_to_text.dart' as stt; // FEATURE 3: Giọng nói
 import 'package:flutter_tts/flutter_tts.dart'; // đọc kết quả trả về
-
+import 'package:firebase_auth/firebase_auth.dart';
 class ExpertScreen extends StatefulWidget {
   final String? initialQuestion;
 
@@ -63,8 +63,14 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   // Trong thực tế, bạn nên lấy User ID từ FirebaseAuth.
   // Ở đây mình dùng ID cố định để demo cho bà con.
-  final String _userId = 'ba_con_nong_dan_01';
-
+  String get _userId {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      return user.uid; // Lấy đúng UID duy nhất của từng nick (VD: zXy123...)
+    } else {
+      return 'chua_dang_nhap'; // Phòng hờ nếu test lúc chưa login
+    }
+  }
   // UPDATE: Địa chỉ Server Python (Ngrok) của bạn
   // Lưu ý: Mỗi lần chạy lại ngrok sẽ có link mới, nhớ cập nhật vào đây nhé!
   final String serverUrl = 'https://dann-uncoincidental-katheleen.ngrok-free.dev/chat';

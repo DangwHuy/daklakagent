@@ -12,7 +12,6 @@ class AuthService {
     required String name,
   }) async {
     try {
-      // A. Tạo tài khoản Auth
       UserCredential result = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
@@ -20,7 +19,6 @@ class AuthService {
 
       User? user = result.user;
 
-      // B. Nếu tạo Auth thành công -> Tạo tiếp dữ liệu trong Firestore
       if (user != null) {
         await _firestore.collection('users').doc(user.uid).set({
           'uid': user.uid,
@@ -36,8 +34,7 @@ class AuthService {
           }
         });
       }
-
-      return null; // Thành công
+      return null;
     } on FirebaseAuthException catch (e) {
       return _xuLyLoiFirebase(e);
     } catch (e) {
@@ -45,7 +42,7 @@ class AuthService {
     }
   }
 
-  // 2. Hàm Đăng Nhập
+  // 2. Hàm Đăng Nhập Email/Password
   Future<String?> signIn({required String email, required String password}) async {
     try {
       await _auth.signInWithEmailAndPassword(
@@ -60,25 +57,19 @@ class AuthService {
     }
   }
 
-  // 3. Hàm lấy Role (Đã sửa để an toàn hơn)
+  // 3. Hàm lấy Role
   Future<String> getUserRole() async {
     User? user = _auth.currentUser;
     if (user != null) {
       try {
-        // Lấy document snapshot
         DocumentSnapshot doc = await _firestore.collection('users').doc(user.uid).get();
-
-        // Kiểm tra doc có tồn tại và có dữ liệu không
         if (doc.exists && doc.data() != null) {
-          // Ép kiểu dữ liệu về Map để truy xuất an toàn
           Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-
-          // Trả về role, nếu null thì mặc định là 'farmer'
           return data['role']?.toString() ?? 'farmer';
         }
       } catch (e) {
-        print("Lỗi lấy role: $e"); // Log lỗi nếu có
-        return 'farmer'; // Gặp lỗi thì mặc định cho làm nông dân
+        print("Lỗi lấy role: $e");
+        return 'farmer';
       }
     }
     return 'farmer';
@@ -93,15 +84,15 @@ class AuthService {
   String _xuLyLoiFirebase(FirebaseAuthException e) {
     switch (e.code) {
       case 'user-not-found':
-        return 'Tài khoản này chưa đăng ký.';
+      case 'user-disabled':
+        return 'Tài khoản này chưa đăng ký hoặc bị khóa.';
       case 'wrong-password':
-        return 'Sai mật khẩu rồi, bà con kiểm tra lại nhé.';
+      case 'invalid-credential':
+        return 'Sai thông tin đăng nhập, bà con kiểm tra lại nhé.';
       case 'email-already-in-use':
         return 'Email này đã có người dùng rồi.';
       case 'invalid-email':
         return 'Email không đúng định dạng.';
-      case 'weak-password':
-        return 'Mật khẩu yếu quá, hãy đặt dài hơn 6 ký tự.';
       default:
         return 'Lỗi kết nối: ${e.message}';
     }
