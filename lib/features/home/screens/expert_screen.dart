@@ -38,6 +38,8 @@ import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
 import 'package:flutter_markdown/flutter_markdown.dart'; // FEATURE 2: Hiển thị Markdown đẹp
 import 'package:speech_to_text/speech_to_text.dart' as stt; // FEATURE 3: Giọng nói
 import 'package:flutter_tts/flutter_tts.dart'; // đọc kết quả trả về
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:daklakagent/features/auth/services/admin_service.dart';
 
 class ExpertScreen extends StatefulWidget {
   final String? initialQuestion;
@@ -284,8 +286,13 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
       batch.delete(doc.reference);
     }
     await batch.commit();
-  }
 
+    // --- GHI NHẬT KÝ ADMIN TẠI ĐÂY ---
+    AdminService.logAction(
+        action: "Xóa sạch lịch sử chat",
+        target: "ID User: $_userId (Chuyên gia Sầu riêng)"
+    );
+  }
   // ---------------------------
 
   // UPDATE: Hàm gọi Server Python (RAG) thay vì gọi trực tiếp Gemini
@@ -1162,6 +1169,7 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
     final question = _questionController.text.trim();
     _questionController.clear();
 
+    // 1. Lưu câu hỏi vào lịch sử cá nhân của user
     await _addMessageToFirestore(question, true);
 
     setState(() {
@@ -1169,9 +1177,31 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
       _isTyping = true;
     });
 
+    // 2. Gọi Server Python AI
     final answer = await askAgent(question);
 
+    // 3. Lưu câu trả lời vào lịch sử cá nhân của user
     await _addMessageToFirestore(answer, false);
+
+    // ==========================================
+    // 4. (MỚI THÊM) LƯU LOG CHO ADMIN QUẢN LÝ TẬP TRUNG
+    // ==========================================
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      await FirebaseFirestore.instance.collection('ai_chat_logs').add({
+        'userId': user?.uid ?? _userId, // Lấy ID thật, nếu ko có thì dùng ID cứng test
+        'userEmail': user?.email ?? 'Khách (Chuyên gia AI)',
+        'prompt': question,
+        'response': answer,
+        'timestamp': FieldValue.serverTimestamp(),
+        'status': answer.contains('Lỗi') ? 'error' : 'success',
+        'category_tag': 'Chuyên gia Sầu riêng', // <--- Gắn tag để Admin phân biệt được nguồn AI nào
+        'action_triggered': 'NONE',
+        'isFlagged': false,
+      });
+    } catch (e) {
+      print('Lỗi khi ghi log Admin: $e');
+    }
 
     setState(() {
       _isTyping = false;

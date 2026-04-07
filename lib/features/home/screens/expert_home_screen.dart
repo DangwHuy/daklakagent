@@ -4,8 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:daklakagent/features/auth/screens/login_screen.dart';
 import 'package:daklakagent/features/auth/services/auth_service.dart';
 // Import trang cài đặt hồ sơ vừa tạo
-import 'package:daklakagent/features/expret/ExpertProfile.dart';
-import 'package:daklakagent/features/expret/ExpertAppointment.dart';
+import 'package:daklakagent/features/expert/ExpertProfile.dart';
+import 'package:daklakagent/features/expert/ExpertAppointment.dart';
 class ExpertHomeScreen extends StatefulWidget {
   const ExpertHomeScreen({super.key});
 

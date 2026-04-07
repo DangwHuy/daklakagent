@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart'; // Để bắt sự kiện cuộn
+import 'package:flutter/rendering.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:daklakagent/features/ai/services/ai_service.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-// --- IMPORT CÁC MÀN HÌNH CHỨC NĂNG (Giữ nguyên của bác) ---
+
+// --- IMPORT CÁC MÀN HÌNH CHỨC NĂNG ---
 import 'package:daklakagent/features/home/screens/price_screen.dart';
 import 'package:daklakagent/features/home/screens/irrigation_screen.dart';
 import 'package:daklakagent/features/home/screens/pest_disease_screen.dart';
@@ -23,10 +24,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
   final AiService _aiService = AiService();
   final ScrollController _scrollController = ScrollController();
 
-  bool _isLoading = false; // Trạng thái đang gửi tin
-  bool _isRecommendationVisible = true; // Trạng thái hiện menu gợi ý
+  bool _isLoading = false;
+  bool _isRecommendationVisible = true;
 
-  // Dữ liệu menu nông nghiệp (Giao diện mới)
   final List<Map<String, dynamic>> _recommendations = [
     {"icon": Icons.price_change, "color": Colors.orange, "title": "Giá nông sản", "subtitle": "Cập nhật giá sầu riêng, cà phê.", "query": "Giá nông sản hôm nay"},
     {"icon": Icons.water_drop, "color": Colors.blue, "title": "Lịch Tưới", "subtitle": "Tra cứu lịch tưới nước.", "query": "Lịch tưới nước cho cây"},
@@ -35,7 +35,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
     {"icon": Icons.calendar_month, "color": Colors.purple, "title": "Đặt lịch chuyên gia", "subtitle": "Hẹn gặp kỹ sư tại vườn.", "query": "Đặt lịch hẹn kỹ sư"},
   ];
 
-  // --- 1. LOGIC ĐIỀU HƯỚNG (Giữ nguyên) ---
   void _performAction(String actionCode) {
     Widget? targetScreen;
     switch (actionCode) {
@@ -50,37 +49,30 @@ class _AiChatScreenState extends State<AiChatScreen> {
     }
   }
 
-  // --- 2. LOGIC GỬI TIN NHẮN (Giữ nguyên logic, thêm xử lý UI) ---
   void _sendMessage(String text) async {
     if (text.trim().isEmpty) return;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    // Cập nhật UI ngay lập tức
     setState(() {
       _isLoading = true;
-      _isRecommendationVisible = false; // Ẩn gợi ý khi bắt đầu chat
+      _isRecommendationVisible = false;
     });
     _controller.clear();
 
-    // Cuộn xuống dưới cùng
     if (_scrollController.hasClients) {
       _scrollController.animateTo(0.0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
     }
 
     try {
-      // A. Lưu tin nhắn User
       await FirebaseFirestore.instance.collection('users').doc(user.uid).collection('ai_chat_history').add({
         'text': text,
         'isUser': true,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      // B. Gọi AI
-      // Thêm dấu phẩy và ngoặc vuông [] vào sau biến text
       String responseRaw = await _aiService.sendMessage(text, []);
 
-      // C. Xử lý Action Tag
       String cleanResponse = responseRaw;
       String? actionCode;
 
@@ -93,7 +85,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
         }
       }
 
-      // D. Lưu tin nhắn AI
       await FirebaseFirestore.instance.collection('users').doc(user.uid).collection('ai_chat_history').add({
         'text': cleanResponse.trim(),
         'isUser': false,
@@ -101,27 +92,57 @@ class _AiChatScreenState extends State<AiChatScreen> {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
+      String textLower = text.toLowerCase();
+      String category = 'Khác';
+      if (textLower.contains('giá') || textLower.contains('tiền')) category = 'Giá nông sản';
+      else if (textLower.contains('sâu') || textLower.contains('bệnh') || textLower.contains('thuốc')) category = 'Sâu bệnh';
+      else if (textLower.contains('tưới') || textLower.contains('nước')) category = 'Lịch tưới';
+      else if (textLower.contains('chuyên gia') || textLower.contains('kỹ sư')) category = 'Chuyên gia';
+
+      await FirebaseFirestore.instance.collection('ai_chat_logs').add({
+        'userId': user.uid,
+        'userEmail': user.email ?? 'Khách',
+        'prompt': text,
+        'response': cleanResponse.trim(),
+        'timestamp': FieldValue.serverTimestamp(),
+        'status': cleanResponse.isEmpty ? 'error' : 'success',
+        'category_tag': category,
+        'action_triggered': actionCode ?? 'NONE',
+        'isFlagged': false,
+      });
+
       if (mounted) setState(() => _isLoading = false);
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
       print("Lỗi chat AI: $e");
+
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser != null) {
+        FirebaseFirestore.instance.collection('ai_chat_logs').add({
+          'userId': currentUser.uid,
+          'userEmail': currentUser.email ?? 'Khách',
+          'prompt': text,
+          'response': 'Lỗi hệ thống: $e',
+          'timestamp': FieldValue.serverTimestamp(),
+          'status': 'error',
+          'category_tag': 'Lỗi',
+          'action_triggered': 'NONE',
+          'isFlagged': true,
+        });
+      }
     }
   }
 
-  // --- 3. LOGIC XÓA LỊCH SỬ (TẠO CHAT MỚI) ---
-  // Hàm xử lý khi bấm nút Cây bút (Tạo đoạn chat mới)
   void _startNewChat() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    // 1. CẬP NHẬT GIAO DIỆN NGAY LẬP TỨC
     setState(() {
-      _isRecommendationVisible = true; // <--- DÒNG QUAN TRỌNG NHẤT: Bắt buộc phải là true để hiện lại menu
-      _isLoading = false;              // Tắt xoay vòng nếu đang treo
-      _controller.clear();             // Xóa chữ đang nhập dở
+      _isRecommendationVisible = true;
+      _isLoading = false;
+      _controller.clear();
     });
 
-    // 2. Xóa dữ liệu trên Firestore (chạy ngầm)
     final batch = FirebaseFirestore.instance.batch();
     var snapshots = await FirebaseFirestore.instance
         .collection('users')
@@ -138,13 +159,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-// KIỂM TRA BÀN PHÍM CÓ ĐANG MỞ HAY KHÔNG
     final bool isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
     return Scaffold(
       resizeToAvoidBottomInset: true,
-      backgroundColor: const Color(0xFFF5F9FF), // Màu nền xanh nhạt chuẩn Mimo
+      backgroundColor: const Color(0xFFF5F9FF),
 
-      // --- APP BAR ---
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -168,16 +187,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
       body: Column(
         children: [
-          // --- PHẦN 1: HEADER & GỢI Ý (Đã sửa để tự động giãn Full màn hình) ---
           if (_isRecommendationVisible)
-            Expanded( // <--- Dùng Expanded để chiếm trọn không gian khi không có chat
-              flex: isKeyboardOpen ? 0 : 1, // Nếu mở phím thì không chiếm ưu tiên, đóng phím thì chiếm hết
+            Expanded(
+              flex: isKeyboardOpen ? 0 : 1,
               child: AnimatedSize(
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeInOut,
                 child: Column(
                   children: [
-                    // Lời chào
                     if (!isKeyboardOpen)
                       Padding(
                         padding: const EdgeInsets.only(top: 10, bottom: 5),
@@ -192,12 +209,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
                         ),
                       ),
 
-                    // Khung Menu Gợi ý - Tự động giãn nở
                     Expanded(
                       flex: isKeyboardOpen ? 0 : 1,
                       child: Container(
                         constraints: BoxConstraints(
-                          // Khi mở bàn phím thì giới hạn lại, khi đóng thì cho phép cao tối đa
                           maxHeight: isKeyboardOpen ? 250 : MediaQuery.of(context).size.height,
                         ),
                         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -213,7 +228,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
                               padding: EdgeInsets.only(bottom: 8, left: 4),
                               child: Text("Khuyến nghị 👍", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                             ),
-                            // Danh sách có thể cuộn
                             Expanded(
                               child: SingleChildScrollView(
                                 physics: const BouncingScrollPhysics(),
@@ -231,7 +245,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
               ),
             ),
 
-          // --- PHẦN 2: DANH SÁCH CHAT (Chỉ hiện khi có dữ liệu) ---
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('users')
@@ -242,7 +255,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
             builder: (context, snapshot) {
               final docs = snapshot.data?.docs ?? [];
 
-              // Nếu đã có tin nhắn, phần này sẽ chiếm không gian để hiển thị chat
               if (docs.isNotEmpty) {
                 return Expanded(
                   child: ListView.builder(
@@ -257,7 +269,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
                   ),
                 );
               }
-              // Nếu chưa có tin nhắn, trả về SizedBox trống để Khuyến nghị chiếm Full
               return const SizedBox.shrink();
             },
           ),
@@ -265,7 +276,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
           if (_isLoading)
             const Padding(padding: EdgeInsets.all(8.0), child: CircularProgressIndicator(strokeWidth: 2)),
 
-          // --- PHẦN 3: INPUT VIÊN THUỐC ---
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             color: const Color(0xFFF5F9FF),
@@ -315,7 +325,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
     );
   }
 
-  // --- WIDGET CON: ITEM GỢI Ý ---
   Widget _buildRecommendationItem(Map<String, dynamic> item) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -333,13 +342,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
         ),
         title: Text(item['title'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
         subtitle: Text(item['subtitle'], style: const TextStyle(fontSize: 12, color: Colors.grey)),
-        onTap: () => _sendMessage(item['query']), // Tự động gửi câu hỏi mẫu
+        onTap: () => _sendMessage(item['query']),
       ),
     );
   }
 
-  // --- WIDGET CON: BONG BÓNG CHAT ---
-  // --- WIDGET CON: BONG BÓNG CHAT (ĐÃ SỬA ĐỂ HIỂN THỊ MARKDOWN) ---
   Widget _buildChatBubble(String text, bool isUser, String? action) {
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -348,7 +355,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
         padding: const EdgeInsets.all(12),
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
         decoration: BoxDecoration(
-          color: isUser ? Colors.blue : Colors.white, // User: Xanh, AI: Trắng
+          color: isUser ? Colors.blue : Colors.white,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(16),
             topRight: const Radius.circular(16),
@@ -360,40 +367,33 @@ class _AiChatScreenState extends State<AiChatScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- THAY ĐỔI Ở ĐÂY: DÙNG MARKDOWN BODY ---
             MarkdownBody(
               data: text,
               styleSheet: MarkdownStyleSheet(
-                // Chỉnh màu chữ: User màu trắng, AI màu đen
                 p: TextStyle(
                   color: isUser ? Colors.white : Colors.black87,
                   fontSize: 15,
-                  height: 1.4, // Giãn dòng cho dễ đọc
+                  height: 1.4,
                 ),
-                // Chỉnh in đậm (**text**)
                 strong: TextStyle(
                     color: isUser ? Colors.white : Colors.black,
                     fontWeight: FontWeight.bold
                 ),
-                // Chỉnh tiêu đề (# Title) - làm cho giá tiền to rõ hơn
                 h1: TextStyle(
                     color: isUser ? Colors.white : Colors.black,
                     fontWeight: FontWeight.bold,
                     fontSize: 18
                 ),
                 h2: TextStyle(
-                    color: isUser ? Colors.white : Colors.blue[800], // Tiêu đề con màu xanh đậm cho đẹp
+                    color: isUser ? Colors.white : Colors.blue[800],
                     fontWeight: FontWeight.bold,
                     fontSize: 16
                 ),
-                // Chỉnh list (gạch đầu dòng)
                 listBullet: TextStyle(
                   color: isUser ? Colors.white : Colors.black87,
                 ),
               ),
             ),
-
-            // Nút hành động (Giữ nguyên code cũ)
             if (!isUser && action != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8),

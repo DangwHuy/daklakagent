@@ -32,7 +32,7 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
         scaffoldBackgroundColor: Colors.grey[50],
       ),
-      home: const AuthGate(),
+      home: const AppPresenceTracker(child: AuthGate()),
     );
   }
 }
@@ -140,4 +140,52 @@ class RoleCheckWrapper extends StatelessWidget {
       },
     );
   }
+}
+
+// Thêm class này vào cuối file main.dart hoặc file riêng
+class AppPresenceTracker extends StatefulWidget {
+  final Widget child;
+  const AppPresenceTracker({super.key, required this.child});
+
+  @override
+  State<AppPresenceTracker> createState() => _AppPresenceTrackerState();
+}
+
+class _AppPresenceTrackerState extends State<AppPresenceTracker> with WidgetsBindingObserver {
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _updateStatus(true); // Khi vừa vào app -> Online
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // Lắng nghe trạng thái App (Ẩn/Hiện/Đóng)
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _updateStatus(true); // Quay lại app -> Online
+    } else {
+      _updateStatus(false); // Thoát/Ẩn app -> Offline
+    }
+  }
+
+  void _updateStatus(bool isOnline) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+        'status': isOnline ? 'online' : 'offline',
+        'last_changed': FieldValue.serverTimestamp(),
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

@@ -1,0 +1,1126 @@
+import 'package:flutter/material.dart';
+import 'dart:math' as math;
+
+
+// ═══════════════════════ COLORS ═══════════════════════
+
+class AgriColors {
+  static const bg = Color(0xFFF4F1E8);
+  static const cardBg = Color(0xFFFFFDF5);
+  static const green1 = Color(0xFF2D5A1B);
+  static const green2 = Color(0xFF4A7C3F);
+  static const green3 = Color(0xFF7DB668);
+  static const green4 = Color(0xFFBED8A8);
+  static const brown1 = Color(0xFF6B4226);
+  static const brown2 = Color(0xFF9B6B4A);
+  static const soil = Color(0xFFD4A96A);
+  static const straw = Color(0xFFE8C870);
+  static const orange = Color(0xFFD97706);
+  static const text1 = Color(0xFF1C2B0F);
+  static const text2 = Color(0xFF4A5540);
+  static const divider = Color(0xFFD4C89A);
+}
+
+// ═══════════════════════ DATA MODEL ═══════════════════════
+
+class CartItem {
+  final String id;
+  final String shopName;
+  final String shopBadge;
+  final String productName;
+  final String variant;
+  final double price;
+  final double? originalPrice;
+  final String emoji;
+  final String? promoLabel;
+  final String? livePrice;
+  final String? flashSaleTime;
+  final String? bundlePromo;
+  final String? voucherText;
+  bool selected;
+  int quantity;
+
+  CartItem({
+    required this.id,
+    required this.shopName,
+    required this.shopBadge,
+    required this.productName,
+    required this.variant,
+    required this.price,
+    this.originalPrice,
+    required this.emoji,
+    this.promoLabel,
+    this.livePrice,
+    this.flashSaleTime,
+    this.bundlePromo,
+    this.voucherText,
+    this.selected = false,
+    this.quantity = 1,
+  });
+}
+
+final List<CartItem> demoItems = [
+  CartItem(
+    id: '1',
+    shopName: 'Trang Trại Mộc Châu',
+    shopBadge: 'certified',
+    productName: 'Sáp ong rừng nguyên chất Mộc Châu 90gr',
+    variant: 'Hũ 90gr + Muỗng gỗ',
+    price: 246000,
+    originalPrice: 267000,
+    emoji: '🍯',
+    promoLabel: 'Mùa vụ',
+  ),
+  CartItem(
+    id: '2',
+    shopName: 'Nông Trại Hữu Cơ CeraVê',
+    shopBadge: 'organic',
+    productName: 'Sữa tươi hữu cơ A2 nguyên kem',
+    variant: '',
+    price: 478000,
+    emoji: '🥛',
+    promoLabel: 'Mùa vụ',
+    livePrice: '392.666đ',
+    flashSaleTime: 'Flash Sale bắt đầu lúc 17:00:00',
+    bundlePromo: 'Mua kèm Phô Mai để tiết kiệm thêm',
+  ),
+  CartItem(
+    id: '3',
+    shopName: 'Vườn Rau Sạch L\'Oréal Xanh',
+    shopBadge: 'vietgap',
+    productName: 'Bộ dưỡng chất hữu cơ VietGAP cao cấp',
+    variant: 'Matte & Fresh',
+    price: 344000,
+    emoji: '🌿',
+    promoLabel: 'Mùa vụ',
+    livePrice: '271.149đ',
+    quantity: 2,
+  ),
+  CartItem(
+    id: '4',
+    shopName: 'HTX Rau Sạch VERDAN',
+    shopBadge: 'vietgap',
+    productName: 'Áo thun cotton 100% từ sợi bông hữu cơ',
+    variant: 'Trắng, XXL',
+    price: 119000,
+    emoji: '🌾',
+  ),
+  CartItem(
+    id: '5',
+    shopName: 'Trang Trại Meow 1988',
+    shopBadge: 'organic',
+    productName: 'Áo phông cotton trắng từ sợi thiên nhiên',
+    variant: 'Size XXXL',
+    price: 64000,
+    emoji: '🐄',
+    promoLabel: 'Mùa vụ',
+    bundlePromo: 'Mua thêm 2 sản phẩm để giảm 3k',
+  ),
+  CartItem(
+    id: '6',
+    shopName: 'Làng Nghề JAMINE',
+    shopBadge: 'certified',
+    productName: 'Áo sơ mi linen thủ công truyền thống',
+    variant: 'Đen, Size XL',
+    price: 200000,
+    emoji: '🪡',
+    promoLabel: 'Mùa vụ',
+    voucherText: 'Voucher nông sản giảm 2k',
+  ),
+  CartItem(
+    id: '7',
+    shopName: 'Da Thuộc THE BLACK BOX',
+    shopBadge: 'certified',
+    productName: 'Thắt lưng da trâu thủ công mỹ nghệ',
+    variant: '',
+    price: 89000,
+    emoji: '🐃',
+  ),
+];
+
+// ═══════════════════════ CART SCREEN ═══════════════════════
+
+class CartScreen extends StatefulWidget {
+  // 1. Khai báo biến nhận dữ liệu
+  final List<String> selectedIds;
+
+  // 2. Thêm vào constructor
+  const CartScreen({super.key, required this.selectedIds});
+
+  @override
+  State<CartScreen> createState() => _CartScreenState();
+}
+
+class _CartScreenState extends State<CartScreen> with TickerProviderStateMixin {
+  late AnimationController _headerCtrl;
+  late AnimationController _leafCtrl;
+  late Animation<double> _headerFade;
+  late Animation<Offset> _headerSlide;
+  late Animation<double> _leafAnim;
+
+  final List<CartItem> _items = List.from(demoItems);
+
+  bool get allSelected => _items.every((i) => i.selected);
+  double get totalPrice =>
+      _items.where((i) => i.selected).fold(0, (s, i) => s + i.price * i.quantity);
+  int get selectedCount => _items.where((i) => i.selected).length;
+
+  @override
+  void initState() {
+    super.initState();
+    _headerCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 700));
+    _headerFade = CurvedAnimation(parent: _headerCtrl, curve: Curves.easeOut);
+    _headerSlide = Tween<Offset>(
+        begin: const Offset(0, -0.4), end: Offset.zero)
+        .animate(CurvedAnimation(
+        parent: _headerCtrl, curve: Curves.easeOutCubic));
+
+    _leafCtrl = AnimationController(
+        vsync: this, duration: const Duration(seconds: 4))
+      ..repeat(reverse: true);
+    _leafAnim = Tween<double>(begin: -0.08, end: 0.08).animate(
+        CurvedAnimation(parent: _leafCtrl, curve: Curves.easeInOut));
+
+    _headerCtrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _headerCtrl.dispose();
+    _leafCtrl.dispose();
+    super.dispose();
+  }
+
+  void _toggleSelectAll(bool? val) =>
+      setState(() { for (var i in _items) { i.selected = val ?? false; } });
+
+  void _toggleItem(int idx, bool val) =>
+      setState(() => _items[idx].selected = val);
+
+  void _changeQty(int idx, int delta) => setState(() {
+    final nq = _items[idx].quantity + delta;
+    if (nq >= 1) _items[idx].quantity = nq;
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AgriColors.bg,
+      body: Column(
+        children: [
+          SlideTransition(
+            position: _headerSlide,
+            child: FadeTransition(opacity: _headerFade, child: _buildAppBar()),
+          ),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.only(bottom: 8),
+              itemCount: _items.length,
+              itemBuilder: (ctx, i) => _AnimatedItemTile(
+                key: ValueKey(_items[i].id),
+                item: _items[i],
+                index: i,
+                leafAnim: _leafAnim,
+                onToggle: (v) => _toggleItem(i, v),
+                onQtyChange: (d) => _changeQty(i, d),
+              ),
+            ),
+          ),
+          _buildVoucherRow(),
+          _buildBottomBar(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAppBar() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AgriColors.green1, AgriColors.green2],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(color: Color(0x40000000), blurRadius: 8, offset: Offset(0, 3))
+        ],
+      ),
+      padding: EdgeInsets.only(
+        top: MediaQuery.of(context).padding.top + 8,
+        bottom: 14,
+        left: 14,
+        right: 16,
+      ),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: () => Navigator.maybePop(context), // Quay lại màn hình trước đó
+            child: const Padding(
+              padding: EdgeInsets.all(4.0),
+              child: Icon(Icons.arrow_back, color: Color(0xFFEE4D2D), size: 22),
+            ),
+          ),
+          const SizedBox(width: 6),
+          AnimatedBuilder(
+            animation: _leafAnim,
+            builder: (ctx, _) => Transform.rotate(
+              angle: _leafAnim.value * 0.5,
+              child: const Text('🧺', style: TextStyle(fontSize: 22)),
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Giỏ Nông Sản',
+                  style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      letterSpacing: 0.3)),
+              Text('Tươi từ vườn đến bàn',
+                  style: TextStyle(
+                      fontSize: 10,
+                      color: AgriColors.green4,
+                      letterSpacing: 0.5)),
+            ],
+          ),
+          Container(
+            margin: const EdgeInsets.only(left: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: AgriColors.straw,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text('${_items.length}',
+                style: const TextStyle(
+                    fontSize: 12,
+                    color: AgriColors.brown1,
+                    fontWeight: FontWeight.w800)),
+          ),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withOpacity(0.3)),
+            ),
+            child: const Text('Sửa',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600)),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: AgriColors.straw,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Icon(Icons.chat_bubble_outline,
+                color: AgriColors.brown1, size: 17),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVoucherRow() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(10, 0, 10, 6),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AgriColors.cardBg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AgriColors.divider),
+        boxShadow: [
+          BoxShadow(
+              color: AgriColors.green2.withOpacity(0.06),
+              blurRadius: 4,
+              offset: const Offset(0, 2))
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
+              color: AgriColors.green4,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Text('🎟️', style: TextStyle(fontSize: 14)),
+          ),
+          const SizedBox(width: 8),
+          const Text('Voucher Nông Sản',
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AgriColors.text1)),
+          const Spacer(),
+          Text('Chọn hoặc nhập mã',
+              style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+          const Icon(Icons.chevron_right, color: Colors.grey, size: 16),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AgriColors.cardBg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+        boxShadow: [
+          BoxShadow(
+            color: AgriColors.green1.withOpacity(0.15),
+            blurRadius: 16,
+            offset: const Offset(0, -4),
+          )
+        ],
+      ),
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 12,
+        bottom: MediaQuery.of(context).padding.bottom + 12,
+      ),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: () => _toggleSelectAll(!allSelected),
+            child: Row(
+              children: [
+                _AgriCheckbox(selected: allSelected),
+                const SizedBox(width: 6),
+                const Text('Tất cả',
+                    style: TextStyle(fontSize: 13, color: AgriColors.text2)),
+              ],
+            ),
+          ),
+          const Spacer(),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Tổng thanh toán',
+                  style: TextStyle(fontSize: 10, color: AgriColors.text2)),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: Text(
+                  _fmt(totalPrice),
+                  key: ValueKey(totalPrice),
+                  style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: AgriColors.green1),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 10),
+          GestureDetector(
+            onTap: selectedCount > 0 ? () {} : null,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              decoration: BoxDecoration(
+                gradient: selectedCount > 0
+                    ? const LinearGradient(
+                  colors: [AgriColors.green1, AgriColors.green2],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+                    : null,
+                color: selectedCount > 0 ? null : Colors.grey[300],
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: selectedCount > 0
+                    ? [
+                  BoxShadow(
+                      color: AgriColors.green2.withOpacity(0.4),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4))
+                ]
+                    : null,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(selectedCount > 0 ? '🛒' : '🧺',
+                      style: const TextStyle(fontSize: 14)),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Mua ($selectedCount)',
+                    style: TextStyle(
+                      color: selectedCount > 0 ? Colors.white : Colors.grey[500],
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _fmt(double p) {
+    if (p == 0) return '0đ';
+    return '${p.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}đ';
+  }
+}
+
+// ═══════════════════════ ANIMATED ITEM TILE ═══════════════════════
+
+class _AnimatedItemTile extends StatefulWidget {
+  final CartItem item;
+  final int index;
+  final Animation<double> leafAnim;
+  final ValueChanged<bool> onToggle;
+  final ValueChanged<int> onQtyChange;
+
+  const _AnimatedItemTile({
+    super.key,
+    required this.item,
+    required this.index,
+    required this.leafAnim,
+    required this.onToggle,
+    required this.onQtyChange,
+  });
+
+  @override
+  State<_AnimatedItemTile> createState() => _AnimatedItemTileState();
+}
+
+class _AnimatedItemTileState extends State<_AnimatedItemTile>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _fade;
+  late Animation<Offset> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this,
+        duration: Duration(milliseconds: 500 + widget.index * 60));
+    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _slide = Tween<Offset>(
+        begin: const Offset(0.06, 0.1), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+    Future.delayed(Duration(milliseconds: widget.index * 80),
+            () { if (mounted) _ctrl.forward(); });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fade,
+      child: SlideTransition(
+        position: _slide,
+        child: _ItemCard(
+          item: widget.item,
+          leafAnim: widget.leafAnim,
+          onToggle: widget.onToggle,
+          onQtyChange: widget.onQtyChange,
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════ ITEM CARD ═══════════════════════
+
+class _ItemCard extends StatelessWidget {
+  final CartItem item;
+  final Animation<double> leafAnim;
+  final ValueChanged<bool> onToggle;
+  final ValueChanged<int> onQtyChange;
+
+  const _ItemCard({
+    required this.item,
+    required this.leafAnim,
+    required this.onToggle,
+    required this.onQtyChange,
+  });
+
+  String _fmt(double p) =>
+      '${p.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}đ';
+  int _disc(double s, double o) => (((o - s) / o) * 100).round();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+      decoration: BoxDecoration(
+        color: AgriColors.cardBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: item.selected ? AgriColors.green3 : AgriColors.divider,
+          width: item.selected ? 1.5 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: item.selected
+                ? AgriColors.green2.withOpacity(0.12)
+                : Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Shop header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+            child: Row(
+              children: [
+                GestureDetector(
+                  onTap: () => onToggle(!item.selected),
+                  child: _AgriCheckbox(selected: item.selected),
+                ),
+                const SizedBox(width: 8),
+                _BadgeChip(badge: item.shopBadge),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(item.shopName,
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: AgriColors.text1),
+                      overflow: TextOverflow.ellipsis),
+                ),
+                const Icon(Icons.chevron_right, size: 14, color: Colors.grey),
+                const Text('Sửa',
+                    style: TextStyle(fontSize: 11, color: AgriColors.text2)),
+              ],
+            ),
+          ),
+          Divider(height: 1, thickness: 0.5, color: AgriColors.divider, indent: 14),
+          // Product row
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                GestureDetector(
+                  onTap: () => onToggle(!item.selected),
+                  child: _AgriCheckbox(selected: item.selected),
+                ),
+                const SizedBox(width: 8),
+                _ProductImage(
+                    emoji: item.emoji,
+                    selected: item.selected,
+                    leafAnim: leafAnim),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(item.productName,
+                          style: const TextStyle(
+                              fontSize: 13,
+                              color: AgriColors.text1,
+                              fontWeight: FontWeight.w500,
+                              height: 1.3),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis),
+                      if (item.variant.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AgriColors.green4.withOpacity(0.4),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                                color: AgriColors.green3, width: 0.5),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(item.variant,
+                                    style: const TextStyle(
+                                        fontSize: 11,
+                                        color: AgriColors.green1,
+                                        fontWeight: FontWeight.w500),
+                                    overflow: TextOverflow.ellipsis),
+                              ),
+                              const Icon(Icons.arrow_drop_down,
+                                  size: 14, color: AgriColors.green2),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 6),
+                      if (item.promoLabel != null)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 5),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(colors: [
+                              AgriColors.green2,
+                              AgriColors.green1,
+                            ]),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text('🌱 ${item.promoLabel} VOUCHER',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700)),
+                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(_fmt(item.price),
+                                    style: const TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w800,
+                                        color: AgriColors.green1)),
+                                if (item.originalPrice != null)
+                                  Text(_fmt(item.originalPrice!),
+                                      style: const TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey,
+                                          decoration:
+                                          TextDecoration.lineThrough)),
+                              ],
+                            ),
+                          ),
+                          _QtyControl(
+                            qty: item.quantity,
+                            onMinus: () => onQtyChange(-1),
+                            onPlus: () => onQtyChange(1),
+                          ),
+                        ],
+                      ),
+                      if (item.originalPrice != null) ...[
+                        const SizedBox(height: 3),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 4, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDCFCE7),
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                              child: Text(
+                                '↓ Giảm ${_disc(item.price, item.originalPrice!)}%',
+                                style: const TextStyle(
+                                    fontSize: 9,
+                                    color: AgriColors.green1,
+                                    fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                            const SizedBox(width: 3),
+                            const Text('so với giá gốc',
+                                style: TextStyle(
+                                    fontSize: 9, color: Colors.grey)),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (item.flashSaleTime != null) _buildFlashSale(),
+          if (item.livePrice != null && item.flashSaleTime == null)
+            _buildLivePrice(),
+          if (item.bundlePromo != null) _buildBundlePromo(),
+          if (item.voucherText != null) _buildVoucherBadge(),
+          const SizedBox(height: 10),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFlashSale() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [
+          AgriColors.straw.withOpacity(0.5),
+          AgriColors.green4.withOpacity(0.3),
+        ]),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AgriColors.straw, width: 0.8),
+      ),
+      child: Row(
+        children: [
+          const Text('⚡', style: TextStyle(fontSize: 13)),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              'Giá Live: ${item.livePrice}  •  ${item.flashSaleTime}',
+              style: const TextStyle(
+                  fontSize: 10,
+                  color: AgriColors.brown1,
+                  fontWeight: FontWeight.w600),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const Icon(Icons.chevron_right, size: 14, color: AgriColors.brown2),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLivePrice() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 5, 12, 0),
+      child: Row(
+        children: [
+          const Text('🔴', style: TextStyle(fontSize: 10)),
+          const SizedBox(width: 3),
+          Text('Giá Live: ${item.livePrice}',
+              style: const TextStyle(
+                  fontSize: 11,
+                  color: AgriColors.orange,
+                  fontWeight: FontWeight.w600)),
+          const Icon(Icons.chevron_right, size: 13, color: AgriColors.orange),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBundlePromo() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 7, 12, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AgriColors.green4.withOpacity(0.25),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AgriColors.green4),
+      ),
+      child: Row(
+        children: [
+          const Text('🎁', style: TextStyle(fontSize: 13)),
+          const SizedBox(width: 6),
+          Expanded(
+              child: Text(item.bundlePromo!,
+                  style: const TextStyle(
+                      fontSize: 11, color: AgriColors.green1))),
+          const Icon(Icons.chevron_right, size: 14, color: AgriColors.green2),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVoucherBadge() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 7, 12, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: AgriColors.straw.withOpacity(0.25),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AgriColors.straw),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('🎟️', style: TextStyle(fontSize: 12)),
+          const SizedBox(width: 5),
+          Text(item.voucherText!,
+              style: const TextStyle(
+                  fontSize: 11,
+                  color: AgriColors.brown1,
+                  fontWeight: FontWeight.w600)),
+          const SizedBox(width: 5),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              color: AgriColors.orange,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: const Text('Mới',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800)),
+          ),
+          const Icon(Icons.chevron_right, size: 13, color: AgriColors.brown2),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════ PRODUCT IMAGE ═══════════════════════
+
+class _ProductImage extends StatelessWidget {
+  final String emoji;
+  final bool selected;
+  final Animation<double> leafAnim;
+
+  const _ProductImage(
+      {required this.emoji, required this.selected, required this.leafAnim});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: leafAnim,
+      builder: (ctx, _) => Transform.rotate(
+        angle: selected ? leafAnim.value * 0.15 : 0,
+        child: Container(
+          width: 86,
+          height: 86,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            gradient: LinearGradient(
+              colors: selected
+                  ? [AgriColors.green4, AgriColors.green4.withOpacity(0.4)]
+                  : [const Color(0xFFEEF4E6), const Color(0xFFF9FBF5)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            border: Border.all(
+              color: selected ? AgriColors.green3 : AgriColors.divider,
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              CustomPaint(
+                size: const Size(86, 86),
+                painter: _WoodGrainPainter(),
+              ),
+              Text(emoji, style: const TextStyle(fontSize: 36)),
+              if (selected)
+                const Positioned(
+                  top: 6,
+                  right: 6,
+                  child: Text('✨', style: TextStyle(fontSize: 12)),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WoodGrainPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = AgriColors.green2.withOpacity(0.04)
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
+    for (int i = 0; i < 5; i++) {
+      final y = size.height * (i + 1) / 6;
+      final path = Path()
+        ..moveTo(0, y)
+        ..quadraticBezierTo(size.width * 0.5, y + 3, size.width, y);
+      canvas.drawPath(path, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter old) => false;
+}
+
+// ═══════════════════════ BADGE CHIP ═══════════════════════
+
+class _BadgeChip extends StatelessWidget {
+  final String badge;
+  const _BadgeChip({required this.badge});
+
+  @override
+  Widget build(BuildContext context) {
+    final data = _data(badge);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: data.$2),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(data.$1,
+          style: const TextStyle(
+              color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
+    );
+  }
+
+  (String, List<Color>) _data(String badge) {
+    switch (badge) {
+      case 'organic':
+        return ('🌿 HỮU CƠ', [const Color(0xFF2D5A1B), const Color(0xFF4A7C3F)]);
+      case 'vietgap':
+        return ('✅ VIETGAP', [const Color(0xFF1565C0), const Color(0xFF1976D2)]);
+      default:
+        return ('⭐ CHỨNG NHẬN', [const Color(0xFF6B4226), const Color(0xFF9B6B4A)]);
+    }
+  }
+}
+
+// ═══════════════════════ QTY CONTROL ═══════════════════════
+
+class _QtyControl extends StatefulWidget {
+  final int qty;
+  final VoidCallback onMinus;
+  final VoidCallback onPlus;
+
+  const _QtyControl(
+      {required this.qty, required this.onMinus, required this.onPlus});
+
+  @override
+  State<_QtyControl> createState() => _QtyControlState();
+}
+
+class _QtyControlState extends State<_QtyControl>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 200));
+    _scale = TweenSequence([
+      TweenSequenceItem(
+          tween: Tween(begin: 1.0, end: 1.3)
+              .chain(CurveTween(curve: Curves.easeOut)),
+          weight: 50),
+      TweenSequenceItem(
+          tween: Tween(begin: 1.3, end: 1.0)
+              .chain(CurveTween(curve: Curves.bounceOut)),
+          weight: 50),
+    ]).animate(_ctrl);
+  }
+
+  @override
+  void didUpdateWidget(_QtyControl old) {
+    super.didUpdateWidget(old);
+    if (old.qty != widget.qty) _ctrl.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AgriColors.green4.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AgriColors.green3.withOpacity(0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _QBtn(label: '−', onTap: widget.qty > 1 ? widget.onMinus : null),
+          AnimatedBuilder(
+            animation: _scale,
+            builder: (ctx, _) => Transform.scale(
+              scale: _scale.value,
+              child: SizedBox(
+                width: 28,
+                child: Text('${widget.qty}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: AgriColors.green1)),
+              ),
+            ),
+          ),
+          _QBtn(label: '+', onTap: widget.onPlus),
+        ],
+      ),
+    );
+  }
+}
+
+class _QBtn extends StatelessWidget {
+  final String label;
+  final VoidCallback? onTap;
+  const _QBtn({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: enabled
+              ? AgriColors.green2
+              : AgriColors.green4.withOpacity(0.3),
+          shape: BoxShape.circle,
+        ),
+        child: Center(
+          child: Text(label,
+              style: TextStyle(
+                  color: enabled ? Colors.white : Colors.grey[400],
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  height: 1)),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════ AGRI CHECKBOX ═══════════════════════
+
+class _AgriCheckbox extends StatelessWidget {
+  final bool selected;
+  const _AgriCheckbox({required this.selected});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      width: 21,
+      height: 21,
+      decoration: BoxDecoration(
+        color: selected ? AgriColors.green2 : Colors.white,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: selected
+              ? AgriColors.green2
+              : AgriColors.brown2.withOpacity(0.4),
+          width: 1.5,
+        ),
+        boxShadow: selected
+            ? [
+          BoxShadow(
+              color: AgriColors.green2.withOpacity(0.35),
+              blurRadius: 6,
+              offset: const Offset(0, 2))
+        ]
+            : null,
+      ),
+      child: selected
+          ? const Icon(Icons.check, color: Colors.white, size: 13)
+          : null,
+    );
+  }
+}

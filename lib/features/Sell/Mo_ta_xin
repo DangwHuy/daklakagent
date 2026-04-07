@@ -1,0 +1,708 @@
+// mo_ta_screen.dart
+// Màn hình soạn thảo văn bản phong phú (Rich Text Editor) – "Mô tả"
+// Tái tạo trung thực UI từ ảnh gốc, dùng Material 3 + màu xanh lá (#2E9E6B)
+
+import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
+
+
+// ---------------------------------------------------------------------------
+// ENTRY POINT (dùng để chạy độc lập – xoá khi tích hợp vào project)
+// ---------------------------------------------------------------------------
+void main() {
+  runApp(
+    MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF2E9E6B),
+          brightness: Brightness.light,
+        ),
+      ),
+      home: const MoTaScreen(),
+    ),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SCREEN
+// ---------------------------------------------------------------------------
+class MoTaScreen extends StatefulWidget {
+  const MoTaScreen({super.key});
+
+  @override
+  State<MoTaScreen> createState() => _MoTaScreenState();
+}
+
+class _MoTaScreenState extends State<MoTaScreen> {
+
+  late quill.QuillController _controller;
+  // ── Toolbar state ─────────────────────────────────────────────────────────
+  bool _isBold = false;
+  bool _isItalic = false;
+  bool _isUnderline = false;
+  bool _isStrikethrough = false;
+  bool _isSuperscript = false;
+  bool _isSubscript = false;
+
+
+  String _selectedStyle = 'Normal';
+  String _selectedFont = 'Sans Serif';
+  String _selectedSize = '12 pt';
+
+  // ── Style/Font options ────────────────────────────────────────────────────
+  final List<String> _styles = [
+    'Normal',
+    'Quote',
+    'Code',
+    'Header 1',
+    'Header 2',
+    'Header 3',
+    'Header 4',
+    'Header 5',
+    'Header 6'
+  ];
+  final List<String> _fonts = ['Sans Serif', 'Serif', 'Monospace', 'Cursive'];
+  final List<String> _sizes = [
+    '8 pt', '10 pt', '12 pt', '14 pt', '16 pt', '18 pt',
+    '20 pt', '24 pt', '28 pt', '36 pt' // Thêm 20 pt và 28 pt vào đây
+  ];
+
+  @override
+  @override
+  void initState() {
+    super.initState();
+    _controller = quill.QuillController.basic();
+
+    _controller.addListener(() {
+      final style = _controller.getSelectionStyle();
+
+      final header = style.attributes[quill.Attribute.header.key];
+
+      setState(() {
+        if (header != null) {
+          _selectedStyle = 'Header ${header.value}';
+        } else {
+          _selectedStyle = 'Normal';
+        }
+      });
+    });
+  }
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  TextStyle get _editorStyle {
+    // 1. Xác định kích thước chữ mặc định
+    double fontSize = double.tryParse(_selectedSize.replaceAll(' pt', '')) ?? 12;
+    FontWeight fontWeight = _isBold ? FontWeight.bold : FontWeight.normal;
+    Color textColor = const Color(0xFF1C1C1E);
+    FontStyle fontStyle = _isItalic ? FontStyle.italic : FontStyle.normal;
+
+    // 2. LOGIC QUAN TRỌNG: Nếu đang chọn Header thì ghi đè các thông số
+    if (_selectedStyle.startsWith('Header')) {
+      fontWeight = FontWeight.bold; // Header luôn đậm
+      if (_selectedStyle == 'Header 1') fontSize = 28;
+      else if (_selectedStyle == 'Header 2') fontSize = 24;
+      else if (_selectedStyle == 'Header 3') fontSize = 20;
+      else if (_selectedStyle == 'Header 4') fontSize = 18;
+      else if (_selectedStyle == 'Header 5') fontSize = 16;
+      else if (_selectedStyle == 'Header 6') fontSize = 14;
+    }
+    else if (_selectedStyle == 'Quote') {
+      fontStyle = FontStyle.italic;
+      textColor = Colors.grey[700]!;
+    }
+    else if (_selectedStyle == 'Code') {
+      // Nếu chọn code thì dùng font Monospace
+    }
+
+    return TextStyle(
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      fontStyle: fontStyle,
+      decoration: _buildDecoration(),
+      fontFamily: _selectedStyle == 'Code' ? 'monospace' : _fontFamily,
+      color: textColor,
+      height: 1.5,
+    );
+  }
+
+  TextDecoration _buildDecoration() {
+    final List<TextDecoration> decs = [];
+    if (_isUnderline) decs.add(TextDecoration.underline);
+    if (_isStrikethrough) decs.add(TextDecoration.lineThrough);
+    if (decs.isEmpty) return TextDecoration.none;
+    return TextDecoration.combine(decs);
+  }
+
+  String get _fontFamily {
+    switch (_selectedFont) {
+      case 'Serif':
+        return 'Georgia';
+      case 'Monospace':
+        return 'Courier';
+      case 'Cursive':
+        return 'Palatino';
+      default:
+        return 'Helvetica';
+    }
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF2F2F7),
+      appBar: _buildAppBar(),
+      body: Column(
+        children: [
+          // ── Toolbar panel ──
+          Container(
+            color: Colors.white,
+            child: Column(
+              children: [
+                // Row 1 – Style & Font dropdowns
+                _buildDropdownRow(),
+                const Divider(height: 1, color: Color(0xFFE0E0E0)),
+                // Row 2 – Font size + text formatting
+                _buildFormattingRow(),
+                const Divider(height: 1, color: Color(0xFFE0E0E0)),
+                // Row 3 – Color, lists, alignment
+                _buildListAlignRow(),
+                const Divider(height: 1, color: Color(0xFFE0E0E0)),
+                // Row 4 – Indent + link + image
+                _buildIndentMediaRow(),
+              ],
+            ),
+          ),
+          // ── Editor area ──
+          Expanded(child: _buildEditorArea()),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // APP BAR
+  // ---------------------------------------------------------------------------
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      backgroundColor: const Color(0xFF2E9E6B),
+      elevation: 0,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, color: Colors.white),
+        onPressed: () => Navigator.maybePop(context),
+      ),
+      title: const Text(
+        'Mô tả',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 18,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      centerTitle: true,
+      actions: [
+        TextButton(
+          onPressed: () {},
+          child: const Text(
+            'Xong',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 17,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // TOOLBAR ROWS
+  // ---------------------------------------------------------------------------
+
+  /// Row 1: Paragraph style dropdown + Font family dropdown
+  Widget _buildDropdownRow() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Row(
+        children: [
+          // Style dropdown (Đã sửa để hiển thị Heading chuyên nghiệp)
+          Expanded(
+            child: _buildStyleDropdown(),
+          ),
+          const SizedBox(width: 12),
+          // Font dropdown (Giữ nguyên hoặc tùy biến tương tự nếu muốn)
+          Expanded(
+            child: _buildDropdown(
+              value: _selectedFont,
+              items: _fonts,
+              onChanged: (v) => setState(() => _selectedFont = v!),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  Widget _buildStyleDropdown() {
+    return DropdownButtonHideUnderline(
+      child: DropdownButton<String>(
+        value: _selectedStyle,
+        isExpanded: true,
+        menuMaxHeight: 400,
+        icon: const Icon(Icons.arrow_drop_down, color: Colors.black87),
+
+        // --- ĐÂY CHÍNH LÀ PHẦN 2: Xử lý khi chọn ---
+          onChanged: (String? newValue) {
+            if (newValue != null) {
+              setState(() => _selectedStyle = newValue);
+
+              if (newValue == 'Header 1') {
+                _controller.formatSelection(quill.Attribute.h1);
+              } else if (newValue == 'Header 2') {
+                _controller.formatSelection(quill.Attribute.h2);
+              } else if (newValue == 'Header 3') {
+                _controller.formatSelection(quill.Attribute.h3);
+              } else if (newValue == 'Header 4') {
+                _controller.formatSelection(quill.Attribute.h4);
+              } else if (newValue == 'Header 5') {
+                _controller.formatSelection(quill.Attribute.h5);
+              } else if (newValue == 'Header 6') {
+                _controller.formatSelection(quill.Attribute.h6);
+              } else if (newValue == 'Normal') {
+                _controller.formatSelection(
+                  quill.Attribute.clone(quill.Attribute.header, null),
+                );
+              }
+            }
+          },
+        // ------------------------------------------
+
+        selectedItemBuilder: (BuildContext context) {
+          return _styles.map<Widget>((String item) {
+            return Align(
+              alignment: Alignment.centerLeft,
+              child: Text(item, style: const TextStyle(fontSize: 15)),
+            );
+          }).toList();
+        },
+        items: _styles.map((style) {
+          return DropdownMenuItem<String>(
+            value: style,
+            child: _buildStylePreview(style), // Hàm preview mình đã viết ở trên
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+// Hàm hỗ trợ tạo giao diện cho từng dòng trong Menu
+  Widget _buildStylePreview(String style) {
+    switch (style) {
+      case 'Header 1':
+        return const Text('Header 1',
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black));
+      case 'Header 2':
+        return const Text('Header 2',
+            style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: Colors.black));
+      case 'Header 3':
+        return const Text('Header 3',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.black));
+      case 'Header 4':
+        return const Text('Header 4',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black));
+      case 'Header 5':
+        return const Text('Header 5',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black));
+      case 'Header 6':
+        return const Text('Header 6',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black));
+      case 'Quote':
+        return Container(
+          padding: const EdgeInsets.only(left: 8),
+          decoration: const BoxDecoration(
+            border: Border(left: BorderSide(color: Color(0xFF2E9E6B), width: 3)),
+          ),
+          child: const Text('Quote',
+              style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)),
+        );
+      case 'Code':
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.grey[200],
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: const Text('Code',
+              style: TextStyle(fontFamily: 'monospace', fontSize: 13, color: Colors.redAccent)),
+        );
+      default:
+        return const Text('Normal', style: TextStyle(fontSize: 15));
+    }
+  }
+  /// Row 2: Font size + Bold / Italic / Underline / Strikethrough / Superscript / Subscript
+  Widget _buildFormattingRow() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Row(
+        children: [
+          // Font size compact dropdown
+          _buildSizeDropdown(),
+          const SizedBox(width: 8),
+          _toolDivider(),
+          // Text style toggles
+          _toggleBtn(
+            label: 'B',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+            active: _controller
+                .getSelectionStyle()
+                .attributes
+                .containsKey(quill.Attribute.bold.key),
+            onTap: () {
+              _controller.formatSelection(quill.Attribute.bold);
+            },
+          ),
+      _toggleBtn(
+        label: 'I',
+        style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 17),
+        active: _controller
+            .getSelectionStyle()
+            .attributes
+            .containsKey(quill.Attribute.italic.key),
+        onTap: () {
+            _controller.formatSelection(quill.Attribute.italic);
+        },
+      ),
+
+      _toggleBtn(
+        label: 'U',
+        style: const TextStyle(
+          decoration: TextDecoration.underline,
+          fontSize: 17,
+        ),
+        active: _controller
+            .getSelectionStyle()
+            .attributes
+            .containsKey(quill.Attribute.underline.key),
+        onTap: () {
+          setState(() {
+            _controller.formatSelection(quill.Attribute.underline);
+          });
+        },
+      ),
+
+      _toolDivider(),
+
+// Strikethrough
+      _toggleBtn(
+        child: const _StrikeIcon(),
+        active: _controller
+            .getSelectionStyle()
+            .attributes
+            .containsKey(quill.Attribute.strikeThrough.key),
+        onTap: () {
+          setState(() {
+            _controller.formatSelection(quill.Attribute.strikeThrough);
+          });
+        },
+      ),
+      ]
+      ),
+    );
+  }
+
+  /// Row 3: Text colour, highlight, bullet list, numbered list, alignment group
+  Widget _buildListAlignRow() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Row(
+        children: [
+          // Text colour A
+          _iconBtn(Icons.format_color_text, onTap: () {}),
+          // Highlight
+          _iconBtn(Icons.format_color_fill, onTap: () {}),
+          _toolDivider(),
+          // Bullet list
+          _iconBtn(Icons.format_list_bulleted, onTap: () {}),
+          // Numbered list
+          _iconBtn(Icons.format_list_numbered, onTap: () {}),
+          _toolDivider(),
+          // Alignment buttons
+          _toggleBtn(
+            child: const Icon(Icons.format_align_left, size: 20),
+            active: _controller
+                .getSelectionStyle()
+                .attributes[quill.Attribute.align.key] ==
+                quill.Attribute.leftAlignment.value,
+            onTap: () => setState(() => _controller.formatSelection(quill.Attribute.leftAlignment)),
+          ),
+          _toggleBtn(
+            child: const Icon(Icons.format_align_center, size: 20),
+            active: _controller
+                .getSelectionStyle()
+                .attributes[quill.Attribute.align.key] ==
+                quill.Attribute.centerAlignment.value,
+            onTap: () => setState(() => _controller.formatSelection(quill.Attribute.centerAlignment)),
+          ),
+          _toggleBtn(
+            child: const Icon(Icons.format_align_right, size: 20),
+            active: _controller
+                .getSelectionStyle()
+                .attributes[quill.Attribute.align.key] ==
+                quill.Attribute.rightAlignment.value,
+            onTap: () => setState(() => _controller.formatSelection(quill.Attribute.rightAlignment)),
+          ),
+          _toggleBtn(
+            child: const Icon(Icons.format_align_justify, size: 20),
+            active: _controller
+                .getSelectionStyle()
+                .attributes[quill.Attribute.align.key] ==
+                quill.Attribute.justifyAlignment.value,
+            onTap: () => setState(() => _controller.formatSelection(quill.Attribute.justifyAlignment)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Row 4: Increase indent, decrease indent, insert link, insert image
+  Widget _buildIndentMediaRow() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Row(
+        children: [
+          _iconBtn(Icons.format_indent_increase, onTap: () {}),
+          _iconBtn(Icons.format_indent_decrease, onTap: () {}),
+          _toolDivider(),
+          _iconBtn(Icons.link, onTap: _showInsertLinkDialog),
+          _iconBtn(Icons.image_outlined, onTap: () {}),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // EDITOR AREA
+  // ---------------------------------------------------------------------------
+  Widget _buildEditorArea() {
+    return Container(
+      color: Colors.white,
+      margin: const EdgeInsets.only(top: 8),
+      child: Column(
+        children: [
+          Expanded(
+            child: quill.QuillEditor(
+              controller: _controller,
+              scrollController: ScrollController(),
+              focusNode: FocusNode(),
+              config: const quill.QuillEditorConfig(
+                expands: true,
+                padding: EdgeInsets.all(12),
+                autoFocus: true,
+              ),
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // HELPER WIDGETS
+  // ---------------------------------------------------------------------------
+
+  /// Generic dropdown widget
+  Widget _buildDropdown({
+    required String value,
+    required List<String> items,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return DropdownButtonHideUnderline(
+      child: DropdownButton<String>(
+        value: value,
+        isExpanded: true,
+        icon: const Icon(Icons.arrow_drop_down, size: 22, color: Colors.black87),
+        style: const TextStyle(
+          fontSize: 15,
+          color: Colors.black87,
+          fontWeight: FontWeight.w400,
+        ),
+        onChanged: onChanged,
+        items: items
+            .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+            .toList(),
+      ),
+    );
+  }
+
+  /// Compact font-size dropdown
+  Widget _buildSizeDropdown() {
+    return DropdownButtonHideUnderline(
+      child: DropdownButton<String>(
+        value: _selectedSize,
+        icon: const Icon(Icons.arrow_drop_down, size: 18, color: Colors.black87),
+        style: const TextStyle(
+          fontSize: 14,
+          color: Colors.black87,
+          fontWeight: FontWeight.w400,
+        ),
+        onChanged: (v) => setState(() => _selectedSize = v!),
+        items: _sizes
+            .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+            .toList(),
+      ),
+    );
+  }
+
+  /// Toggle button – accepts either a label String or a child Widget
+  Widget _toggleBtn({
+    String? label,
+    TextStyle? style,
+    Widget? child,
+    required bool active,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        alignment: Alignment.center,
+        decoration: active
+            ? BoxDecoration(
+          color: const Color(0xFF2E9E6B).withOpacity(0.15),
+          borderRadius: BorderRadius.circular(6),
+        )
+            : null,
+        child: child ??
+            Text(
+              label ?? '',
+              style: (style ?? const TextStyle(fontSize: 17)).copyWith(
+                color: active ? const Color(0xFF2E9E6B) : Colors.black87,
+              ),
+            ),
+      ),
+    );
+  }
+
+  /// Simple icon button
+  Widget _iconBtn(IconData icon, {required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 36,
+        height: 36,
+        child: Icon(icon, size: 22, color: Colors.black87),
+      ),
+    );
+  }
+
+  /// Thin vertical divider for toolbar
+  Widget _toolDivider() => Container(
+    width: 1,
+    height: 22,
+    margin: const EdgeInsets.symmetric(horizontal: 4),
+    color: const Color(0xFFDDDDDD),
+  );
+
+  // ---------------------------------------------------------------------------
+  // DIALOGS
+  // ---------------------------------------------------------------------------
+  void _showInsertLinkDialog() {
+    final TextEditingController urlCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Chèn liên kết'),
+        content: TextField(
+          controller: urlCtrl,
+          decoration: const InputDecoration(
+            hintText: 'https://...',
+            labelText: 'URL',
+          ),
+          keyboardType: TextInputType.url,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              // TODO: insert link into editor
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2E9E6B),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Chèn'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// MICRO WIDGETS
+// ---------------------------------------------------------------------------
+
+/// Strikethrough icon (T with line through)
+class _StrikeIcon extends StatelessWidget {
+  const _StrikeIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Text(
+      'S̶',
+      style: TextStyle(
+        fontSize: 17,
+        decoration: TextDecoration.lineThrough,
+        color: Colors.black87,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+  }
+}
+
+/// Superscript / Subscript icon (X² or X₂)
+class _SuperSubIcon extends StatelessWidget {
+  final bool isSuper;
+  const _SuperSubIcon({required this.isSuper});
+
+  @override
+  Widget build(BuildContext context) {
+    return RichText(
+      text: TextSpan(
+        style: const TextStyle(color: Colors.black87),
+        children: [
+          const TextSpan(
+            text: 'X',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          ),
+          WidgetSpan(
+            alignment: isSuper
+                ? PlaceholderAlignment.top
+                : PlaceholderAlignment.bottom,
+            child: Text(
+              isSuper ? '²' : '₂',
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
