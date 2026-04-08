@@ -1,12 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// expert_home_screen.dart  –  PHIÊN BẢN NÂNG CẤP
-// Tính năng mới:
-//   • Quick-action buttons (hôm nay / chờ duyệt / báo cáo / thu nhập)
-//   • "Lịch hẹn sắp tới" với đếm ngược + cảnh báo nhấp nháy khi < 2 tiếng
-//   • 4 stat-card (tổng ca / đánh giá / chờ xác nhận / thu nhập)
-//   • Bộ lọc biểu đồ: 7 Ngày | Tháng | Quý | Năm
-//   • Biểu đồ đường với gradient, dot trắng, tooltip thông minh
-//   • Biểu đồ tròn trạng thái lịch hẹn (confirmed / completed / pending / cancelled)
+// expert_home_screen.dart  –  PHIÊN BẢN NÂNG CẤP (CẬP NHẬT LUỒNG DỮ LIỆU)
+// Tính năng mới thêm vào:
+//   • Kết nối Quick-actions để chuyển tab (Hôm nay, Chờ duyệt).
+//   • Popup hiển thị Báo cáo & Hướng dẫn Thu nhập tiền mặt.
+//   • Tích hợp Hòm thư Thông báo (Quả chuông góc trên).
+//   • KHÔNG LÀM THAY ĐỔI UI HAY LOGIC CŨ.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'dart:async';
@@ -18,7 +16,7 @@ import 'package:daklakagent/features/auth/services/auth_service.dart';
 import 'package:daklakagent/features/expret/ExpertProfile.dart';
 import 'package:daklakagent/features/expret/ExpertAppointment.dart';
 import 'package:daklakagent/features/home/screens/expert_chat_list_screen.dart';
-
+import 'package:daklakagent/features/expret/expert_report_screen.dart';
 // ─── Enum bộ lọc thời gian biểu đồ ──────────────────────────────────────────
 enum ChartPeriod { day7, month, quarter, year }
 
@@ -42,12 +40,19 @@ class ExpertHomeScreen extends StatefulWidget {
 class _ExpertHomeScreenState extends State<ExpertHomeScreen> {
   int _selectedIndex = 0;
 
-  final List<Widget> _pages = [
-    const _DashboardContent(),
-    const ExpertAppointmentsScreen(),
-    const ExpertChatListScreen(),
-    const ExpertProfileSetup(),
-  ];
+  // NÂNG CẤP: Chuyển _pages vào initState để có thể truyền hàm _onItemTapped xuống Dashboard
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      _DashboardContent(onNavigate: _onItemTapped), // Truyền hàm chuyển tab xuống
+      const ExpertAppointmentsScreen(),
+      const ExpertChatListScreen(),
+      const ExpertProfileSetup(),
+    ];
+  }
 
   void _onItemTapped(int index) => setState(() => _selectedIndex = index);
 
@@ -109,7 +114,9 @@ class _ExpertHomeScreenState extends State<ExpertHomeScreen> {
 // 2. NỘI DUNG BẢNG ĐIỀU KHIỂN
 // ═════════════════════════════════════════════════════════════════════════════
 class _DashboardContent extends StatefulWidget {
-  const _DashboardContent();
+  final Function(int) onNavigate; // NÂNG CẤP: Nhận lệnh chuyển tab từ cha
+
+  const _DashboardContent({required this.onNavigate});
 
   @override
   State<_DashboardContent> createState() => _DashboardContentState();
@@ -212,6 +219,87 @@ class _DashboardContentState extends State<_DashboardContent>
     await FirebaseAuth.instance.signOut();
   }
 
+  // ─── NÂNG CẤP: Hàm hiển thị Hòm thư Thông báo ───────────────────────────
+  void _showNotificationsDialog(String expertUid) {
+    showModalBottomSheet(
+        context: context,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (context) {
+          return Container(
+            padding: const EdgeInsets.all(16),
+            height: MediaQuery.of(context).size.height * 0.6,
+            child: Column(
+              children: [
+                Container(
+                  width: 40,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text("Thông báo của bạn",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Divider(),
+                Expanded(
+                  child: StreamBuilder<QuerySnapshot>(
+                    // Truy vấn vào bảng notifications (sẽ tạo tự động khi có tin)
+                      stream: FirebaseFirestore.instance.collection('notifications')
+                          .where('receiverId', isEqualTo: expertUid)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator(color: Colors.green));
+                        }
+                        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                          return const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.notifications_off_outlined, size: 48, color: Colors.grey),
+                                SizedBox(height: 10),
+                                Text("Chưa có thông báo nào.", style: TextStyle(color: Colors.grey)),
+                              ],
+                            ),
+                          );
+                        }
+
+                        // Sắp xếp thủ công tránh lỗi thiếu Index trên Firebase
+                        final docs = snapshot.data!.docs.toList();
+                        docs.sort((a, b) {
+                          final aTime = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
+                          final bTime = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
+                          if (aTime == null || bTime == null) return 0;
+                          return bTime.compareTo(aTime);
+                        });
+
+                        return ListView(
+                          children: docs.map((doc) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            return ListTile(
+                              leading: const CircleAvatar(
+                                  backgroundColor: Colors.green,
+                                  child: Icon(Icons.notifications_active, color: Colors.white, size: 20)
+                              ),
+                              title: Text(data['title'] ?? 'Có lịch hẹn mới', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                              subtitle: Text(data['body'] ?? 'Nông dân vừa đặt lịch', style: const TextStyle(fontSize: 13)),
+                              contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                            );
+                          }).toList(),
+                        );
+                      }
+                  ),
+                )
+              ],
+            ),
+          );
+        }
+    );
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // BUILD
   // ═══════════════════════════════════════════════════════════════════════════
@@ -236,7 +324,7 @@ class _DashboardContentState extends State<_DashboardContent>
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {},
+            onPressed: () => _showNotificationsDialog(user.uid), // NÂNG CẤP: Gọi hàm mở thông báo
             tooltip: "Thông báo",
           ),
           IconButton(
@@ -294,11 +382,11 @@ class _DashboardContentState extends State<_DashboardContent>
                 _buildStatusControl(isOnline),
                 const SizedBox(height: 16),
 
-                // ── Quick-action buttons  ← MỚI
-                _buildQuickActions(),
+                // ── Quick-action buttons
+                _buildQuickActions(bookingCount, revenue), // NÂNG CẤP: Truyền biến vào hàm
                 const SizedBox(height: 24),
 
-                // ── Cảnh báo lịch hẹn sắp tới  ← MỚI
+                // ── Cảnh báo lịch hẹn sắp tới
                 _buildUpcomingAlert(user.uid),
 
                 // ── 4 stat-cards
@@ -316,7 +404,7 @@ class _DashboardContentState extends State<_DashboardContent>
                 _buildPerformanceChart(user.uid),
                 const SizedBox(height: 28),
 
-                // ── Biểu đồ tròn trạng thái  ← MỚI
+                // ── Biểu đồ tròn trạng thái
                 _sectionTitle("Phân bố trạng thái lịch hẹn"),
                 const SizedBox(height: 12),
                 _buildAppointmentStatusChart(user.uid),
@@ -345,8 +433,8 @@ class _DashboardContentState extends State<_DashboardContent>
     ),
   );
 
-  // ─── Quick Actions ────────────────────────────────────────────────────────
-  Widget _buildQuickActions() {
+  // ─── NÂNG CẤP: Quick Actions với logic kết nối ────────────────────────────
+  Widget _buildQuickActions(int bookingCount, double revenue) {
     final actions = [
       {
         'icon': Icons.calendar_today_rounded,
@@ -377,13 +465,17 @@ class _DashboardContentState extends State<_DashboardContent>
         return Expanded(
           child: GestureDetector(
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                content: Text('${a['label']} – Đang phát triển 🚧'),
-                duration: const Duration(seconds: 1),
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-              ));
+              // NÂNG CẤP LOGIC Ở ĐÂY
+              if (i == 0 || i == 1) {
+                // Hôm nay & Chờ duyệt -> Chuyển sang Tab Lịch Hẹn (Index 1)
+                widget.onNavigate(1);
+              } else if (i == 2) {
+                // Chuyển sang file Báo cáo mới
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpertReportScreen()));
+              } else if (i == 3) {
+                // Thu nhập -> Hiện hướng dẫn thu tiền mặt
+                _showRevenueGuideDialog();
+              }
             },
             child: Container(
               margin: EdgeInsets.only(left: i == 0 ? 0 : 8),
@@ -427,6 +519,96 @@ class _DashboardContentState extends State<_DashboardContent>
       }),
     );
   }
+
+  // ─── NÂNG CẤP: Dialog Báo cáo ─────────────────────────────────────────────
+  void _showReportDialog(int totalAppointments, double totalRevenue) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.bar_chart_rounded, color: Colors.purple),
+            SizedBox(width: 10),
+            Text("Báo cáo tổng quan", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Tổng số ca đã nhận: $totalAppointments ca", style: const TextStyle(fontSize: 15)),
+            const SizedBox(height: 10),
+            Text("Tổng thu nhập ước tính: ${totalRevenue.toStringAsFixed(0)} VNĐ", style: const TextStyle(fontSize: 15)),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.purple[50], borderRadius: BorderRadius.circular(10)),
+              child: const Text(
+                "Tính năng xuất báo cáo chi tiết ra file Excel đang được phát triển.",
+                style: TextStyle(color: Colors.purple, fontSize: 13, fontStyle: FontStyle.italic),
+              ),
+            )
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Đóng"))
+        ],
+      ),
+    );
+  }
+
+  // ─── NÂNG CẤP: Dialog Hướng dẫn Thu nhập ──────────────────────────────────
+  void _showRevenueGuideDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.monetization_on, color: Colors.green),
+            SizedBox(width: 10),
+            Text("Quy trình Thu Nhập", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Do đặc thù làm việc tại vườn, ứng dụng sẽ hoạt động như một sổ tay tài chính cá nhân:",
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            _buildGuideStep("1", "Đến vườn tư vấn cho bà con nông dân."),
+            const SizedBox(height: 10),
+            _buildGuideStep("2", "Thu tiền mặt (hoặc chuyển khoản) trực tiếp từ nông dân."),
+            const SizedBox(height: 10),
+            _buildGuideStep("3", "Vào mục Lịch Hẹn, bấm 'Xác nhận hoàn thành' và nhập số tiền vừa nhận để hệ thống lưu báo cáo."),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Đã hiểu")
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGuideStep(String number, String text) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CircleAvatar(radius: 12, backgroundColor: Colors.green[100], child: Text(number, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green[800]))),
+        const SizedBox(width: 10),
+        Expanded(child: Text(text, style: const TextStyle(fontSize: 14, color: Colors.black87))),
+      ],
+    );
+  }
+
 
   // ─── Cảnh báo lịch hẹn sắp tới ──────────────────────────────────────────
   Widget _buildUpcomingAlert(String expertUid) {
@@ -549,19 +731,22 @@ class _DashboardContentState extends State<_DashboardContent>
                 ),
               ),
               if (isUrgent)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: Colors.red[600],
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Text(
-                    'Vào ngay',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold),
+                GestureDetector(
+                  onTap: () => widget.onNavigate(1), // NÂNG CẤP: Chạm vào đây cũng chuyển sang tab Lịch
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.red[600],
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'Vào xem',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
             ],
@@ -705,7 +890,6 @@ class _DashboardContentState extends State<_DashboardContent>
               stream: FirebaseFirestore.instance
                   .collection('appointments')
                   .where('expertId', isEqualTo: expertUid)
-              // ĐÃ SỬA: Đếm cả ca đang nhận và đã hoàn thành
                   .where('status', whereIn: ['confirmed', 'completed'])
                   .snapshots(),
               builder: (context, snapshot) {
@@ -738,8 +922,8 @@ class _DashboardContentState extends State<_DashboardContent>
 
                 return LineChart(
                   LineChartData(
-                    minX: 0, // ĐÃ THÊM: Khóa trục X
-                    maxX: (chartData.spots.length - 1).toDouble(), // ĐÃ THÊM: Khóa trục X
+                    minX: 0,
+                    maxX: (chartData.spots.length - 1).toDouble(),
                     minY: 0,
                     maxY: maxY + 1.5,
                     clipData: const FlClipData.all(),
@@ -760,7 +944,6 @@ class _DashboardContentState extends State<_DashboardContent>
                           showTitles: true,
                           interval: _selectedPeriod == ChartPeriod.year ? 1 : 1,
                           getTitlesWidget: (value, meta) {
-                            // ĐÃ THÊM: Fix lỗi lặp nhãn và giãn đồ thị
                             if (value != value.roundToDouble()) return const SizedBox.shrink();
 
                             final idx = value.toInt();
@@ -794,7 +977,6 @@ class _DashboardContentState extends State<_DashboardContent>
                         ),
                       ),
                     ),
-                    // ── Tooltip thông minh
                     lineTouchData: LineTouchData(
                       enabled: true,
                       touchTooltipData: LineTouchTooltipData(
@@ -829,12 +1011,11 @@ class _DashboardContentState extends State<_DashboardContent>
                       LineChartBarData(
                         spots: chartData.spots,
                         isCurved: true,
-                        preventCurveOverShooting: true, // ĐÃ THÊM: Ngăn đường cong võng xuống âm
+                        preventCurveOverShooting: true,
                         curveSmoothness: 0.3,
                         color: Colors.green[600],
                         barWidth: 3,
                         isStrokeCapRound: true,
-                        // Dot trắng viền xanh
                         dotData: FlDotData(
                           show: true,
                           getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
@@ -844,7 +1025,6 @@ class _DashboardContentState extends State<_DashboardContent>
                             strokeColor: Colors.green[600]!,
                           ),
                         ),
-                        // ── Gradient bóng đổ dưới đường
                         belowBarData: BarAreaData(
                           show: true,
                           gradient: LinearGradient(
@@ -869,6 +1049,7 @@ class _DashboardContentState extends State<_DashboardContent>
       ),
     );
   }
+
   // ─── Biểu đồ tròn trạng thái lịch hẹn ───────────────────────────────────
   Widget _buildAppointmentStatusChart(String expertUid) {
     return Container(
@@ -1048,7 +1229,6 @@ class _DashboardContentState extends State<_DashboardContent>
     }
   }
 
-  /// 7 ngày gần nhất – trục X: "CN\n5/4" "T2\n6/4" ...
   _ChartData _build7DayData(
       List<QueryDocumentSnapshot> docs, DateTime now) {
     const dayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
@@ -1079,7 +1259,6 @@ class _DashboardContentState extends State<_DashboardContent>
     );
   }
 
-  /// Tháng này – chia theo tuần trong tháng
   _ChartData _buildMonthData(
       List<QueryDocumentSnapshot> docs, DateTime now) {
     final daysInMonth =
@@ -1107,7 +1286,6 @@ class _DashboardContentState extends State<_DashboardContent>
     );
   }
 
-  /// Quý (3 tháng gần nhất)
   _ChartData _buildQuarterData(
       List<QueryDocumentSnapshot> docs, DateTime now) {
     final labels = <String>[];
@@ -1135,7 +1313,6 @@ class _DashboardContentState extends State<_DashboardContent>
     );
   }
 
-  /// Năm – 12 tháng
   _ChartData _buildYearData(
       List<QueryDocumentSnapshot> docs, DateTime now) {
     final counts = List.filled(12, 0);

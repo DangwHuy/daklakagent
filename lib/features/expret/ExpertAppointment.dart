@@ -8,7 +8,8 @@
 //   • Viền đỏ + nhãn "Sắp đến giờ!" nhấp nháy khi còn ≤ 2 tiếng
 //   • Nút "Đánh dấu Hoàn thành" cho ca đã qua chưa xử lý
 //   • Empty state đẹp hơn cho từng tab
-//   • Dialog xác nhận hoàn thành
+//   • (NÂNG CẤP) Dialog xác nhận hoàn thành cho phép nhập doanh thu
+//   • (NÂNG CẤP) Hiển thị doanh thu thực nhận ở Tab Lịch sử
 // ─────────────────────────────────────────────────────────────────────────────
 
 import 'dart:async';
@@ -394,22 +395,29 @@ class _ExpertAppointmentsScreenState
     final isUrgent =
         isToday && diff.inMinutes > 0 && diff.inMinutes <= 120;
 
+    // THÊM: Kiểm tra xem đã qua giờ hẹn hay chưa
+    final isTimePassed = time.isBefore(now);
+
+    String headerLabel = 'Đã nhận';
+    if (isUrgent) headerLabel = 'Sắp đến giờ!';
+    if (isTimePassed || isPast) headerLabel = 'Chờ hoàn thành';
+
     Widget card = _cardShell(
-      borderColor: isUrgent ? Colors.red : Colors.green[600]!,
+      borderColor: isUrgent ? Colors.red : (isTimePassed || isPast ? Colors.orange : Colors.green[600]!),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _cardHeader(time,
               badgeColor: isUrgent
                   ? Colors.red[50]!
-                  : Colors.green[50]!,
+                  : (isTimePassed || isPast ? Colors.orange[50]! : Colors.green[50]!),
               textColor: isUrgent
                   ? Colors.red[700]!
-                  : Colors.green[700]!,
+                  : (isTimePassed || isPast ? Colors.orange[700]! : Colors.green[700]!),
               icon: isUrgent
                   ? Icons.alarm_rounded
-                  : Icons.check_circle_rounded,
-              label: isUrgent ? 'Sắp đến giờ!' : 'Đã nhận'),
+                  : (isTimePassed || isPast ? Icons.assignment_late_rounded : Icons.check_circle_rounded),
+              label: headerLabel),
 
           // Countdown
           if (isToday && diff.inMinutes > 0) ...[
@@ -454,7 +462,7 @@ class _ExpertAppointmentsScreenState
           if (note.isNotEmpty) _noteBox(note),
 
           // Nút hoàn thành cho ca đã qua
-          if (isPast) ...[
+          if (isPast || isTimePassed) ...[
             const SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
@@ -504,6 +512,9 @@ class _ExpertAppointmentsScreenState
     final phone = data['farmerPhone'] ?? "";
     final address = data['farmerAddress'] ?? "";
 
+    // NÂNG CẤP: Lấy số tiền thực nhận để hiển thị trong lịch sử
+    final double earned = (data['earnedRevenue'] ?? 0.0).toDouble();
+
     final isCompleted = status == 'completed';
     final borderColor =
     isCompleted ? Colors.blue[500]! : Colors.red[400]!;
@@ -529,6 +540,11 @@ class _ExpertAppointmentsScreenState
           _divider(),
           _farmerRow(farmerName, farmerId, phone, address),
           if (note.isNotEmpty) _noteBox(note),
+
+          // NÂNG CẤP: Hiện hộp tiền thu được nếu ca hoàn thành
+          if (isCompleted && earned > 0)
+            _revenueBox(earned),
+
           if (status == 'cancelled' && data['cancelReason'] != null)
             _cancelBox(data['cancelReason']),
         ],
@@ -737,6 +753,31 @@ class _ExpertAppointmentsScreenState
     );
   }
 
+  // NÂNG CẤP: Box hiển thị tiền trong lịch sử
+  Widget _revenueBox(double amount) {
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(12),
+      width: double.infinity,
+      decoration: BoxDecoration(
+          color: Colors.green[50],
+          borderRadius: BorderRadius.circular(10)),
+      child: Row(
+        children: [
+          Icon(Icons.payments_rounded, size: 16, color: Colors.green[800]),
+          const SizedBox(width: 6),
+          Text(
+            "Thực nhận: ${NumberFormat("#,##0", "vi_VN").format(amount)} VNĐ",
+            style: TextStyle(
+                color: Colors.green[800],
+                fontSize: 13,
+                fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _cancelBox(String reason) {
     return Container(
       margin: const EdgeInsets.only(top: 10),
@@ -878,8 +919,10 @@ class _ExpertAppointmentsScreenState
     }
   }
 
-  // ─── Đánh dấu hoàn thành ─────────────────────────────────────────────────
+  // ─── NÂNG CẤP: Đánh dấu hoàn thành & Nhập Doanh thu ──────────────────────
   Future<void> _handleComplete(DocumentSnapshot doc) async {
+    final TextEditingController revenueController = TextEditingController();
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -887,8 +930,30 @@ class _ExpertAppointmentsScreenState
             borderRadius: BorderRadius.circular(16)),
         title: const Text('Xác nhận hoàn thành?',
             style: TextStyle(fontWeight: FontWeight.bold)),
-        content:
-        const Text('Đánh dấu ca tư vấn này là đã hoàn thành?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Đánh dấu ca tư vấn này là đã hoàn thành?'),
+            const SizedBox(height: 16),
+            const Text('Số tiền thực nhận (VNĐ):', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: revenueController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                hintText: 'VD: 500000',
+                suffixText: 'VNĐ',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.green.shade600, width: 2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -909,15 +974,37 @@ class _ExpertAppointmentsScreenState
 
     if (confirm != true) return;
 
+    // Lấy số tiền người dùng đã nhập (Nếu để trống thì mặc định là 0)
+    final double earnedAmount = double.tryParse(revenueController.text.trim()) ?? 0.0;
+    final String expertId = FirebaseAuth.instance.currentUser!.uid;
+
     try {
-      await doc.reference.update({
+      final batch = FirebaseFirestore.instance.batch();
+
+      // 1. Cập nhật trạng thái lịch hẹn & lưu lịch sử số tiền kiếm được
+      batch.update(doc.reference, {
         'status': 'completed',
         'completedAt': FieldValue.serverTimestamp(),
+        'earnedRevenue': earnedAmount, // Lưu để xem lại trong tab Lịch sử
       });
 
+      // 2. Cộng dồn số tiền vào tổng thu nhập của Chuyên gia
+      final expertRef = FirebaseFirestore.instance.collection('users').doc(expertId);
+      batch.update(expertRef, {
+        'expertInfo.revenue': FieldValue.increment(earnedAmount),
+      });
+
+      // Thực thi cùng lúc 2 lệnh trên
+      await batch.commit();
+
       if (mounted) {
+        String message = "🎉 Ca tư vấn đã hoàn thành!";
+        if (earnedAmount > 0) {
+          message = "🎉 Hoàn thành! Đã cộng ${NumberFormat("#,##0", "vi_VN").format(earnedAmount)} VNĐ vào báo cáo.";
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: const Text("🎉  Ca tư vấn đã hoàn thành!"),
+          content: Text(message),
           backgroundColor: Colors.blue[600],
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
