@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -22,18 +23,20 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
 
   // Biến lưu dữ liệu AI
   String _aiMessage = "Chưa có dữ liệu phân tích. Hãy bấm nút 'Phân tích mới' để AI tổng hợp dữ liệu của bạn nhé!";
-  List<String> _radarLabels = ["Số ca", "Hoàn thành", "Doanh thu", "Tốc độ", "Đánh giá"];
-  List<double> _radarValues = [0, 0, 0, 0, 0];
   DateTime? _lastAnalyzedTime; // Thời gian phân tích gần nhất
+
+  // Dữ liệu Radar cũ từ API sẽ không còn dùng để vẽ biểu đồ nữa,
+  // nhưng vẫn giữ lại mảng labels để hiển thị
+  final List<String> _radarLabels = ["Số ca", "Hoàn thành", "Doanh thu", "Tốc độ", "Đánh giá"];
 
   @override
   void initState() {
     super.initState();
-    // Vừa vào trang là lấy dữ liệu ĐÃ LƯU TỪ TRƯỚC ra xem ngay (Không tốn token)
+    // Vừa vào trang là lấy dữ liệu AI ĐÃ LƯU TỪ TRƯỚC ra xem ngay (Không tốn token)
     _loadSavedAIData();
   }
 
-  // ─── ĐỌC DỮ LIỆU ĐÃ LƯU TỪ FIREBASE ───────────────────────────────────────
+  // ─── ĐỌC DỮ LIỆU AI ĐÃ LƯU TỪ FIREBASE ───────────────────────────────────────
   Future<void> _loadSavedAIData() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -45,7 +48,6 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
         if (!mounted) return;
         setState(() {
           _aiMessage = data['ai_insight'] ?? _aiMessage;
-          _radarValues = List<double>.from(data['radar_values'] ?? [0,0,0,0,0]);
           _lastAnalyzedTime = (data['timestamp'] as Timestamp?)?.toDate();
         });
       }
@@ -54,7 +56,7 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
     }
   }
 
-  // ─── GỌI FASTAPI ĐỂ PHÂN TÍCH MỚI VÀ LƯU LẠI ──────────────────────────────
+  // ─── GỌI FASTAPI ĐỂ LẤY NHẬN XÉT MỚI VÀ LƯU LẠI ──────────────────────────────
   Future<void> _fetchNewAIData() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -69,19 +71,16 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
       final response = await http.get(
         Uri.parse(apiUrl),
         headers: {"ngrok-skip-browser-warning": "true"},
-      ).timeout(const Duration(seconds: 60)); // Đã Tăng thời gian chờ AI lên 60s
+      ).timeout(const Duration(seconds: 60));
 
       if (response.statusCode == 200) {
         final data = json.decode(utf8.decode(response.bodyBytes));
-
-        List<dynamic> rawValues = data['radar_chart_data']['values'];
-        List<double> newRadarValues = rawValues.map((e) => (e as num).toDouble()).toList();
         String newInsight = data['ai_insight'] ?? "Không có lời khuyên.";
 
         // --- LƯU LÊN FIREBASE ĐỂ LẦN SAU KHÔNG CẦN GỌI LẠI ---
         final reportData = {
           'ai_insight': newInsight,
-          'radar_values': newRadarValues,
+          // Không cần lưu radar_values từ server nữa vì app tự tính
           'timestamp': FieldValue.serverTimestamp(),
         };
 
@@ -101,7 +100,6 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
         if (!mounted) return;
         setState(() {
           _aiMessage = newInsight;
-          _radarValues = newRadarValues;
           _lastAnalyzedTime = DateTime.now();
           _isLoadingAPI = false;
         });
@@ -109,7 +107,6 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
       } else {
         if (!mounted) return;
         setState(() {
-          // Bắt lỗi nếu Server Colab gặp lỗi 500
           _apiError = "Lỗi Máy chủ Colab: Mã ${response.statusCode}\nChi tiết: ${response.body}";
           _isLoadingAPI = false;
         });
@@ -124,14 +121,13 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
       debugPrint("LỖI GỌI API THỰC TẾ: $e");
       if (!mounted) return;
       setState(() {
-        // 🚀 ĐÃ FIX: In chính xác mã lỗi ra màn hình để biết tại sao hỏng
         _apiError = "Lỗi hệ thống: $e";
         _isLoadingAPI = false;
       });
     }
   }
 
-  // ─── HIỂN THỊ LỊCH SỬ PHÂN TÍCH ───────────────────────────────────────────
+  // ─── HIỂN THỊ LỊCH SỬ PHÂN TÍCH AI ───────────────────────────────────────────
   void _showHistoryBottomSheet() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -154,7 +150,7 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
             ),
             const Padding(
               padding: EdgeInsets.all(16.0),
-              child: Text("Lịch sử phân tích AI", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              child: Text("Lịch sử nhận xét AI", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             ),
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
@@ -275,13 +271,13 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
 
                 const SizedBox(height: 24),
                 const Text(
-                  "Đánh Giá Năng Lực (Radar AI)",
+                  "Đánh Giá Năng Lực (Real-time)",
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
                 ),
                 const SizedBox(height: 12),
 
-                // 3. Biểu đồ Radar
-                _buildRadarChartCard(),
+                // 3. NÂNG CẤP: Biểu đồ Radar tự động tính toán từ Firebase
+                _buildRadarChartCard(user.uid, totalBookings, revenue, rating),
 
                 const SizedBox(height: 24),
                 const Text(
@@ -307,7 +303,7 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
     );
   }
 
-  // ─── THẺ AI PHÂN TÍCH THỰC TẾ (NÂNG CẤP LƯU CACHE & LỊCH SỬ) ──────────────
+  // ─── THẺ AI PHÂN TÍCH THỰC TẾ ──────────────────────────────────────────────
   Widget _buildAIAssistantCard() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -329,7 +325,6 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // HEADER CARD
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -364,20 +359,15 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
                   ),
                 ],
               ),
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.history_rounded, color: Colors.white, size: 22),
-                    tooltip: "Lịch sử phân tích",
-                    onPressed: _showHistoryBottomSheet,
-                  ),
-                ],
+              IconButton(
+                icon: const Icon(Icons.history_rounded, color: Colors.white, size: 22),
+                tooltip: "Lịch sử nhận xét",
+                onPressed: _showHistoryBottomSheet,
               )
             ],
           ),
           const SizedBox(height: 20),
 
-          // NỘI DUNG CHAT BUBBLE
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -398,11 +388,7 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
                       bottomRight: Radius.circular(20),
                     ),
                     boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      )
+                      BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))
                     ],
                   ),
                   child: _isLoadingAPI
@@ -416,7 +402,6 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
                       children: [
                         const Icon(Icons.error_outline, color: Colors.red, size: 20),
                         const SizedBox(width: 8),
-                        // CHỖ NÀY SẼ IN RA LỖI RÕ RÀNG ĐỂ CHÚNG TA BIẾT ĐƯỜNG FIX
                         Expanded(child: Text(_apiError, style: const TextStyle(color: Colors.red, fontSize: 13))),
                       ],
                     ),
@@ -426,12 +411,7 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
                     children: [
                       TypewriterText(
                         text: _aiMessage,
-                        style: const TextStyle(
-                          color: Colors.black87,
-                          fontSize: 14.5,
-                          height: 1.5,
-                          fontWeight: FontWeight.w500,
-                        ),
+                        style: const TextStyle(color: Colors.black87, fontSize: 14.5, height: 1.5, fontWeight: FontWeight.w500),
                       ),
                       if (_aiMessage != "Đang chờ kết nối với Máy chủ AI...")
                         Align(
@@ -452,7 +432,6 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
           ),
           const SizedBox(height: 20),
 
-          // NÚT PHÂN TÍCH MỚI
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
@@ -461,7 +440,7 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
                   ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.purple, strokeWidth: 2))
                   : const Icon(Icons.bolt_rounded, size: 20),
               label: Text(
-                _isLoadingAPI ? "Đang phân tích dữ liệu mới..." : "Phân tích dữ liệu mới nhất",
+                _isLoadingAPI ? "Đang nhờ AI nhận xét..." : "Xin nhận xét mới nhất từ AI",
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
               style: ElevatedButton.styleFrom(
@@ -505,60 +484,171 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
     );
   }
 
-  // ─── BIỂU ĐỒ RADAR TỪ FL_CHART ──────────────────────────────────────────
-  Widget _buildRadarChartCard() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 4))],
-      ),
-      child: Column(
-        children: [
-          SizedBox(
-            height: 250,
-            child: _isLoadingAPI
-                ? const Center(child: CircularProgressIndicator(color: Colors.purple))
-                : RadarChart(
-              RadarChartData(
-                radarShape: RadarShape.polygon,
-                tickCount: 5,
-                ticksTextStyle: const TextStyle(color: Colors.transparent, fontSize: 0),
-                gridBorderData: BorderSide(color: Colors.grey.withOpacity(0.3), width: 1.5),
-                tickBorderData: BorderSide(color: Colors.grey.withOpacity(0.3)),
-                titlePositionPercentageOffset: 0.2,
-                getTitle: (index, angle) {
-                  return RadarChartTitle(
-                    text: _radarLabels[index],
-                    angle: 0,
-                  );
-                },
-                titleTextStyle: TextStyle(color: Colors.grey[800], fontSize: 13, fontWeight: FontWeight.bold),
-                dataSets: [
-                  RadarDataSet(
-                    fillColor: Colors.purple.withOpacity(0.25),
-                    borderColor: Colors.purple[600]!,
-                    entryRadius: 4,
-                    dataEntries: _radarValues.map((v) => RadarEntry(value: v)).toList(),
-                    borderWidth: 2.5,
-                  ),
-                ],
-              ),
-              swapAnimationDuration: const Duration(milliseconds: 800),
+  // ─── NÂNG CẤP: TỰ ĐỘNG TÍNH ĐIỂM RADAR TRỰC TIẾP TỪ FIREBASE ──────────────
+  Widget _buildRadarChartCard(String expertId, int uiTotalBookings, double uiTotalRevenue, double uiRating) {
+    return StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('appointments')
+            .where('expertId', isEqualTo: expertId)
+            .snapshots(),
+        builder: (context, snapshot) {
+
+          // 1. Tính toán giá trị nội bộ nếu có dữ liệu
+          int completedCount = 0;
+          int cancelledCount = 0;
+          int actualLen = 0;
+
+          // Biến phục vụ tính tốc độ
+          int totalValidSpeedDocs = 0;
+          int totalConfirmationMinutes = 0;
+
+          if (snapshot.hasData) {
+            actualLen = snapshot.data!.docs.length;
+            for (var doc in snapshot.data!.docs) {
+              final data = doc.data() as Map<String, dynamic>;
+              if (data['status'] == 'completed') completedCount++;
+              if (data['status'] == 'cancelled') cancelledCount++;
+
+              // ─── SỬA: Ưu tiên confirmedAt, fallback sang completedAt ───────
+              // Hỗ trợ cả dữ liệu cũ (chỉ có completedAt) lẫn dữ liệu mới (có confirmedAt)
+              final createdAtData = data['createdAt'];
+              final confirmedAtData = data['confirmedAt'];
+              final completedAtData = data['completedAt'];
+
+              final Timestamp? endTimestamp =
+              (confirmedAtData is Timestamp) ? confirmedAtData :
+              (completedAtData is Timestamp) ? completedAtData : null;
+
+              if (createdAtData is Timestamp && endTimestamp != null) {
+                int diffMinutes = endTimestamp.toDate()
+                    .difference(createdAtData.toDate()).inMinutes;
+                if (diffMinutes >= 0) {
+                  totalConfirmationMinutes += diffMinutes;
+                  totalValidSpeedDocs++;
+                }
+              }
+              // ────────────────────────────────────────────────────────────────
+            }
+          }
+
+          int totalForCalc = max(actualLen, uiTotalBookings);
+          List<double> localRadarValues = [0, 0, 0, 0, 0];
+
+          if (totalForCalc > 0) {
+            // A. Điểm Số ca (Volume)
+            double sVolume = (totalForCalc / 10.0) * 5.0;
+            if (sVolume > 5.0) sVolume = 5.0;
+
+            // B. Điểm Hoàn thành (Success)
+            // Chỉ tính trên ca đã kết thúc (completed + cancelled), bỏ qua pending/confirmed đang chờ
+            double sSuccess = 0.0;
+            final int finishedCount = completedCount + cancelledCount;
+            if (finishedCount > 0) {
+              sSuccess = (completedCount / finishedCount) * 5.0;
+            }
+
+            // C. Điểm Doanh thu (Revenue)
+            double sRevenue = (uiTotalRevenue / 2000000.0) * 5.0;
+            if (sRevenue > 5.0) sRevenue = 5.0;
+
+            // D. Điểm Tốc độ (Speed) - Dựa vào Timestamp
+            double sSpeed = 0.0;
+            if (totalValidSpeedDocs > 0) {
+              double avgMinutes = totalConfirmationMinutes / totalValidSpeedDocs;
+              if (avgMinutes <= 30) {
+                sSpeed = 5.0; // Phản hồi dưới 30 phút -> Tuyệt vời
+              } else if (avgMinutes <= 120) {
+                sSpeed = 4.5; // Phản hồi dưới 2 tiếng -> Rất tốt
+              } else if (avgMinutes <= 360) {
+                sSpeed = 4.0; // Phản hồi dưới 6 tiếng -> Tốt
+              } else if (avgMinutes <= 720) {
+                sSpeed = 3.5; // Phản hồi dưới 12 tiếng -> Khá
+              } else if (avgMinutes <= 1440) {
+                sSpeed = 3.0; // Phản hồi dưới 24 tiếng -> Trung bình
+              } else {
+                sSpeed = 2.0; // Quá 24 tiếng -> Chậm
+              }
+            } else {
+              // Không có dữ liệu timestamp nào hợp lệ -> để 0 cho trung thực
+              sSpeed = 0.0;
+            }
+
+            // E. Điểm Đánh giá (Rating)
+            double sRating = uiRating;
+            if (sRating > 5.0) sRating = 5.0;
+
+            localRadarValues = [sVolume, sSuccess, sRevenue, sSpeed, sRating];
+          }
+
+          // 2. Giao diện Vẽ Biểu đồ
+          return Container(
+            padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 4))],
             ),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            "Biểu đồ Radar được AI tổng hợp theo dữ liệu mới nhất",
-            style: TextStyle(color: Colors.grey, fontSize: 12, fontStyle: FontStyle.italic),
-          )
-        ],
-      ),
+            child: Column(
+              children: [
+                SizedBox(
+                  height: 250,
+                  child: snapshot.connectionState == ConnectionState.waiting
+                      ? const Center(child: CircularProgressIndicator(color: Colors.purple))
+                      : RadarChart(
+                    RadarChartData(
+                      radarShape: RadarShape.polygon,
+                      tickCount: 5,
+                      ticksTextStyle: const TextStyle(color: Colors.transparent, fontSize: 0),
+                      gridBorderData: BorderSide(color: Colors.grey.withOpacity(0.3), width: 1.5),
+                      tickBorderData: BorderSide(color: Colors.grey.withOpacity(0.3)),
+                      titlePositionPercentageOffset: 0.2,
+                      getTitle: (index, angle) {
+                        return RadarChartTitle(
+                          text: _radarLabels[index],
+                          angle: 0,
+                        );
+                      },
+                      titleTextStyle: TextStyle(color: Colors.grey[800], fontSize: 13, fontWeight: FontWeight.bold),
+                      dataSets: [
+                        RadarDataSet(
+                          fillColor: Colors.purple.withOpacity(0.25),
+                          borderColor: Colors.purple[600]!,
+                          entryRadius: 4,
+                          dataEntries: localRadarValues.map((v) => RadarEntry(value: v)).toList(),
+                          borderWidth: 2.5,
+                        ),
+                      ],
+                    ),
+                    swapAnimationDuration: const Duration(milliseconds: 800),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.purple.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.sync_rounded, size: 16, color: Colors.purple[700]),
+                      const SizedBox(width: 6),
+                      Text(
+                        "Biểu đồ Radar được tính trực tiếp (Real-time)",
+                        style: TextStyle(color: Colors.purple[800], fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                )
+              ],
+            ),
+          );
+        }
     );
   }
 
-  // ─── THỐNG KÊ HIỆU SUẤT ──────────────────────────────────────────────────
+  // ─── THỐNG KÊ HIỆU SUẤT TRUYỀN THỐNG ──────────────────────────────────────
   Widget _buildPerformanceStats(int totalBookings, double rating) {
     return Row(
       children: [
