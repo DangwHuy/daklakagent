@@ -24,8 +24,15 @@ enum ChartPeriod { day7, month, quarter, year }
 // ─── Model dữ liệu biểu đồ ────────────────────────────────────────────────────
 class _ChartData {
   final List<FlSpot> spots;
+  final List<FlSpot> cancelledSpots;
+  final List<FlSpot> revenueSpots;
   final List<String> labels;
-  const _ChartData({required this.spots, required this.labels});
+  const _ChartData({
+    required this.spots,
+    required this.cancelledSpots,
+    required this.revenueSpots,
+    required this.labels,
+  });
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -129,6 +136,7 @@ class _DashboardContentState extends State<_DashboardContent>
 
   // Bộ lọc biểu đồ hiện tại
   ChartPeriod _selectedPeriod = ChartPeriod.day7;
+  int _chartMode = 0; // 0 = Số ca, 1 = Doanh thu
 
   // Animation nhấp nháy cho cảnh báo sắp đến giờ
   late AnimationController _blinkController;
@@ -944,7 +952,7 @@ class _DashboardContentState extends State<_DashboardContent>
     );
   }
 
-  // ─── Biểu đồ đường hiệu suất ─────────────────────────────────────────────
+  // ─── Biểu đồ đường hiệu suất & Doanh thu ────────────────────────────────
   Widget _buildPerformanceChart(String expertUid) {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
@@ -953,12 +961,10 @@ class _DashboardContentState extends State<_DashboardContent>
         borderRadius: BorderRadius.circular(20),
         boxShadow: const [
           BoxShadow(
-              color: Colors.black12,
-              blurRadius: 8,
-              offset: Offset(0, 2))
+              color: Colors.black12, blurRadius: 8, offset: Offset(0, 2))
         ],
       ),
-      height: 290,
+      height: 330,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -975,27 +981,58 @@ class _DashboardContentState extends State<_DashboardContent>
                     color: Colors.grey[700]),
               ),
               const Spacer(),
+              // Tabs gạt đổi chế độ
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 9, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                        width: 14,
-                        height: 3,
+                    GestureDetector(
+                      onTap: () => setState(() => _chartMode = 0),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: Colors.green[600],
-                          borderRadius: BorderRadius.circular(2),
-                        )),
-                    const SizedBox(width: 5),
-                    Text('Ca tư vấn',
-                        style: TextStyle(
-                            fontSize: 11, color: Colors.green[700])),
+                          color: _chartMode == 0
+                              ? Colors.green[100]
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text("Số lượng",
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: _chartMode == 0
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                color: _chartMode == 0
+                                    ? Colors.green[800]
+                                    : Colors.grey[600])),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => setState(() => _chartMode = 1),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _chartMode == 1
+                              ? Colors.orange[100]
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text("Doanh thu",
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: _chartMode == 1
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                color: _chartMode == 1
+                                    ? Colors.orange[800]
+                                    : Colors.grey[600])),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1007,162 +1044,312 @@ class _DashboardContentState extends State<_DashboardContent>
               stream: FirebaseFirestore.instance
                   .collection('appointments')
                   .where('expertId', isEqualTo: expertUid)
-                  .where('status', whereIn: ['confirmed', 'completed'])
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: Colors.green));
+                  return const Center(
+                      child: CircularProgressIndicator(color: Colors.green));
                 }
                 if (snapshot.hasError) {
-                  return Center(child: Text("Lỗi tải dữ liệu", style: TextStyle(color: Colors.grey[400])));
+                  return Center(
+                      child: Text("Lỗi tải dữ liệu",
+                          style: TextStyle(color: Colors.grey[400])));
                 }
 
                 final docs = snapshot.data?.docs ?? [];
                 final chartData = _buildChartData(docs);
-                final allZero = chartData.spots.every((s) => s.y == 0);
-
-                if (allZero) {
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.insert_chart_outlined_rounded, size: 48, color: Colors.grey[300]),
-                        const SizedBox(height: 8),
-                        Text('Chưa có dữ liệu', style: TextStyle(color: Colors.grey[400], fontSize: 13)),
-                      ],
-                    ),
-                  );
+                
+                if (_chartMode == 0) {
+                  return _buildLineChart(chartData);
+                } else {
+                  return _buildBarChart(chartData);
                 }
+              },
+            ),
+          ),
+          if (_chartMode == 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                          color: Colors.green[600],
+                          shape: BoxShape.circle)),
+                  const SizedBox(width: 4),
+                  const Text('Ca tư vấn',
+                      style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  const SizedBox(width: 16),
+                  Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                          color: Colors.red[400], shape: BoxShape.circle)),
+                  const SizedBox(width: 4),
+                  const Text('Ca đã hủy',
+                      style: TextStyle(fontSize: 11, color: Colors.grey)),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 
-                double maxY = chartData.spots.map((s) => s.y).reduce((a, b) => a > b ? a : b);
-                if (maxY < 4) maxY = 4;
+  Widget _buildLineChart(_ChartData chartData) {
+    double maxY = 0;
+    for (var s in chartData.spots) {
+      if (s.y > maxY) maxY = s.y;
+    }
+    for (var s in chartData.cancelledSpots) {
+      if (s.y > maxY) maxY = s.y;
+    }
+    if (maxY < 4) maxY = 4;
 
-                return LineChart(
-                  LineChartData(
-                    minX: 0,
-                    maxX: (chartData.spots.length - 1).toDouble(),
-                    minY: 0,
-                    maxY: maxY + 1.5,
-                    clipData: const FlClipData.all(),
-                    gridData: FlGridData(
-                      show: true,
-                      drawVerticalLine: false,
-                      getDrawingHorizontalLine: (v) => FlLine(
-                        color: Colors.grey.withOpacity(0.12),
-                        strokeWidth: 1,
-                      ),
-                    ),
-                    borderData: FlBorderData(show: false),
-                    titlesData: FlTitlesData(
-                      topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          interval: _selectedPeriod == ChartPeriod.year ? 1 : 1,
-                          getTitlesWidget: (value, meta) {
-                            if (value != value.roundToDouble()) return const SizedBox.shrink();
-
-                            final idx = value.toInt();
-                            if (idx < 0 || idx >= chartData.labels.length) {
-                              return const SizedBox.shrink();
-                            }
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 6),
-                              child: Text(
-                                chartData.labels[idx],
-                                style: const TextStyle(color: Colors.grey, fontSize: 9.5),
-                                textAlign: TextAlign.center,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 28,
-                          getTitlesWidget: (value, meta) {
-                            if (value != value.roundToDouble()) {
-                              return const SizedBox.shrink();
-                            }
-                            return Text(
-                              value.toInt().toString(),
-                              style: const TextStyle(color: Colors.grey, fontSize: 10),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                    lineTouchData: LineTouchData(
-                      enabled: true,
-                      touchTooltipData: LineTouchTooltipData(
-                        getTooltipColor: (touchedSpot) => Colors.green[800]!,
-                        tooltipRoundedRadius: 10,
-                        tooltipPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        getTooltipItems: (touchedSpots) {
-                          return touchedSpots.map((spot) {
-                            final idx = spot.x.toInt();
-                            final label = (idx >= 0 && idx < chartData.labels.length)
-                                ? chartData.labels[idx].replaceAll('\n', ' ')
-                                : '';
-                            return LineTooltipItem(
-                              '$label\n',
-                              const TextStyle(color: Colors.white70, fontSize: 11),
-                              children: [
-                                TextSpan(
-                                  text: '${spot.y.toInt()} ca tư vấn',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ],
-                            );
-                          }).toList();
-                        },
-                      ),
-                    ),
-                    lineBarsData: [
-                      LineChartBarData(
-                        spots: chartData.spots,
-                        isCurved: true,
-                        preventCurveOverShooting: true,
-                        curveSmoothness: 0.3,
-                        color: Colors.green[600],
-                        barWidth: 3,
-                        isStrokeCapRound: true,
-                        dotData: FlDotData(
-                          show: true,
-                          getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
-                            radius: 4,
-                            color: Colors.white,
-                            strokeWidth: 2.5,
-                            strokeColor: Colors.green[600]!,
-                          ),
-                        ),
-                        belowBarData: BarAreaData(
-                          show: true,
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.green.withOpacity(0.38),
-                              Colors.green.withOpacity(0.08),
-                              Colors.green.withOpacity(0.0),
-                            ],
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            stops: const [0.0, 0.6, 1.0],
-                          ),
-                        ),
-                      ),
-                    ],
+    return LineChart(
+      LineChartData(
+        minX: 0,
+        maxX: (chartData.spots.length - 1).toDouble(),
+        minY: 0,
+        maxY: maxY + 1.5,
+        clipData: const FlClipData.all(),
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          getDrawingHorizontalLine: (v) => FlLine(
+            color: Colors.grey.withOpacity(0.12),
+            strokeWidth: 1,
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        titlesData: FlTitlesData(
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              interval: 1,
+              getTitlesWidget: (value, meta) {
+                if (value != value.roundToDouble())
+                  return const SizedBox.shrink();
+                final idx = value.toInt();
+                if (idx < 0 || idx >= chartData.labels.length) {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    chartData.labels[idx],
+                    style: const TextStyle(
+                        color: Colors.grey, fontSize: 9.5),
+                    textAlign: TextAlign.center,
                   ),
                 );
               },
             ),
           ),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 28,
+              getTitlesWidget: (value, meta) {
+                if (value != value.roundToDouble()) {
+                  return const SizedBox.shrink();
+                }
+                return Text(
+                  value.toInt().toString(),
+                  style: const TextStyle(
+                      color: Colors.grey, fontSize: 10),
+                );
+              },
+            ),
+          ),
+        ),
+        lineTouchData: LineTouchData(
+          enabled: true,
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipColor: (touchedSpot) => Colors.black87,
+            tooltipRoundedRadius: 10,
+            tooltipPadding: const EdgeInsets.symmetric(
+                horizontal: 14, vertical: 8),
+            getTooltipItems: (touchedSpots) {
+              return touchedSpots.map((spot) {
+                final idx = spot.x.toInt();
+                final label = (idx >= 0 && idx < chartData.labels.length)
+                    ? chartData.labels[idx].replaceAll('\n', ' ')
+                    : '';
+                final isCancel = spot.barIndex == 1;
+                return LineTooltipItem(
+                  '$label\n',
+                  const TextStyle(
+                      color: Colors.white70, fontSize: 11),
+                  children: [
+                    TextSpan(
+                      text:
+                          '${spot.y.toInt()} ${isCancel ? "ca đã hủy" : "ca tư vấn"}',
+                      style: TextStyle(
+                        color: isCancel
+                            ? Colors.red[300]
+                            : Colors.green[400],
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                );
+              }).toList();
+            },
+          ),
+        ),
+        lineBarsData: [
+          LineChartBarData(
+            spots: chartData.spots,
+            isCurved: true,
+            preventCurveOverShooting: true,
+            color: Colors.green[600],
+            barWidth: 3,
+            isStrokeCapRound: true,
+            dotData: FlDotData(show: true),
+            belowBarData: BarAreaData(
+              show: true,
+              gradient: LinearGradient(
+                colors: [
+                  Colors.green.withOpacity(0.3),
+                  Colors.green.withOpacity(0.0)
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+          ),
+          LineChartBarData(
+            spots: chartData.cancelledSpots,
+            isCurved: true,
+            preventCurveOverShooting: true,
+            color: Colors.red[400],
+            barWidth: 2,
+            isStrokeCapRound: true,
+            dotData: FlDotData(show: true),
+            dashArray: [5, 5],
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBarChart(_ChartData chartData) {
+    double maxY = 0;
+    for (var s in chartData.revenueSpots) {
+      if (s.y > maxY) maxY = s.y;
+    }
+    if (maxY == 0) maxY = 100000;
+
+    final double defaultInterval = maxY / 4;
+
+    return BarChart(
+      BarChartData(
+        maxY: maxY * 1.2,
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          getDrawingHorizontalLine: (v) => FlLine(
+            color: Colors.grey.withOpacity(0.12),
+            strokeWidth: 1,
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        titlesData: FlTitlesData(
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (value, meta) {
+                final idx = value.toInt();
+                if (idx < 0 || idx >= chartData.labels.length) {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    chartData.labels[idx],
+                    style: const TextStyle(
+                        color: Colors.grey, fontSize: 9.5),
+                    textAlign: TextAlign.center,
+                  ),
+                );
+              },
+            ),
+          ),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 40,
+              interval: defaultInterval,
+              getTitlesWidget: (value, meta) {
+                if (value == 0)
+                  return const Text("0",
+                      style: TextStyle(color: Colors.grey, fontSize: 10));
+                String text = '';
+                if (value >= 1000000) {
+                  text = '${(value / 1000000).toStringAsFixed(1)}M';
+                } else if (value >= 1000) {
+                  text = '${(value / 1000).toStringAsFixed(0)}K';
+                } else {
+                  text = value.toInt().toString();
+                }
+                return Text(text,
+                    style: const TextStyle(
+                        color: Colors.grey, fontSize: 10));
+              },
+            ),
+          ),
+        ),
+        barTouchData: BarTouchData(
+          touchTooltipData: BarTouchTooltipData(
+            getTooltipColor: (_) => Colors.orange[800]!,
+            tooltipPadding: const EdgeInsets.all(8),
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              final idx = group.x.toInt();
+              final label = (idx >= 0 && idx < chartData.labels.length)
+                  ? chartData.labels[idx].replaceAll('\n', ' ')
+                  : '';
+              return BarTooltipItem(
+                '$label\n',
+                const TextStyle(color: Colors.white70, fontSize: 11),
+                children: [
+                  TextSpan(
+                    text: '${rod.toY.toInt()}đ',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+        barGroups: List.generate(chartData.revenueSpots.length, (i) {
+          return BarChartGroupData(
+            x: i,
+            barRods: [
+              BarChartRodData(
+                toY: chartData.revenueSpots[i].y,
+                color: Colors.orange[400],
+                width: 14,
+                borderRadius: BorderRadius.circular(4),
+              )
+            ],
+          );
+        }),
       ),
     );
   }
@@ -1351,6 +1538,8 @@ class _DashboardContentState extends State<_DashboardContent>
     const dayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
     final labels = <String>[];
     final counts = List.filled(7, 0);
+    final cancelledCounts = List.filled(7, 0);
+    final revenues = List.filled(7, 0.0);
 
     for (int i = 6; i >= 0; i--) {
       final d = now.subtract(Duration(days: i));
@@ -1360,18 +1549,27 @@ class _DashboardContentState extends State<_DashboardContent>
       final data = doc.data() as Map<String, dynamic>;
       if (data['time'] == null) continue;
       final t = (data['time'] as Timestamp).toDate();
+      final status = data['status'];
+      final revenue = (data['earnedRevenue'] ?? 0) as num;
+
       for (int i = 6; i >= 0; i--) {
         final d = now.subtract(Duration(days: i));
         if (t.year == d.year &&
             t.month == d.month &&
             t.day == d.day) {
-          counts[6 - i]++;
+          if (status == 'cancelled') {
+            cancelledCounts[6 - i]++;
+          } else if (status == 'confirmed' || status == 'completed') {
+            counts[6 - i]++;
+            if (status == 'completed') revenues[6 - i] += revenue.toDouble();
+          }
         }
       }
     }
     return _ChartData(
-      spots: List.generate(
-          7, (i) => FlSpot(i.toDouble(), counts[i].toDouble())),
+      spots: List.generate(7, (i) => FlSpot(i.toDouble(), counts[i].toDouble())),
+      cancelledSpots: List.generate(7, (i) => FlSpot(i.toDouble(), cancelledCounts[i].toDouble())),
+      revenueSpots: List.generate(7, (i) => FlSpot(i.toDouble(), revenues[i])),
       labels: labels,
     );
   }
@@ -1382,6 +1580,8 @@ class _DashboardContentState extends State<_DashboardContent>
         DateTime(now.year, now.month + 1, 0).day;
     final numWeeks = (daysInMonth / 7).ceil();
     final counts = List.filled(numWeeks, 0);
+    final cancelledCounts = List.filled(numWeeks, 0);
+    final revenues = List.filled(numWeeks, 0.0);
     final labels =
     List.generate(numWeeks, (i) => 'Tuần\n${i + 1}');
 
@@ -1389,16 +1589,24 @@ class _DashboardContentState extends State<_DashboardContent>
       final data = doc.data() as Map<String, dynamic>;
       if (data['time'] == null) continue;
       final t = (data['time'] as Timestamp).toDate();
+      final status = data['status'];
+      final revenue = (data['earnedRevenue'] ?? 0) as num;
+      
       if (t.year == now.year && t.month == now.month) {
         int w = ((t.day - 1) / 7).floor();
         if (w >= numWeeks) w = numWeeks - 1;
-        counts[w]++;
+        if (status == 'cancelled') {
+          cancelledCounts[w]++;
+        } else if (status == 'confirmed' || status == 'completed') {
+          counts[w]++;
+          if (status == 'completed') revenues[w] += revenue.toDouble();
+        }
       }
     }
     return _ChartData(
-      spots: List.generate(
-          numWeeks,
-              (i) => FlSpot(i.toDouble(), counts[i].toDouble())),
+      spots: List.generate(numWeeks, (i) => FlSpot(i.toDouble(), counts[i].toDouble())),
+      cancelledSpots: List.generate(numWeeks, (i) => FlSpot(i.toDouble(), cancelledCounts[i].toDouble())),
+      revenueSpots: List.generate(numWeeks, (i) => FlSpot(i.toDouble(), revenues[i])),
       labels: labels,
     );
   }
@@ -1407,6 +1615,8 @@ class _DashboardContentState extends State<_DashboardContent>
       List<QueryDocumentSnapshot> docs, DateTime now) {
     final labels = <String>[];
     final counts = List.filled(3, 0);
+    final cancelledCounts = List.filled(3, 0);
+    final revenues = List.filled(3, 0.0);
 
     for (int i = 2; i >= 0; i--) {
       int month = now.month - i;
@@ -1420,12 +1630,23 @@ class _DashboardContentState extends State<_DashboardContent>
         final data = doc.data() as Map<String, dynamic>;
         if (data['time'] == null) continue;
         final t = (data['time'] as Timestamp).toDate();
-        if (t.year == year && t.month == month) counts[2 - i]++;
+        final status = data['status'];
+        final revenue = (data['earnedRevenue'] ?? 0) as num;
+        
+        if (t.year == year && t.month == month) {
+          if (status == 'cancelled') {
+            cancelledCounts[2 - i]++;
+          } else if (status == 'confirmed' || status == 'completed') {
+            counts[2 - i]++;
+            if (status == 'completed') revenues[2 - i] += revenue.toDouble();
+          }
+        }
       }
     }
     return _ChartData(
-      spots: List.generate(
-          3, (i) => FlSpot(i.toDouble(), counts[i].toDouble())),
+      spots: List.generate(3, (i) => FlSpot(i.toDouble(), counts[i].toDouble())),
+      cancelledSpots: List.generate(3, (i) => FlSpot(i.toDouble(), cancelledCounts[i].toDouble())),
+      revenueSpots: List.generate(3, (i) => FlSpot(i.toDouble(), revenues[i])),
       labels: labels,
     );
   }
@@ -1433,6 +1654,8 @@ class _DashboardContentState extends State<_DashboardContent>
   _ChartData _buildYearData(
       List<QueryDocumentSnapshot> docs, DateTime now) {
     final counts = List.filled(12, 0);
+    final cancelledCounts = List.filled(12, 0);
+    final revenues = List.filled(12, 0.0);
     final labels =
     List.generate(12, (i) => 'T${i + 1}');
 
@@ -1440,12 +1663,23 @@ class _DashboardContentState extends State<_DashboardContent>
       final data = doc.data() as Map<String, dynamic>;
       if (data['time'] == null) continue;
       final t = (data['time'] as Timestamp).toDate();
-      if (t.year == now.year) counts[t.month - 1]++;
+      final status = data['status'];
+      final revenue = (data['earnedRevenue'] ?? 0) as num;
+
+      if (t.year == now.year) {
+        final idx = t.month - 1;
+        if (status == 'cancelled') {
+          cancelledCounts[idx]++;
+        } else if (status == 'confirmed' || status == 'completed') {
+          counts[idx]++;
+          if (status == 'completed') revenues[idx] += revenue.toDouble();
+        }
+      }
     }
     return _ChartData(
-      spots: List.generate(
-          12,
-              (i) => FlSpot(i.toDouble(), counts[i].toDouble())),
+      spots: List.generate(12, (i) => FlSpot(i.toDouble(), counts[i].toDouble())),
+      cancelledSpots: List.generate(12, (i) => FlSpot(i.toDouble(), cancelledCounts[i].toDouble())),
+      revenueSpots: List.generate(12, (i) => FlSpot(i.toDouble(), revenues[i])),
       labels: labels,
     );
   }
