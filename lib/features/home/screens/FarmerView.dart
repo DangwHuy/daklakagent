@@ -326,7 +326,6 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                         children: [
                           Expanded(
                             child: OutlinedButton.icon(
-                              // ĐÃ SỬA: Hàm async để khởi tạo phòng Chat trước
                               onPressed: () async {
                                 final currentUser = FirebaseAuth.instance.currentUser;
                                 if (currentUser == null) {
@@ -335,8 +334,6 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                                 }
                                 final String chatRoomId = "${currentUser.uid}_$expertId";
 
-                                // --- BẮT ĐẦU FIX LỖI MÀN HÌNH CHAT TRẮNG ---
-                                // Tạo document phòng chat trên Firebase trước khi chuyển trang
                                 final chatRef = FirebaseFirestore.instance.collection('chats').doc(chatRoomId);
                                 final docSnap = await chatRef.get();
                                 if (!docSnap.exists) {
@@ -350,7 +347,6 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                                     'unreadCountFarmer': 0,
                                   });
                                 }
-                                // --- KẾT THÚC FIX LỖI ---
 
                                 if (!context.mounted) return;
                                 Navigator.push(
@@ -652,13 +648,11 @@ class FarmerAppointmentsScreen extends StatefulWidget {
 
 class _FarmerAppointmentsScreenState extends State<FarmerAppointmentsScreen> {
 
-  // ĐÃ SỬA: Hàm đánh giá này CHỈ cập nhật Rating (Không cộng Lượt tư vấn nữa)
   Future<void> _submitRatingHandler(String expertId, int stars, String appointmentId) async {
     try {
       final firestore = FirebaseFirestore.instance;
       final expertRef = firestore.collection('users').doc(expertId);
 
-      // 1. Lấy thông tin hiện tại của chuyên gia
       final docSnap = await expertRef.get();
       final data = docSnap.data() as Map<String, dynamic>? ?? {};
       final expertInfo = data['expertInfo'] as Map<String, dynamic>? ?? {};
@@ -666,19 +660,16 @@ class _FarmerAppointmentsScreenState extends State<FarmerAppointmentsScreen> {
       double currentRating = expertInfo['rating']?.toDouble() ?? 5.0;
       int currentCount = expertInfo['ratingCount'] ?? 0;
 
-      // 2. Tính trung bình cộng mới
       final int newCount = currentCount + 1;
       final double newAvg = ((currentRating * currentCount) + stars) / newCount;
 
       final batch = firestore.batch();
 
-      // Cập nhật rating vào hồ sơ chuyên gia (Đã bỏ dòng cộng bookingCount)
       batch.update(expertRef, {
         'expertInfo.rating': double.parse(newAvg.toStringAsFixed(1)),
         'expertInfo.ratingCount': newCount,
       });
 
-      // Cập nhật cờ vào lịch hẹn để không đánh giá lại
       final appRef = firestore.collection('appointments').doc(appointmentId);
       batch.update(appRef, {
         'isRated': true,
@@ -741,7 +732,7 @@ class _FarmerAppointmentsScreenState extends State<FarmerAppointmentsScreen> {
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
                       onPressed: () {
-                        Navigator.pop(dialogContext); // Đóng popup
+                        Navigator.pop(dialogContext);
                         _submitRatingHandler(expertId, selectedStars, appointmentId);
                       },
                       child: const Text("Gửi đánh giá"),
@@ -792,15 +783,23 @@ class _FarmerAppointmentsScreenState extends State<FarmerAppointmentsScreen> {
               final String expertName = data['expertName'] ?? "Chuyên gia";
               final String status = data['status'] ?? "pending";
 
+              // ĐÃ FIX LỖI "LỆCH PHA": Thêm xử lý cho trường hợp 'completed'
               Color statusColor = Colors.orange;
               String statusText = "Chờ xác nhận";
+              IconData statusIcon = Icons.access_time;
 
               if (status == 'confirmed' || status == 'accepted') {
                 statusColor = Colors.green;
                 statusText = "Đã xác nhận";
+                statusIcon = Icons.check_circle;
+              } else if (status == 'completed') {
+                statusColor = Colors.blue[600]!;
+                statusText = "Đã hoàn thành";
+                statusIcon = Icons.verified;
               } else if (status == 'cancelled') {
                 statusColor = Colors.red;
                 statusText = "Đã huỷ";
+                statusIcon = Icons.cancel;
               }
 
               return Card(
@@ -811,10 +810,7 @@ class _FarmerAppointmentsScreenState extends State<FarmerAppointmentsScreen> {
                   onTap: () => _showAppointmentDetails(context, data),
                   leading: CircleAvatar(
                     backgroundColor: statusColor.withOpacity(0.1),
-                    child: Icon(
-                        (status == 'confirmed' || status == 'accepted') ? Icons.check_circle : (status == 'cancelled' ? Icons.cancel : Icons.access_time),
-                        color: statusColor
-                    ),
+                    child: Icon(statusIcon, color: statusColor),
                   ),
                   title: Text(expertName, style: const TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Column(
@@ -905,7 +901,9 @@ class _FarmerAppointmentsScreenState extends State<FarmerAppointmentsScreen> {
                       ],
                     ),
                   )
-                ] else if (status == 'confirmed' || status == 'accepted') ...[
+                ]
+                // ĐÃ FIX: Cho phép hiển thị thông tin và Đánh giá khi status là 'completed'
+                else if (status == 'confirmed' || status == 'accepted' || status == 'completed') ...[
                   const Text("Thông tin liên hệ chuyên gia:", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
                   const SizedBox(height: 10),
                   FutureBuilder<DocumentSnapshot>(
@@ -934,6 +932,7 @@ class _FarmerAppointmentsScreenState extends State<FarmerAppointmentsScreen> {
                           const SizedBox(height: 12),
 
                           const Divider(),
+                          // CHỈ CHO ĐÁNH GIÁ KHI ĐÃ HOÀN THÀNH HOẶC XÁC NHẬN
                           if (isRated)
                             Center(
                               child: Container(
@@ -1042,7 +1041,7 @@ class FarmerChatListScreen extends StatelessWidget {
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
-            .collection('chats') // ĐÃ SỬA: Dùng 'chats' thay vì 'chat_rooms' để đồng bộ
+            .collection('chats')
             .where('users', arrayContains: currentUserId)
             .snapshots(),
         builder: (context, snapshot) {
