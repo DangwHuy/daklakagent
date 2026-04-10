@@ -17,6 +17,7 @@ import 'package:daklakagent/features/expret/ExpertProfile.dart';
 import 'package:daklakagent/features/expret/ExpertAppointment.dart';
 import 'package:daklakagent/features/home/screens/expert_chat_list_screen.dart';
 import 'package:daklakagent/features/expret/expert_report_screen.dart';
+import 'package:daklakagent/features/expret/expert_today_screen.dart';
 // ─── Enum bộ lọc thời gian biểu đồ ──────────────────────────────────────────
 enum ChartPeriod { day7, month, quarter, year }
 
@@ -219,17 +220,30 @@ class _DashboardContentState extends State<_DashboardContent>
     await FirebaseAuth.instance.signOut();
   }
 
+  // Hàm tính thời gian tương đối
+  String _formatTimeAgo(Timestamp? timestamp) {
+    if (timestamp == null) return "Vừa xong";
+    final now = DateTime.now();
+    final diff = now.difference(timestamp.toDate());
+    if (diff.inDays > 7) return "${timestamp.toDate().day}/${timestamp.toDate().month}";
+    if (diff.inDays > 0) return "${diff.inDays} ngày trước";
+    if (diff.inHours > 0) return "${diff.inHours} giờ trước";
+    if (diff.inMinutes > 0) return "${diff.inMinutes} phút trước";
+    return "Vừa xong";
+  }
+
   // ─── NÂNG CẤP: Hàm hiển thị Hòm thư Thông báo ───────────────────────────
   void _showNotificationsDialog(String expertUid) {
     showModalBottomSheet(
         context: context,
+        isScrollControlled: true,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         builder: (context) {
           return Container(
             padding: const EdgeInsets.all(16),
-            height: MediaQuery.of(context).size.height * 0.6,
+            height: MediaQuery.of(context).size.height * 0.7,
             child: Column(
               children: [
                 Container(
@@ -241,12 +255,30 @@ class _DashboardContentState extends State<_DashboardContent>
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text("Thông báo của bạn",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text("Thông báo", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    TextButton(
+                      onPressed: () async {
+                        final batch = FirebaseFirestore.instance.batch();
+                        final unreadDocs = await FirebaseFirestore.instance
+                            .collection('notifications')
+                            .where('receiverId', isEqualTo: expertUid)
+                            .where('isRead', isEqualTo: false)
+                            .get();
+                        for (var doc in unreadDocs.docs) {
+                          batch.update(doc.reference, {'isRead': true});
+                        }
+                        batch.commit();
+                      },
+                      child: const Text("Đã đọc tất cả", style: TextStyle(color: Colors.green)),
+                    )
+                  ],
+                ),
                 const Divider(),
                 Expanded(
                   child: StreamBuilder<QuerySnapshot>(
-                    // Truy vấn vào bảng notifications (sẽ tạo tự động khi có tin)
                       stream: FirebaseFirestore.instance.collection('notifications')
                           .where('receiverId', isEqualTo: expertUid)
                           .snapshots(),
@@ -267,7 +299,6 @@ class _DashboardContentState extends State<_DashboardContent>
                           );
                         }
 
-                        // Sắp xếp thủ công tránh lỗi thiếu Index trên Firebase
                         final docs = snapshot.data!.docs.toList();
                         docs.sort((a, b) {
                           final aTime = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
@@ -276,19 +307,75 @@ class _DashboardContentState extends State<_DashboardContent>
                           return bTime.compareTo(aTime);
                         });
 
-                        return ListView(
-                          children: docs.map((doc) {
+                        return ListView.separated(
+                          itemCount: docs.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final doc = docs[index];
                             final data = doc.data() as Map<String, dynamic>;
-                            return ListTile(
-                              leading: const CircleAvatar(
-                                  backgroundColor: Colors.green,
-                                  child: Icon(Icons.notifications_active, color: Colors.white, size: 20)
+                            final isRead = data['isRead'] ?? false;
+                            final timeStr = _formatTimeAgo(data['createdAt'] as Timestamp?);
+
+                            return Dismissible(
+                              key: Key(doc.id),
+                              direction: DismissDirection.endToStart,
+                              background: Container(
+                                color: Colors.red,
+                                alignment: Alignment.centerRight,
+                                padding: const EdgeInsets.only(right: 20),
+                                child: const Icon(Icons.delete, color: Colors.white),
                               ),
-                              title: Text(data['title'] ?? 'Có lịch hẹn mới', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                              subtitle: Text(data['body'] ?? 'Nông dân vừa đặt lịch', style: const TextStyle(fontSize: 13)),
-                              contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                              onDismissed: (_) {
+                                FirebaseFirestore.instance.collection('notifications').doc(doc.id).delete();
+                              },
+                              child: Container(
+                                color: isRead ? Colors.transparent : Colors.green.withOpacity(0.05),
+                                child: ListTile(
+                                  onTap: () {
+                                    if (!isRead) {
+                                      FirebaseFirestore.instance.collection('notifications').doc(doc.id).update({'isRead': true});
+                                    }
+                                    Navigator.pop(context);
+                                    widget.onNavigate(1);
+                                  },
+                                  leading: Stack(
+                                    children: [
+                                      CircleAvatar(
+                                        backgroundColor: isRead ? Colors.grey[200] : Colors.green[100],
+                                        child: Icon(
+                                          Icons.calendar_month, 
+                                          color: isRead ? Colors.grey[600] : Colors.green[700], 
+                                          size: 20
+                                        )
+                                      ),
+                                      if (!isRead)
+                                        Positioned(
+                                          top: 0, right: 0,
+                                          child: Container(
+                                            width: 10, height: 10,
+                                            decoration: BoxDecoration(color: Colors.red, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
+                                          )
+                                        )
+                                    ],
+                                  ),
+                                  title: Text(
+                                    data['title'] ?? 'Thông báo mới', 
+                                    style: TextStyle(fontWeight: isRead ? FontWeight.normal : FontWeight.bold, fontSize: 14)
+                                  ),
+                                  subtitle: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const SizedBox(height: 4),
+                                      Text(data['body'] ?? '', style: TextStyle(fontSize: 13, color: Colors.black87)),
+                                      const SizedBox(height: 4),
+                                      Text(timeStr, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                                    ],
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                                ),
+                              ),
                             );
-                          }).toList(),
+                          },
                         );
                       }
                   ),
@@ -322,10 +409,37 @@ class _DashboardContentState extends State<_DashboardContent>
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () => _showNotificationsDialog(user.uid), // NÂNG CẤP: Gọi hàm mở thông báo
-            tooltip: "Thông báo",
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('notifications')
+                .where('receiverId', isEqualTo: user.uid)
+                .where('isRead', isEqualTo: false)
+                .snapshots(),
+            builder: (context, snapshot) {
+              int unreadCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.notifications_outlined),
+                    onPressed: () => _showNotificationsDialog(user.uid),
+                    tooltip: "Thông báo",
+                  ),
+                  if (unreadCount > 0)
+                    Positioned(
+                      right: 12,
+                      top: 12,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                        child: Text(
+                          unreadCount > 9 ? '9+' : unreadCount.toString(),
+                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            }
           ),
           IconButton(
             icon: const Icon(Icons.logout_rounded),
@@ -466,8 +580,11 @@ class _DashboardContentState extends State<_DashboardContent>
           child: GestureDetector(
             onTap: () {
               // NÂNG CẤP LOGIC Ở ĐÂY
-              if (i == 0 || i == 1) {
-                // Hôm nay & Chờ duyệt -> Chuyển sang Tab Lịch Hẹn (Index 1)
+              if (i == 0) {
+                // Hôm nay -> mở ExpertTodayScreen mới
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpertTodayScreen()));
+              } else if (i == 1) {
+                // Chờ duyệt -> Chuyển sang Tab Lịch Hẹn (Index 1)
                 widget.onNavigate(1);
               } else if (i == 2) {
                 // Chuyển sang file Báo cáo mới

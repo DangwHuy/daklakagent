@@ -55,5 +55,18 @@
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
+        <!-- Khai báo để dùng url_launcher cho web và gọi điện -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
+        </intent>
     </queries>
 </manifest>

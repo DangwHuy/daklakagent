@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart'; // <-- THÊM THƯ VIỆN NÀY ĐỂ NHẬN THÔNG BÁO
 import 'firebase_options.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 // --- GIỮ NGUYÊN CÁC IMPORT CỦA BẠN ---
 import 'package:daklakagent/features/auth/screens/login_screen.dart';
@@ -23,6 +24,9 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Khởi tạo Locale tiếng Việt cho package intl
+  await initializeDateFormatting('vi', null);
 
   // 2. ĐĂNG KÝ HÀM LẮNG NGHE THÔNG BÁO CHẠY NGẦM
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);

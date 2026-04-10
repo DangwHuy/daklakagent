@@ -542,7 +542,7 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                       final user = FirebaseAuth.instance.currentUser;
                       if (user == null) throw Exception("Bạn chưa đăng nhập!");
 
-                      await FirebaseFirestore.instance.collection('appointments').add({
+                      final appRef = await FirebaseFirestore.instance.collection('appointments').add({
                         'farmerId': user.uid,
                         'farmerName': user.displayName ?? "Nông dân",
                         'expertId': expertId,
@@ -554,6 +554,16 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                         'farmerAddress': addressController.text.trim(),
                         'createdAt': FieldValue.serverTimestamp(),
                         'isRated': false,
+                      });
+
+                      // TẠO THÔNG BÁO GỬI ĐẾN CHUYÊN GIA
+                      await FirebaseFirestore.instance.collection('notifications').add({
+                        'receiverId': expertId,
+                        'title': 'Lịch hẹn mới',
+                        'body': '${user.displayName ?? "Một nông dân"} vừa đặt lịch hẹn với bạn.',
+                        'appointmentId': appRef.id,
+                        'createdAt': FieldValue.serverTimestamp(),
+                        'isRead': false,
                       });
 
                       if (mounted) {
