@@ -16,6 +16,8 @@ import 'package:daklakagent/features/ai/screens/ai_chat.dart';
 import 'package:daklakagent/features/weather/Screens/weather_screen.dart';
 import 'package:daklakagent/features/home/screens/profile_screen.dart';
 import 'package:daklakagent/features/auth/screens/login_screen.dart';
+import 'notification_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../widgets/banner_carousel.dart';
 import 'dart:convert';
 // ==========================================
@@ -30,6 +32,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
+  bool _showAiBot = true;
 
   // Danh sách các màn hình tương ứng với các Tab ở Bottom Navigation
   final List<Widget> _screens = [
@@ -43,7 +46,25 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBody: true, // Content flows under the bottom nav bar
-      body: _screens[_selectedIndex],
+      body: Stack(
+        children: [
+          _screens[_selectedIndex],
+          if (_showAiBot)
+            DraggableAiBot(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AiChatScreen()),
+                );
+              },
+              onDismiss: () {
+                setState(() {
+                  _showAiBot = false;
+                });
+              },
+            ),
+        ],
+      ),
       bottomNavigationBar: Container(
         margin: const EdgeInsets.only(left: 16, right: 16, bottom: 20),
         decoration: BoxDecoration(
@@ -116,13 +137,6 @@ class HomeContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openAiChat(context),
-        backgroundColor: Colors.blue[700],
-        icon: const Icon(Icons.smart_toy, color: Colors.white),
-        label: const Text("Hỏi AI", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-      ),
 
       body: RefreshIndicator(
         onRefresh: () async {
@@ -304,51 +318,110 @@ class HomeContent extends StatelessWidget {
     String displayName = user?.displayName ?? user?.email ?? "Nhà nông 4.0";
     String? photoUrl = user?.photoURL;
 
-    return InkWell(
-      onTap: () {
-        Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen()));
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: Row(
-        children: [
-          Container(
-            padding: photoUrl == null ? const EdgeInsets.all(12) : EdgeInsets.zero,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              shape: BoxShape.circle,
-            ),
-            child: photoUrl != null
-                ? CircleAvatar(
-              radius: 24,
-              backgroundImage: NetworkImage(photoUrl),
-              backgroundColor: Colors.transparent,
-            )
-                : const Icon(Icons.person, color: Colors.white, size: 32),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      children: [
+        // Phần Welcome & Info
+        Expanded(
+          child: InkWell(
+            onTap: () {
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen()));
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Row(
               children: [
-                const Text(
-                  "Xin chào bà con,",
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  displayName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                Container(
+                  padding: photoUrl == null ? const EdgeInsets.all(12) : EdgeInsets.zero,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    shape: BoxShape.circle,
                   ),
-                  overflow: TextOverflow.ellipsis,
+                  child: photoUrl != null
+                      ? CircleAvatar(
+                    radius: 24,
+                    backgroundImage: NetworkImage(photoUrl),
+                    backgroundColor: Colors.transparent,
+                  )
+                      : const Icon(Icons.person, color: Colors.white, size: 32),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Xin chào bà con,",
+                        style: TextStyle(color: Colors.white70, fontSize: 14),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        displayName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
+        ),
+        
+        // Nút thông báo
+        const SizedBox(width: 12),
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('notifications')
+              .where('receiverId', isEqualTo: user?.uid ?? '')
+              .where('isRead', isEqualTo: false)
+              .snapshots(),
+          builder: (context, snapshot) {
+            int unreadCount = snapshot.data?.docs.length ?? 0;
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.notifications_active_outlined, color: Colors.white, size: 26),
+                    onPressed: () {
+                      if (user == null) return;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const NotificationScreen()),
+                      );
+                    },
+                  ),
+                ),
+                // Chấm đỏ thông báo
+                if (unreadCount > 0)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.green[700]!, width: 2),
+                      ),
+                      child: Text(
+                        unreadCount > 9 ? "9+" : "$unreadCount",
+                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          }
+        ),
+      ],
     );
   }
 
@@ -885,6 +958,82 @@ class AppSearchDelegate extends SearchDelegate {
           },
         );
       },
+    );
+  }
+}
+
+// ==========================================
+// THÀNH PHẦN LOGO AI KÉO THẢ TỰ DO
+// ==========================================
+class DraggableAiBot extends StatefulWidget {
+  final VoidCallback onTap;
+  final VoidCallback onDismiss;
+
+  const DraggableAiBot({super.key, required this.onTap, required this.onDismiss});
+
+  @override
+  State<DraggableAiBot> createState() => _DraggableAiBotState();
+}
+
+class _DraggableAiBotState extends State<DraggableAiBot> {
+  Offset position = Offset.zero;
+  bool isInitialized = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isInitialized) {
+      final size = MediaQuery.of(context).size;
+      // Khởi tạo tọa độ bot nằm lơ lửng góc dưới bên phải (trên Bottom Navigation Bar một chút)
+      position = Offset(size.width - 80, size.height - 180);
+      isInitialized = true;
+    }
+
+    return Positioned(
+      left: position.dx,
+      top: position.dy,
+      child: GestureDetector(
+        onPanUpdate: (details) {
+          setState(() {
+            position += details.delta;
+          });
+        },
+        onTap: widget.onTap,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 70,
+              height: 70,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(color: Colors.green.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 5)),
+                ],
+                image: const DecorationImage(
+                  image: AssetImage('assets/images/ai_logo.png'),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            Positioned(
+              right: 0,
+              top: 0,
+              child: GestureDetector(
+                onTap: widget.onDismiss,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: const Icon(Icons.close, size: 14, color: Colors.white),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

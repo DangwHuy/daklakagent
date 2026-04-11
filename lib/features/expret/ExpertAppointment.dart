@@ -880,6 +880,21 @@ class _ExpertAppointmentsScreenState
         'expertInfo.pendingCount': FieldValue.increment(-1),
       });
 
+      // Tạo thông báo cho nông dân
+      final appointmentData = doc.data() as Map<String, dynamic>?;
+      final farmerId = appointmentData?['farmerId'];
+      if (farmerId != null && farmerId.toString().isNotEmpty) {
+        final notifRef = FirebaseFirestore.instance.collection('notifications').doc();
+        batch.set(notifRef, {
+          'appointmentId': doc.id,
+          'body': 'Chuyên gia đã xác nhận lịch hẹn của bạn vào lúc ${DateFormat('HH:mm - dd/MM/yyyy').format(time)}.',
+          'createdAt': FieldValue.serverTimestamp(),
+          'isRead': false,
+          'receiverId': farmerId,
+          'title': 'Xác nhận lịch hẹn',
+        });
+      }
+
       // Hủy các lịch trùng giờ
       final conflicts = await FirebaseFirestore.instance
           .collection('appointments')
@@ -1104,12 +1119,28 @@ class _ExpertAppointmentsScreenState
               if (noteController.text.isNotEmpty) {
                 reason += ": ${noteController.text}";
               }
-              await doc.reference.update({
+              final batch = FirebaseFirestore.instance.batch();
+              batch.update(doc.reference, {
                 'status': 'cancelled',
                 'cancelReason': reason,
                 'cancelledBy': 'expert',
                 'cancelledAt': FieldValue.serverTimestamp(),
               });
+
+              final appointmentData = doc.data() as Map<String, dynamic>?;
+              final farmerId = appointmentData?['farmerId'];
+              if (farmerId != null && farmerId.toString().isNotEmpty) {
+                final notifRef = FirebaseFirestore.instance.collection('notifications').doc();
+                batch.set(notifRef, {
+                  'appointmentId': doc.id,
+                  'body': 'Chuyên gia hẹn dịp khác với lý do: $reason',
+                  'createdAt': FieldValue.serverTimestamp(),
+                  'isRead': false,
+                  'receiverId': farmerId,
+                  'title': 'Lịch hẹn thay đổi',
+                });
+              }
+              await batch.commit();
               if (ctx.mounted) {
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
