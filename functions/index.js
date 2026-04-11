@@ -31,6 +31,12 @@ exports.sendNotificationOnNewAppointment = functions.firestore
           title: 'Có lịch hẹn mới! 📅',
           body: `Bà con ${farmerName} vừa gửi yêu cầu đặt lịch tư vấn với bạn.`,
         },
+        android: {
+          priority: 'high',
+          notification: {
+            channelId: 'high_importance_channel', // Khớp với Manifest
+          },
+        },
         token: expertData.fcmToken, // Địa chỉ máy của chuyên gia
       };
 

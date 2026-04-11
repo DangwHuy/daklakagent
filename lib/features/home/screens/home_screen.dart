@@ -9,7 +9,8 @@ import 'pest_disease_screen.dart';
 import 'expert_screen.dart' hide AnalyzeDiseaseScreen;
 import 'FarmerView.dart';
 import 'disease.dart';
-
+import 'package:daklakagent/features/home/screens/chat_screen.dart';
+import 'expert_chat_list_screen.dart'; // Import danh sách tin nhắn
 // Import màn hình Chat AI, Thời tiết & Profile mới
 import 'package:daklakagent/features/ai/screens/ai_chat.dart';
 import 'package:daklakagent/features/weather/Screens/weather_screen.dart';
@@ -34,46 +35,64 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<Widget> _screens = [
     const HomeContent(), // Tab 0: Trang chủ
     const WeatherScreen(initialLocation: 'Buôn Ma Thuột'), // Tab 1: Thời tiết
-    const ExpertScreen(), // Tab 2: Trợ lý AI
+    const ExpertChatListScreen(), // Tab 2: Tin nhắn
     const ProfileScreen(), // Tab 3: Cá nhân (Giao diện Profile đầy đủ)
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBody: true, // Content flows under the bottom nav bar
       body: _screens[_selectedIndex],
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (int index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        backgroundColor: Colors.white,
-        elevation: 10,
-        indicatorColor: Colors.green[100],
-        destinations: [
-          NavigationDestination(
-            selectedIcon: Icon(Icons.home, color: Colors.green[800], size: 28),
-            icon: const Icon(Icons.home_outlined, color: Colors.grey),
-            label: 'Trang chủ',
+      bottomNavigationBar: Container(
+        margin: const EdgeInsets.only(left: 16, right: 16, bottom: 20),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.green.withOpacity(0.15),
+              blurRadius: 25,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+          child: NavigationBar(
+            height: 65,
+            selectedIndex: _selectedIndex,
+            onDestinationSelected: (int index) {
+              setState(() {
+                _selectedIndex = index;
+              });
+            },
+            backgroundColor: Colors.white,
+            elevation: 0,
+            indicatorColor: Colors.green[100],
+            destinations: [
+              NavigationDestination(
+                selectedIcon: Icon(Icons.home, color: Colors.green[800], size: 26),
+                icon: const Icon(Icons.home_outlined, color: Colors.grey),
+                label: 'Trang chủ',
+              ),
+              NavigationDestination(
+                selectedIcon: Icon(Icons.cloud, color: Colors.green[800], size: 26),
+                icon: const Icon(Icons.cloud_outlined, color: Colors.grey),
+                label: 'Thời tiết',
+              ),
+              NavigationDestination(
+                selectedIcon: Icon(Icons.message, color: Colors.green[800], size: 26),
+                icon: const Icon(Icons.message_outlined, color: Colors.grey),
+                label: 'Tin nhắn',
+              ),
+              NavigationDestination(
+                selectedIcon: Icon(Icons.person, color: Colors.green[800], size: 26),
+                icon: const Icon(Icons.person_outline, color: Colors.grey),
+                label: 'Cá nhân',
+              ),
+            ],
           ),
-          NavigationDestination(
-            selectedIcon: Icon(Icons.cloud, color: Colors.green[800], size: 28),
-            icon: const Icon(Icons.cloud_outlined, color: Colors.grey),
-            label: 'Thời tiết',
-          ),
-          NavigationDestination(
-            selectedIcon: Icon(Icons.smart_toy, color: Colors.green[800], size: 28),
-            icon: const Icon(Icons.smart_toy_outlined, color: Colors.grey),
-            label: 'Trợ lý AI',
-          ),
-          NavigationDestination(
-            selectedIcon: Icon(Icons.person, color: Colors.green[800], size: 28),
-            icon: const Icon(Icons.person_outline, color: Colors.grey),
-            label: 'Cá nhân',
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -85,24 +104,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
 class HomeContent extends StatelessWidget {
   const HomeContent({super.key});
-
-  void _handleSignOut(BuildContext context) async {
-    try {
-      // 1. Thực hiện đăng xuất Firebase
-      await FirebaseAuth.instance.signOut();
-
-      // 2. Ép buộc xóa toàn bộ bộ nhớ đệm màn hình và lùi về Login
-      if (!context.mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-            (route) => false,
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Lỗi đăng xuất: $e")),
-      );
-    }
-  }
 
   void _openAiChat(BuildContext context) {
     Navigator.push(
@@ -123,18 +124,6 @@ class HomeContent extends StatelessWidget {
         label: const Text("Hỏi AI", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
 
-      appBar: AppBar(
-        title: const Text("Trợ Lý Của Bà Con"),
-        backgroundColor: Colors.green[700],
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          IconButton(
-            onPressed: () => _handleSignOut(context),
-            icon: const Icon(Icons.logout),
-          ),
-        ],
-      ),
       body: RefreshIndicator(
         onRefresh: () async {
           await Future.delayed(const Duration(milliseconds: 500));
@@ -145,32 +134,43 @@ class HomeContent extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header Gradient
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.green[700]!, Colors.green[500]!],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    // LẮNG NGHE SỰ THAY ĐỔI CỦA USER ĐỂ CẬP NHẬT GIAO DIỆN
-                    StreamBuilder<User?>(
+              // Curved Header & Floating Search
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  // Curved Header Background
+                  Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + 20, 16, 60),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.green[700]!, Colors.green[500]!],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: const BorderRadius.only(
+                        bottomLeft: Radius.circular(30),
+                        bottomRight: Radius.circular(30),
+                      ),
+                    ),
+                    child: StreamBuilder<User?>(
                       stream: FirebaseAuth.instance.userChanges(),
                       builder: (context, snapshot) {
                         final user = snapshot.data ?? FirebaseAuth.instance.currentUser;
-                        return _buildWelcomeCard(user);
+                        return _buildWelcomeCard(context, user);
                       },
                     ),
-                    const SizedBox(height: 20),
-                    _buildAiSearchBar(context),
-                  ],
-                ),
+                  ),
+                  // Floating Search Bar
+                  Positioned(
+                    bottom: -25,
+                    left: 16,
+                    right: 16,
+                    child: _buildAiSearchBar(context),
+                  ),
+                ],
               ),
+              const SizedBox(height: 45), // Lề bù không gian
 
               const BannerCarousel(),
 
@@ -178,49 +178,56 @@ class HomeContent extends StatelessWidget {
 
 
 
-              // Tiêu đề phân tích
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
+              // Tiêu đề phân tích (Đã ẩn)
+              Visibility(
+                visible: false,
+                child: Column(
                   children: [
-                    Icon(Icons.analytics_outlined, color: Colors.green[700], size: 28),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        "Phân Tích Thông Minh AI v3.5",
-                        style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.red[100],
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.red[300]!),
-                      ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Row(
-                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.water_damage, color: Colors.red[700], size: 14),
-                          const SizedBox(width: 4),
-                          Text(
-                            "Siêu thông minh",
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.red[700],
+                          Icon(Icons.analytics_outlined, color: Colors.green[700], size: 28),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              "Phân Tích Thông Minh AI v3.5",
+                              style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.red[100],
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.red[300]!),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.water_damage, color: Colors.red[700], size: 14),
+                                const SizedBox(width: 4),
+                                Text(
+                                  "Siêu thông minh",
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.red[700],
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
                     ),
+
+                    const SizedBox(height: 12),
+                    const ProWeatherCardV35(),
+                    const SizedBox(height: 24),
                   ],
                 ),
               ),
-
-              const SizedBox(height: 12),
-              const ProWeatherCardV35(),
-              const SizedBox(height: 24),
 
               // Tiện ích
               Padding(
@@ -239,7 +246,7 @@ class HomeContent extends StatelessWidget {
 
               const SizedBox(height: 12),
               _buildGridMenu(context),
-              const SizedBox(height: 80),
+              const SizedBox(height: 120),
             ],
           ),
         ),
@@ -249,37 +256,41 @@ class HomeContent extends StatelessWidget {
 
   Widget _buildAiSearchBar(BuildContext context) {
     return InkWell(
-      onTap: () => _openAiChat(context),
+      onTap: () {
+        showSearch(context: context, delegate: AppSearchDelegate());
+      },
+      borderRadius: BorderRadius.circular(30),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        height: 50,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(30),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 8,
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 10,
               offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Row(
           children: [
-            Icon(Icons.search, color: Colors.green[700]),
+            Icon(Icons.search, color: Colors.green[700], size: 22),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                "Hỏi AI: 'Giá sầu riêng hôm nay?'",
+                "Tìm kiếm tiện ích, chuyên gia...",
                 style: TextStyle(color: Colors.grey[500], fontSize: 14),
               ),
             ),
             Container(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.blue[50],
+                color: Colors.green[50],
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.mic, color: Colors.blue[700], size: 20),
+              child: Icon(Icons.mic, color: Colors.green[700], size: 18),
             )
           ],
         ),
@@ -288,47 +299,78 @@ class HomeContent extends StatelessWidget {
   }
 
   // CARD HIỂN THỊ AVATAR & TÊN ĐÃ ĐƯỢC NÂNG CẤP ĐỂ TỰ ĐỘNG LẤY ẢNH URL
-  Widget _buildWelcomeCard(User? user) {
+  Widget _buildWelcomeCard(BuildContext context, User? user) {
     // Lấy tên hiển thị, nếu không có thì lấy email, không có nữa thì gán mặc định
     String displayName = user?.displayName ?? user?.email ?? "Nhà nông 4.0";
     String? photoUrl = user?.photoURL;
 
+    return InkWell(
+      onTap: () {
+        Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen()));
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Row(
+        children: [
+          Container(
+            padding: photoUrl == null ? const EdgeInsets.all(12) : EdgeInsets.zero,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: photoUrl != null
+                ? CircleAvatar(
+              radius: 24,
+              backgroundImage: NetworkImage(photoUrl),
+              backgroundColor: Colors.transparent,
+            )
+                : const Icon(Icons.person, color: Colors.white, size: 32),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Xin chào bà con,",
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  displayName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryTitle(String title, IconData icon) {
     return Row(
       children: [
         Container(
-          padding: photoUrl == null ? const EdgeInsets.all(12) : EdgeInsets.zero,
+          padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
-            shape: BoxShape.circle,
+            color: Colors.green[50],
+            borderRadius: BorderRadius.circular(8),
           ),
-          child: photoUrl != null
-              ? CircleAvatar(
-            radius: 24,
-            backgroundImage: NetworkImage(photoUrl),
-            backgroundColor: Colors.transparent,
-          )
-              : const Icon(Icons.person, color: Colors.white, size: 32),
+          child: Icon(icon, color: Colors.green[800]!, size: 20),
         ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "Xin chào bà con,",
-                style: TextStyle(color: Colors.white70, fontSize: 14),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                displayName,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+        const SizedBox(width: 10),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.2,
+            color: Colors.blueGrey[900],
           ),
         ),
       ],
@@ -338,81 +380,136 @@ class HomeContent extends StatelessWidget {
   Widget _buildGridMenu(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: GridView.count(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.3,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _FeatureCard(
-            icon: Icons.trending_up,
-            label: "Giá Nông Sản",
-            color: Colors.amber,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const AgriPriceHome()),
-              );
-            },
+          _buildCategoryTitle("Thương mại & Cộng đồng", Icons.storefront_outlined),
+          const SizedBox(height: 12),
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 1.3,
+            children: [
+              _FeatureCard(
+                icon: Icons.store_mall_directory_outlined,
+                label: "Chợ trực tuyến",
+                color: Colors.orange,
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Chức năng đang phát triển")),
+                  );
+                },
+              ),
+              _FeatureCard(
+                icon: Icons.trending_up,
+                label: "Giá Nông Sản",
+                color: Colors.amber,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const AgriPriceHome()),
+                  );
+                },
+              ),
+              _FeatureCard(
+                icon: Icons.groups_outlined,
+                label: "Mạng xã hội",
+                color: Colors.indigo,
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Chức năng đang phát triển")),
+                  );
+                },
+              ),
+            ],
           ),
-          _FeatureCard(
-            icon: Icons.water_drop_outlined,
-            label: "Lịch Tưới",
-            color: Colors.blue,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const IrrigationScreen()),
-              );
-            },
+          const SizedBox(height: 24),
+          
+          _buildCategoryTitle("Tra cứu & Chăm sóc", Icons.eco_outlined),
+          const SizedBox(height: 12),
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 1.3,
+            children: [
+              _FeatureCard(
+                icon: Icons.water_drop_outlined,
+                label: "Lịch Tưới",
+                color: Colors.blue,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const IrrigationScreen()),
+                  );
+                },
+              ),
+              _FeatureCard(
+                icon: Icons.bug_report_outlined,
+                label: "Tra cứu sâu bệnh",
+                color: Colors.red,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const PestDiseaseScreen()),
+                  );
+                },
+              ),
+              _FeatureCard(
+                icon: Icons.camera_alt_outlined,
+                label: "Phân tích ảnh bệnh",
+                color: Colors.green,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AnalyzeDiseaseScreen(),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
-          _FeatureCard(
-            icon: Icons.bug_report_outlined,
-            label: "Tra cứu sâu bệnh",
-            color: Colors.red,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const PestDiseaseScreen()),
-              );
-            },
-          ),
-          _FeatureCard(
-            icon: Icons.forum_outlined,
-            label: "AI Phân Tích Chuyên Sâu",
-            color: Colors.purple,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const ExpertScreen()),
-              );
-            },
-          ),
-          _FeatureCard(
-            icon: Icons.calendar_month_outlined,
-            label: "Đặt lịch Chuyên gia",
-            color: Colors.teal,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const FindExpertScreen()),
-              );
-            },
-          ),
-          _FeatureCard(
-            icon: Icons.camera_alt_outlined,
-            label: "Phân tích ảnh bệnh",
-            color: Colors.green,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const AnalyzeDiseaseScreen(),
-                ),
-              );
-            },
+          const SizedBox(height: 24),
+          
+          _buildCategoryTitle("Chuyên gia & AI", Icons.smart_toy_outlined),
+          const SizedBox(height: 12),
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 1.3,
+            children: [
+              _FeatureCard(
+                icon: Icons.forum_outlined,
+                label: "AI Phân Tích Chuyên Sâu",
+                color: Colors.purple,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const ExpertScreen()),
+                  );
+                },
+              ),
+              _FeatureCard(
+                icon: Icons.calendar_month_outlined,
+                label: "Đặt lịch Chuyên gia",
+                color: Colors.teal,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const FindExpertScreen()),
+                  );
+                },
+              ),
+            ],
           ),
         ],
       ),
@@ -669,38 +766,125 @@ class _FeatureCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[200]!),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2)),
+          BoxShadow(
+            color: color.withOpacity(0.12),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
         ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, size: 28, color: color),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            splashColor: color.withOpacity(0.1),
+            highlightColor: color.withOpacity(0.05),
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [color.withOpacity(0.7), color],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: [
+                        BoxShadow(
+                          color: color.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        )
+                      ]
+                    ),
+                    child: Icon(icon, size: 26, color: Colors.white),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 13, 
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.1,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
-              const SizedBox(height: 10),
-              Text(
-                label,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                textAlign: TextAlign.center,
-              ),
-            ],
+            ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class AppSearchDelegate extends SearchDelegate {
+  @override
+  String get searchFieldLabel => 'Nhập tên tiện ích hoặc chuyên gia';
+
+  @override
+  List<Widget>? buildActions(BuildContext context) {
+    return [
+      IconButton(
+        icon: const Icon(Icons.clear),
+        onPressed: () => query = '',
+      ),
+    ];
+  }
+
+  @override
+  Widget? buildLeading(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.arrow_back),
+      onPressed: () => close(context, null),
+    );
+  }
+
+  @override
+  Widget buildResults(BuildContext context) => _buildSearchResults(context);
+
+  @override
+  Widget buildSuggestions(BuildContext context) => _buildSearchResults(context);
+
+  Widget _buildSearchResults(BuildContext context) {
+    final Map<String, Widget> routes = {
+      "Giá Nông Sản": const AgriPriceHome(),
+      "Lịch Tưới": const IrrigationScreen(),
+      "Tra cứu sâu bệnh": const PestDiseaseScreen(),
+      "AI Phân Tích Chuyên Sâu": const ExpertScreen(),
+      "Đặt lịch Chuyên gia": const FindExpertScreen(),
+      "Phân tích ảnh bệnh": const AnalyzeDiseaseScreen(),
+      "Hỏi AI & Cập nhật giá": const AiChatScreen(),
+    };
+    
+    final results = routes.keys.where((k) => k.toLowerCase().contains(query.toLowerCase())).toList();
+
+    if (results.isEmpty) {
+      return const Center(child: Text("Không tìm thấy kết quả phù hợp"));
+    }
+
+    return ListView.builder(
+      itemCount: results.length,
+      itemBuilder: (context, index) {
+        return ListTile(
+          leading: Icon(Icons.search, color: Colors.green[700]),
+          title: Text(results[index]),
+          onTap: () {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => routes[results[index]]!));
+          },
+        );
+      },
     );
   }
 }
