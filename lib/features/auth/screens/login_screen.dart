@@ -164,20 +164,17 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                   ),
                                 ),
                                 Container(
-                                  width: 78,
-                                  height: 78,
+                                  width: 85,
+                                  height: 85,
                                   decoration: const BoxDecoration(
                                     shape: BoxShape.circle,
-                                    gradient: LinearGradient(
-                                      colors: [kPrimary, Color(0xFF2D6A4F)],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
+                                    image: DecorationImage(
+                                      image: AssetImage('assets/images/ai_logo.png'),
+                                      fit: BoxFit.cover,
                                     ),
-                                  ),
-                                  child: const Icon(
-                                    Icons.eco_rounded,
-                                    size: 40,
-                                    color: Colors.white,
+                                    boxShadow: [
+                                      BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 4)),
+                                    ],
                                   ),
                                 ),
                                 // Huy hiệu vàng góc phải
@@ -201,7 +198,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                               text: const TextSpan(
                                 children: [
                                   TextSpan(
-                                    text: "EaAgri",
+                                    text: "Ea",
                                     style: TextStyle(
                                       fontSize: 30,
                                       fontWeight: FontWeight.w900,
@@ -210,7 +207,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                     ),
                                   ),
                                   TextSpan(
-                                    text: " Agent",
+                                    text: "Agri",
                                     style: TextStyle(
                                       fontSize: 30,
                                       fontWeight: FontWeight.w300,
