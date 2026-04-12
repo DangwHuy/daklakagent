@@ -425,121 +425,98 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 50, 20, 20),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF6C63FF), Color(0xFF5A52D5)],
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).padding.top + 12, 20, 16),
+      color: const Color(0xFFF4F6F8),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Icon(
-                  Icons.support_agent,
-                  color: Colors.white,
-                  size: 32,
-                ),
+          // Nút back
+          InkWell(
+            onTap: () => Navigator.pop(context),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 2)),
+                ],
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Chuyên Gia Sầu Riêng',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF4CAF50),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        const Text(
-                          'Trực tuyến',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete_sweep, color: Colors.white70),
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Text('Xóa lịch sử trên Mây?'),
-                      content: const Text('Hành động này sẽ xóa vĩnh viễn tin nhắn đã lưu.'),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('Thôi'),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            _clearHistory();
-                            Navigator.pop(context);
-                          },
-                          child: const Text('Xóa hết', style: TextStyle(color: Colors.red)),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              )
-            ],
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.3),
-                width: 1,
-              ),
+              child: const Icon(Icons.arrow_back_ios_new, size: 18, color: Colors.black87),
             ),
-            child: const Row(
+          ),
+          const SizedBox(width: 12),
+          // Logo
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              image: const DecorationImage(
+                image: AssetImage('assets/images/ai_logo.png'),
+                fit: BoxFit.cover,
+              ),
+              boxShadow: [
+                BoxShadow(color: Colors.black12, blurRadius: 6, offset: const Offset(0, 3)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Title
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.cloud_done, color: Colors.lightBlueAccent, size: 20),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Đã đồng bộ dữ liệu',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
+                Text(
+                  'AI Phân Tích',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.black87,
+                    letterSpacing: -0.5,
                   ),
                 ),
+                SizedBox(height: 2),
+                Text(
+                  'Chuyên gia sầu riêng trực tuyến',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
               ],
+            ),
+          ),
+          // Nút xóa lịch sử
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 2)),
+              ],
+            ),
+            child: IconButton(
+              icon: Icon(Icons.delete_sweep, color: Colors.grey[600], size: 22),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Xóa lịch sử trên Mây?'),
+                    content: const Text('Hành động này sẽ xóa vĩnh viễn tin nhắn đã lưu.'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Thôi'),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          _clearHistory();
+                          Navigator.pop(context);
+                        },
+                        child: const Text('Xóa hết', style: TextStyle(color: Colors.red)),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
         ],

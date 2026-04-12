@@ -186,15 +186,67 @@ class _AnalyzeDiseaseScreenState extends State<AnalyzeDiseaseScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        centerTitle: true,
-        title: const Text("Chẩn Đoán Sầu Riêng", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF4F6F8),
         elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        titleSpacing: 0,
+        centerTitle: false,
+        leading: const SizedBox.shrink(),
+        leadingWidth: 0,
+        title: Padding(
+          padding: const EdgeInsets.only(left: 16),
+          child: Row(
+            children: [
+              InkWell(
+                onTap: () => Navigator.pop(context),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 2)),
+                    ],
+                  ),
+                  child: const Icon(Icons.arrow_back_ios_new, size: 18, color: Colors.black87),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  image: const DecorationImage(
+                    image: AssetImage('assets/images/ai_logo.png'),
+                    fit: BoxFit.cover,
+                  ),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black12, blurRadius: 6, offset: const Offset(0, 3)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  "Phân Tích Ảnh Bệnh",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 22,
+                    color: Colors.black87,
+                    letterSpacing: -0.5,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
         actions: [
           IconButton(
             onPressed: _navigateToHistory,
-            icon: const Icon(Icons.history_edu),
+            icon: Icon(Icons.history_edu, color: Colors.grey[700]),
             tooltip: "Lịch sử phân tích",
           )
         ],

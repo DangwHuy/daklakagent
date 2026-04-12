@@ -36,10 +36,63 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: const Text("Tìm Chuyên Gia Tư Vấn", style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.green[700],
-        foregroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF4F6F8),
         elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        titleSpacing: 0,
+        centerTitle: false,
+        leading: const SizedBox.shrink(),
+        leadingWidth: 0,
+        title: Padding(
+          padding: const EdgeInsets.only(left: 16),
+          child: Row(
+            children: [
+              InkWell(
+                onTap: () => Navigator.pop(context),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 2)),
+                    ],
+                  ),
+                  child: const Icon(Icons.arrow_back_ios_new, size: 18, color: Colors.black87),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  image: const DecorationImage(
+                    image: AssetImage('assets/images/ai_logo.png'),
+                    fit: BoxFit.cover,
+                  ),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black12, blurRadius: 6, offset: const Offset(0, 3)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  "Đặt Lịch Chuyên Gia",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 22,
+                    color: Colors.black87,
+                    letterSpacing: -0.5,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
         actions: [
           IconButton(
             onPressed: () {
@@ -48,7 +101,7 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                 MaterialPageRoute(builder: (context) => const FarmerChatListScreen()),
               );
             },
-            icon: const Icon(Icons.chat_bubble_outline),
+            icon: Icon(Icons.chat_bubble_outline, color: Colors.grey[700]),
             tooltip: "Tin nhắn",
           ),
           IconButton(
@@ -58,7 +111,7 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                 MaterialPageRoute(builder: (context) => const FarmerAppointmentsScreen()),
               );
             },
-            icon: const Icon(Icons.calendar_month),
+            icon: Icon(Icons.calendar_month, color: Colors.grey[700]),
             tooltip: "Lịch đã đặt",
           ),
           const SizedBox(width: 8),
@@ -1042,12 +1095,39 @@ class FarmerChatListScreen extends StatelessWidget {
     final currentUserId = FirebaseAuth.instance.currentUser!.uid;
 
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: const Color(0xFFF4F6F8),
       appBar: AppBar(
-        title: const Text("Tin nhắn của tôi", style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.green[700],
-        foregroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF4F6F8),
         elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        titleSpacing: 0,
+        centerTitle: false,
+        leading: InkWell(
+          onTap: () => Navigator.pop(context),
+          borderRadius: BorderRadius.circular(12),
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 2)),
+                ],
+              ),
+              child: const Icon(Icons.arrow_back_ios_new, size: 18, color: Colors.black87),
+            ),
+          ),
+        ),
+        title: const Text(
+          "Tin nhắn của tôi",
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 22,
+            color: Colors.black87,
+            letterSpacing: -0.5,
+          ),
+        ),
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
@@ -1066,11 +1146,27 @@ class FarmerChatListScreen extends StatelessWidget {
             return _buildEmptyState();
           }
 
-          var docs = snapshot.data!.docs.toList();
+          // Lọc bản ghi bị ẩn
+          var allDocs = snapshot.data!.docs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final List<dynamic> hiddenBy = data['hiddenBy'] ?? [];
+            return !hiddenBy.contains(currentUserId);
+          }).toList();
 
-          docs.sort((a, b) {
+          if (allDocs.isEmpty) return _buildEmptyState();
+
+          // Sắp xếp: Ghim lên đầu, sau đó theo thời gian
+          allDocs.sort((a, b) {
             final dataA = a.data() as Map<String, dynamic>;
             final dataB = b.data() as Map<String, dynamic>;
+            
+            final List<dynamic> pinnedByA = dataA['pinnedBy'] ?? [];
+            final List<dynamic> pinnedByB = dataB['pinnedBy'] ?? [];
+            final bool isPinnedA = pinnedByA.contains(currentUserId);
+            final bool isPinnedB = pinnedByB.contains(currentUserId);
+
+            if (isPinnedA != isPinnedB) return isPinnedA ? -1 : 1;
+
             final Timestamp? timeA = dataA['lastMessageTime'];
             final Timestamp? timeB = dataB['lastMessageTime'];
 
@@ -1081,16 +1177,17 @@ class FarmerChatListScreen extends StatelessWidget {
             return timeB.compareTo(timeA);
           });
 
-          return ListView.builder(
-            padding: const EdgeInsets.only(top: 8),
-            itemCount: docs.length,
+          return ListView.separated(
+            padding: const EdgeInsets.only(top: 8, bottom: 100),
+            itemCount: allDocs.length,
+            separatorBuilder: (context, index) => const Divider(height: 1, color: Color(0xFFEEEEEE), indent: 84),
             itemBuilder: (context, index) {
-              final data = docs[index].data() as Map<String, dynamic>;
-              final roomId = docs[index].id;
+              final doc = allDocs[index];
+              final data = doc.data() as Map<String, dynamic>;
+              final roomId = doc.id;
 
               String peerId = "";
-              List<dynamic> users = data.containsKey('users') ? data['users'] : [];
-
+              List<dynamic> users = data['users'] ?? [];
               if (users.isNotEmpty) {
                 peerId = users.firstWhere((id) => id != currentUserId, orElse: () => "");
               }
@@ -1102,72 +1199,159 @@ class FarmerChatListScreen extends StatelessWidget {
 
               if (peerId.isEmpty) return const SizedBox.shrink();
 
-              return FutureBuilder<DocumentSnapshot>(
-                future: FirebaseFirestore.instance.collection('users').doc(peerId).get(),
-                builder: (context, userSnapshot) {
-                  if (!userSnapshot.hasData) return const SizedBox.shrink();
+              final List<dynamic> pinnedBy = data['pinnedBy'] ?? [];
+              final bool isPinned = pinnedBy.contains(currentUserId);
 
-                  final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
-                  if (userData == null) return const SizedBox.shrink();
-
-                  final peerName = userData['displayName'] ?? "Chuyên gia";
-                  final peerAvatar = userData['photoUrl'] ?? "";
-
-                  DateTime? time;
-                  if (data['lastMessageTime'] != null) {
-                    time = (data['lastMessageTime'] as Timestamp).toDate();
-                  }
-
-                  return Card(
-                    elevation: 2,
-                    shadowColor: Colors.black12,
-                    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      leading: CircleAvatar(
-                        radius: 26,
-                        backgroundColor: Colors.green[50],
-                        backgroundImage: peerAvatar.isNotEmpty ? NetworkImage(peerAvatar) : null,
-                        child: peerAvatar.isEmpty
-                            ? Text(peerName[0], style: TextStyle(color: Colors.green[800], fontWeight: FontWeight.bold, fontSize: 20))
-                            : null,
+              return Dismissible(
+                key: Key(roomId),
+                background: Container(
+                  color: Colors.blue[400],
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(isPinned ? Icons.push_pin_outlined : Icons.push_pin, color: Colors.white),
+                      Text(isPinned ? "Bỏ ghim" : "Ghim", style: const TextStyle(color: Colors.white, fontSize: 12)),
+                    ],
+                  ),
+                ),
+                secondaryBackground: Container(
+                  color: Colors.red[400],
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.delete_outline, color: Colors.white),
+                      Text("Xóa", style: TextStyle(color: Colors.white, fontSize: 12)),
+                    ],
+                  ),
+                ),
+                confirmDismiss: (direction) async {
+                  if (direction == DismissDirection.startToEnd) {
+                    if (isPinned) {
+                      await doc.reference.update({'pinnedBy': FieldValue.arrayRemove([currentUserId])});
+                    } else {
+                      await doc.reference.update({'pinnedBy': FieldValue.arrayUnion([currentUserId])});
+                    }
+                    return false;
+                  } else {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text("Xóa cuộc trò chuyện?"),
+                        content: const Text("Nội dung sẽ bị ẩn khỏi danh sách của bạn."),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Hủy")),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text("Xóa", style: TextStyle(color: Colors.red)),
+                          ),
+                        ],
                       ),
-                      title: Text(peerName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      subtitle: Padding(
-                        padding: const EdgeInsets.only(top: 4.0),
-                        child: Text(
-                          data['lastMessage'] ?? "Nhấn vào để xem tin nhắn...",
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: Colors.grey[700]),
+                    );
+                    if (confirm == true) {
+                      await doc.reference.update({'hiddenBy': FieldValue.arrayUnion([currentUserId])});
+                      return true;
+                    }
+                    return false;
+                  }
+                },
+                child: FutureBuilder<DocumentSnapshot>(
+                  future: FirebaseFirestore.instance.collection('users').doc(peerId).get(),
+                  builder: (context, userSnapshot) {
+                    if (!userSnapshot.hasData) return const SizedBox.shrink();
+                    final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
+                    if (userData == null) return const SizedBox.shrink();
+
+                    final peerName = userData['displayName'] ?? "Chuyên gia";
+                    final peerAvatar = userData['photoUrl'] ?? "";
+
+                    DateTime? time;
+                    if (data['lastMessageTime'] != null) {
+                      time = (data['lastMessageTime'] as Timestamp).toDate();
+                    }
+
+                    return Container(
+                      color: isPinned ? Colors.blue.withOpacity(0.02) : Colors.transparent,
+                      child: ListTile(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ChatScreen(
+                                chatRoomId: roomId,
+                                peerId: peerId,
+                                peerName: peerName,
+                                peerAvatar: peerAvatar,
+                              ),
+                            ),
+                          );
+                        },
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        leading: Stack(
+                          children: [
+                            Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.green.withOpacity(0.1), width: 2),
+                              ),
+                              child: CircleAvatar(
+                                radius: 28,
+                                backgroundColor: Colors.white,
+                                backgroundImage: peerAvatar.isNotEmpty ? NetworkImage(peerAvatar) : null,
+                                child: peerAvatar.isEmpty
+                                    ? Text(peerName[0], style: TextStyle(color: Colors.green[800], fontWeight: FontWeight.bold, fontSize: 20))
+                                    : null,
+                              ),
+                            ),
+                            if (isPinned)
+                              Positioned(
+                                right: 0,
+                                bottom: 0,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(color: Colors.blue, shape: BoxShape.circle),
+                                  child: const Icon(Icons.push_pin, color: Colors.white, size: 10),
+                                ),
+                              ),
+                          ],
+                        ),
+                        title: Row(
+                          children: [
+                            Expanded(child: Text(peerName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87), overflow: TextOverflow.ellipsis)),
+                            if (time != null)
+                              Text(_formatTime(time), style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+                          ],
+                        ),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 6.0),
+                          child: Text(
+                            data['lastMessage'] ?? "Nhấn vào để xem tin nhắn...",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                          ),
                         ),
                       ),
-                      trailing: time != null
-                          ? Text(DateFormat('HH:mm').format(time), style: TextStyle(color: Colors.grey[500], fontSize: 12))
-                          : null,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ChatScreen(
-                              chatRoomId: roomId,
-                              peerId: peerId,
-                              peerName: peerName,
-                              peerAvatar: peerAvatar,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               );
             },
           );
         },
       ),
     );
+  }
+
+  String _formatTime(DateTime time) {
+    final now = DateTime.now();
+    final difference = now.difference(time);
+    if (difference.inDays == 0) return DateFormat('HH:mm').format(time);
+    if (difference.inDays < 7) return DateFormat('E').format(time);
+    return DateFormat('dd/MM').format(time);
   }
 
   Widget _buildEmptyState() {
@@ -1184,4 +1368,4 @@ class FarmerChatListScreen extends StatelessWidget {
       ),
     );
   }
-}
+}

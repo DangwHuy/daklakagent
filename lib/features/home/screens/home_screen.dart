@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
@@ -17,9 +18,11 @@ import 'package:daklakagent/features/weather/Screens/weather_screen.dart';
 import 'package:daklakagent/features/home/screens/profile_screen.dart';
 import 'package:daklakagent/features/auth/screens/login_screen.dart';
 import 'notification_screen.dart';
+import 'farm_diary_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../widgets/banner_carousel.dart';
 import 'dart:convert';
+
 // ==========================================
 // MÀN HÌNH CHÍNH CÓ BOTTOM NAVIGATION BAR (V4.0)
 // ==========================================
@@ -92,22 +95,38 @@ class _HomeScreenState extends State<HomeScreen> {
             indicatorColor: Colors.green[100],
             destinations: [
               NavigationDestination(
-                selectedIcon: Icon(Icons.home, color: Colors.green[800], size: 26),
+                selectedIcon: Icon(
+                  Icons.home,
+                  color: Colors.green[800],
+                  size: 26,
+                ),
                 icon: const Icon(Icons.home_outlined, color: Colors.grey),
                 label: 'Trang chủ',
               ),
               NavigationDestination(
-                selectedIcon: Icon(Icons.cloud, color: Colors.green[800], size: 26),
+                selectedIcon: Icon(
+                  Icons.cloud,
+                  color: Colors.green[800],
+                  size: 26,
+                ),
                 icon: const Icon(Icons.cloud_outlined, color: Colors.grey),
                 label: 'Thời tiết',
               ),
               NavigationDestination(
-                selectedIcon: Icon(Icons.message, color: Colors.green[800], size: 26),
+                selectedIcon: Icon(
+                  Icons.message,
+                  color: Colors.green[800],
+                  size: 26,
+                ),
                 icon: const Icon(Icons.message_outlined, color: Colors.grey),
                 label: 'Tin nhắn',
               ),
               NavigationDestination(
-                selectedIcon: Icon(Icons.person, color: Colors.green[800], size: 26),
+                selectedIcon: Icon(
+                  Icons.person,
+                  color: Colors.green[800],
+                  size: 26,
+                ),
                 icon: const Icon(Icons.person_outline, color: Colors.grey),
                 label: 'Cá nhân',
               ),
@@ -155,7 +174,12 @@ class HomeContent extends StatelessWidget {
                   // Curved Header Background
                   Container(
                     width: double.infinity,
-                    padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + 20, 16, 60),
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      MediaQuery.of(context).padding.top + 20,
+                      16,
+                      60,
+                    ),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [Colors.green[700]!, Colors.green[500]!],
@@ -170,7 +194,8 @@ class HomeContent extends StatelessWidget {
                     child: StreamBuilder<User?>(
                       stream: FirebaseAuth.instance.userChanges(),
                       builder: (context, snapshot) {
-                        final user = snapshot.data ?? FirebaseAuth.instance.currentUser;
+                        final user =
+                            snapshot.data ?? FirebaseAuth.instance.currentUser;
                         return _buildWelcomeCard(context, user);
                       },
                     ),
@@ -190,8 +215,6 @@ class HomeContent extends StatelessWidget {
 
               const SizedBox(height: 20),
 
-
-
               // Tiêu đề phân tích (Đã ẩn)
               Visibility(
                 visible: false,
@@ -201,16 +224,26 @@ class HomeContent extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Row(
                         children: [
-                          Icon(Icons.analytics_outlined, color: Colors.green[700], size: 28),
+                          Icon(
+                            Icons.analytics_outlined,
+                            color: Colors.green[700],
+                            size: 28,
+                          ),
                           const SizedBox(width: 8),
                           const Expanded(
                             child: Text(
                               "Phân Tích Thông Minh AI v3.5",
-                              style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                fontSize: 19,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.red[100],
                               borderRadius: BorderRadius.circular(12),
@@ -219,7 +252,11 @@ class HomeContent extends StatelessWidget {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.water_damage, color: Colors.red[700], size: 14),
+                                Icon(
+                                  Icons.water_damage,
+                                  color: Colors.red[700],
+                                  size: 14,
+                                ),
                                 const SizedBox(width: 4),
                                 Text(
                                   "Siêu thông minh",
@@ -252,7 +289,10 @@ class HomeContent extends StatelessWidget {
                     const SizedBox(width: 8),
                     const Text(
                       "Tiện ích nông nghiệp",
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
@@ -305,7 +345,7 @@ class HomeContent extends StatelessWidget {
                 shape: BoxShape.circle,
               ),
               child: Icon(Icons.mic, color: Colors.green[700], size: 18),
-            )
+            ),
           ],
         ),
       ),
@@ -324,23 +364,28 @@ class HomeContent extends StatelessWidget {
         Expanded(
           child: InkWell(
             onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen()));
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ProfileScreen()),
+              );
             },
             borderRadius: BorderRadius.circular(12),
             child: Row(
               children: [
                 Container(
-                  padding: photoUrl == null ? const EdgeInsets.all(12) : EdgeInsets.zero,
+                  padding: photoUrl == null
+                      ? const EdgeInsets.all(12)
+                      : EdgeInsets.zero,
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.2),
                     shape: BoxShape.circle,
                   ),
                   child: photoUrl != null
                       ? CircleAvatar(
-                    radius: 24,
-                    backgroundImage: NetworkImage(photoUrl),
-                    backgroundColor: Colors.transparent,
-                  )
+                          radius: 24,
+                          backgroundImage: NetworkImage(photoUrl),
+                          backgroundColor: Colors.transparent,
+                        )
                       : const Icon(Icons.person, color: Colors.white, size: 32),
                 ),
                 const SizedBox(width: 16),
@@ -369,9 +414,12 @@ class HomeContent extends StatelessWidget {
             ),
           ),
         ),
-        
+
+        // Nút thời tiết mini
+        const WeatherMiniBadge(),
+        const SizedBox(width: 8),
+
         // Nút thông báo
-        const SizedBox(width: 12),
         StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('notifications')
@@ -384,17 +432,26 @@ class HomeContent extends StatelessWidget {
               clipBehavior: Clip.none,
               children: [
                 Container(
+                  height: 40,
+                  width: 40,
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.2),
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(
-                    icon: const Icon(Icons.notifications_active_outlined, color: Colors.white, size: 26),
+                    padding: EdgeInsets.zero,
+                    icon: const Icon(
+                      Icons.notifications_active_outlined,
+                      color: Colors.white,
+                      size: 22,
+                    ),
                     onPressed: () {
                       if (user == null) return;
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const NotificationScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const NotificationScreen(),
+                        ),
                       );
                     },
                   ),
@@ -413,13 +470,17 @@ class HomeContent extends StatelessWidget {
                       ),
                       child: Text(
                         unreadCount > 9 ? "9+" : "$unreadCount",
-                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
               ],
             );
-          }
+          },
         ),
       ],
     );
@@ -456,9 +517,10 @@ class HomeContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildCategoryTitle("Thương mại & Cộng đồng", Icons.storefront_outlined),
-          const SizedBox(height: 12),
+          _buildCategoryTitle("Chuyên Gia & AI", Icons.smart_toy_outlined),
+          const SizedBox(height: 8),
           GridView.count(
+            padding: EdgeInsets.zero,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             crossAxisCount: 2,
@@ -467,43 +529,39 @@ class HomeContent extends StatelessWidget {
             childAspectRatio: 1.3,
             children: [
               _FeatureCard(
-                icon: Icons.store_mall_directory_outlined,
-                label: "Chợ trực tuyến",
-                color: Colors.orange,
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Chức năng đang phát triển")),
-                  );
-                },
-              ),
-              _FeatureCard(
-                icon: Icons.trending_up,
-                label: "Giá Nông Sản",
-                color: Colors.amber,
+                icon: Icons.forum_outlined,
+                label: "AI Phân Tích",
+                color: Colors.purple,
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const AgriPriceHome()),
+                    MaterialPageRoute(
+                      builder: (context) => const ExpertScreen(),
+                    ),
                   );
                 },
               ),
               _FeatureCard(
-                icon: Icons.groups_outlined,
-                label: "Mạng xã hội",
-                color: Colors.indigo,
+                icon: Icons.calendar_month_outlined,
+                label: "Đặt Lịch Chuyên Gia",
+                color: Colors.teal,
                 onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Chức năng đang phát triển")),
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const FindExpertScreen(),
+                    ),
                   );
                 },
               ),
             ],
           ),
-          const SizedBox(height: 24),
-          
-          _buildCategoryTitle("Tra cứu & Chăm sóc", Icons.eco_outlined),
           const SizedBox(height: 12),
+
+          _buildCategoryTitle("Tra Cứu & Chăm Sóc", Icons.eco_outlined),
+          const SizedBox(height: 8),
           GridView.count(
+            padding: EdgeInsets.zero,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             crossAxisCount: 2,
@@ -518,24 +576,28 @@ class HomeContent extends StatelessWidget {
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const IrrigationScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => const IrrigationScreen(),
+                    ),
                   );
                 },
               ),
               _FeatureCard(
                 icon: Icons.bug_report_outlined,
-                label: "Tra cứu sâu bệnh",
+                label: "Tra Cứu Sâu Bệnh",
                 color: Colors.red,
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const PestDiseaseScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => const PestDiseaseScreen(),
+                    ),
                   );
                 },
               ),
               _FeatureCard(
                 icon: Icons.camera_alt_outlined,
-                label: "Phân tích ảnh bệnh",
+                label: "Phân Tích Ảnh Bệnh",
                 color: Colors.green,
                 onTap: () {
                   Navigator.push(
@@ -548,11 +610,15 @@ class HomeContent extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 24),
-          
-          _buildCategoryTitle("Chuyên gia & AI", Icons.smart_toy_outlined),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
+
+          _buildCategoryTitle(
+            "Thương Mại & Cộng Đồng",
+            Icons.storefront_outlined,
+          ),
+          const SizedBox(height: 8),
           GridView.count(
+            padding: EdgeInsets.zero,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             crossAxisCount: 2,
@@ -561,24 +627,35 @@ class HomeContent extends StatelessWidget {
             childAspectRatio: 1.3,
             children: [
               _FeatureCard(
-                icon: Icons.forum_outlined,
-                label: "AI Phân Tích Chuyên Sâu",
-                color: Colors.purple,
+                icon: Icons.store_mall_directory_outlined,
+                label: "Chợ Trực Tuyến",
+                color: Colors.orange,
                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const ExpertScreen()),
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Chức năng đang phát triển")),
                   );
                 },
               ),
               _FeatureCard(
-                icon: Icons.calendar_month_outlined,
-                label: "Đặt lịch Chuyên gia",
-                color: Colors.teal,
+                icon: Icons.trending_up,
+                label: "Giá Nông Sản",
+                color: Colors.amber,
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const FindExpertScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => const AgriPriceHome(),
+                    ),
+                  );
+                },
+              ),
+              _FeatureCard(
+                icon: Icons.groups_outlined,
+                label: "Diễn Đàn Nông Nghiệp",
+                color: Colors.indigo,
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Chức năng đang phát triển")),
                   );
                 },
               ),
@@ -600,7 +677,8 @@ class ProWeatherCardV35 extends StatefulWidget {
 class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
   late Future<Map<String, dynamic>> _dataFuture;
 
-  final String pythonApiUrl = 'https://arica-baldish-consuelo.ngrok-free.dev/api/phan-tich-sau-rieng';
+  final String pythonApiUrl =
+      'https://arica-baldish-consuelo.ngrok-free.dev/api/phan-tich-sau-rieng';
 
   @override
   void initState() {
@@ -616,13 +694,15 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
 
   Future<Map<String, dynamic>> fetchProData() async {
     try {
-      final response = await http.get(
-        Uri.parse(pythonApiUrl),
-        headers: {
-          "ngrok-skip-browser-warning": "true",
-          "Content-Type": "application/json",
-        },
-      ).timeout(const Duration(seconds: 15));
+      final response = await http
+          .get(
+            Uri.parse(pythonApiUrl),
+            headers: {
+              "ngrok-skip-browser-warning": "true",
+              "Content-Type": "application/json",
+            },
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         return json.decode(utf8.decode(response.bodyBytes));
@@ -640,10 +720,12 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
       future: _dataFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: Padding(
-            padding: EdgeInsets.all(20.0),
-            child: CircularProgressIndicator(),
-          ));
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(20.0),
+              child: CircularProgressIndicator(),
+            ),
+          );
         }
 
         if (snapshot.hasError || !snapshot.hasData) {
@@ -666,7 +748,9 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: listData.map((item) => _buildSmartCardShort(item)).toList(),
+            children: listData
+                .map((item) => _buildSmartCardShort(item))
+                .toList(),
           ),
         );
       },
@@ -688,7 +772,11 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
     int chiSoNam = (item['chi_so_nguy_co_nam'] as num?)?.toInt() ?? 0;
     int chiSoStress = (item['chi_so_stress_nhiet'] as num?)?.toInt() ?? 0;
 
-    int maxRisk = [chiSoLuLut, chiSoNam, chiSoStress].reduce((curr, next) => curr > next ? curr : next);
+    int maxRisk = [
+      chiSoLuLut,
+      chiSoNam,
+      chiSoStress,
+    ].reduce((curr, next) => curr > next ? curr : next);
 
     Color statusColor = const Color(0xFF2E7D32);
     String statusText = "Môi trường ổn định";
@@ -715,7 +803,11 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: Colors.grey[300]!, width: 1),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
           ],
         ),
         child: Column(
@@ -730,7 +822,13 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
                     children: [
                       Icon(Icons.location_on, color: Colors.red[700], size: 20),
                       const SizedBox(width: 6),
-                      Text("$khuVuc (${caoDo}m)", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text(
+                        "$khuVuc (${caoDo}m)",
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -738,12 +836,31 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
                     children: [
                       Image.network(
                         "https://openweathermap.org/img/wn/$iconThoiTiet@2x.png",
-                        width: 80, height: 80,
-                        errorBuilder: (_, __, ___) => const Icon(Icons.cloud, size: 80, color: Colors.grey),
+                        width: 80,
+                        height: 80,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.cloud,
+                          size: 80,
+                          color: Colors.grey,
+                        ),
                       ),
-                      Text("$nhietDo°C", style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.blue[800])),
+                      Text(
+                        "$nhietDo°C",
+                        style: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue[800],
+                        ),
+                      ),
                       const SizedBox(height: 4),
-                      Text(moTa, style: TextStyle(fontSize: 15, color: Colors.grey[700], fontWeight: FontWeight.w500)),
+                      Text(
+                        moTa,
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: Colors.grey[700],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 20),
@@ -752,11 +869,19 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _buildWeatherStat(Icons.water_drop_outlined, "$doAm%", "(Ẩm)"),
+                      _buildWeatherStat(
+                        Icons.water_drop_outlined,
+                        "$doAm%",
+                        "(Ẩm)",
+                      ),
                       Container(width: 1, height: 30, color: Colors.grey[300]),
                       _buildWeatherStat(Icons.air, "${gio}m/s", "(Gió)"),
                       Container(width: 1, height: 30, color: Colors.grey[300]),
-                      _buildWeatherStat(Icons.cloud_queue, "${mua1h}mm", "(Mưa)"),
+                      _buildWeatherStat(
+                        Icons.cloud_queue,
+                        "${mua1h}mm",
+                        "(Mưa)",
+                      ),
                     ],
                   ),
                 ],
@@ -767,15 +892,17 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => WeatherScreen(
-                      initialLocation: khuVuc,
-                    ),
+                    builder: (context) =>
+                        WeatherScreen(initialLocation: khuVuc),
                   ),
                 );
               },
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 14,
+                  horizontal: 16,
+                ),
                 decoration: BoxDecoration(
                   color: statusColor,
                   borderRadius: const BorderRadius.only(
@@ -790,10 +917,18 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
                     const SizedBox(width: 8),
                     Text(
                       statusText,
-                      style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const Spacer(),
-                    const Icon(Icons.auto_awesome, color: Colors.white70, size: 18),
+                    const Icon(
+                      Icons.auto_awesome,
+                      color: Colors.white70,
+                      size: 18,
+                    ),
                   ],
                 ),
               ),
@@ -811,12 +946,149 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
           children: [
             Icon(icon, size: 16, color: Colors.black87),
             const SizedBox(width: 4),
-            Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
           ],
         ),
         const SizedBox(height: 4),
         Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
       ],
+    );
+  }
+}
+
+// ==========================================
+// WIDGET HIỂN THỊ THỜI TIẾT MINI (BẢN TIN NHỎ)
+// ==========================================
+class WeatherMiniBadge extends StatefulWidget {
+  const WeatherMiniBadge({super.key});
+
+  @override
+  State<WeatherMiniBadge> createState() => _WeatherMiniBadgeState();
+}
+
+class _WeatherMiniBadgeState extends State<WeatherMiniBadge> {
+  String _weatherText = "--°";
+  String _humidityText = "--%";
+  bool _showTemp = true;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchWeather();
+    _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (mounted) {
+        setState(() {
+          _showTemp = !_showTemp;
+        });
+      }
+    });
+  }
+
+  Future<void> _fetchWeather() async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse(
+              'https://arica-baldish-consuelo.ngrok-free.dev/api/phan-tich-sau-rieng',
+            ),
+            headers: {
+              "ngrok-skip-browser-warning": "true",
+              "Content-Type": "application/json",
+            },
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(utf8.decode(response.bodyBytes));
+        final listData = data['du_lieu'] as List<dynamic>? ?? [];
+        if (listData.isNotEmpty) {
+          final item = listData[0]; // Lấy của khu vực đầu tiên
+          final nhietDo = (item['nhiet_do'] as num?)?.round() ?? 0;
+          final doAm = (item['do_am'] as num?)?.round() ?? 0;
+          if (mounted) {
+            setState(() {
+              _weatherText = "$nhietDo°";
+              _humidityText = "$doAm%";
+            });
+          }
+        }
+      }
+    } catch (e) {
+      // Im lặng nếu không tới được server (tránh làm crash UI màn chính)
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) =>
+                const WeatherScreen(initialLocation: 'Buôn Ma Thuột'),
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        height: 40,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        alignment: Alignment.center,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 500),
+          transitionBuilder: (Widget child, Animation<double> animation) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          child: _showTemp
+              ? Row(
+                  key: const ValueKey("temp"),
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.thermostat, color: Colors.white, size: 16),
+                    const SizedBox(width: 4),
+                    Text(
+                      _weatherText,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                )
+              : Row(
+                  key: const ValueKey("hum"),
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.water_drop, color: Colors.white, size: 16),
+                    const SizedBox(width: 4),
+                    Text(
+                      _humidityText,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ),
     );
   }
 }
@@ -875,8 +1147,8 @@ class _FeatureCard extends StatelessWidget {
                           color: color.withOpacity(0.3),
                           blurRadius: 8,
                           offset: const Offset(0, 4),
-                        )
-                      ]
+                        ),
+                      ],
                     ),
                     child: Icon(icon, size: 26, color: Colors.white),
                   ),
@@ -884,7 +1156,7 @@ class _FeatureCard extends StatelessWidget {
                   Text(
                     label,
                     style: const TextStyle(
-                      fontSize: 13, 
+                      fontSize: 13,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.1,
                     ),
@@ -904,62 +1176,330 @@ class _FeatureCard extends StatelessWidget {
 
 class AppSearchDelegate extends SearchDelegate {
   @override
-  String get searchFieldLabel => 'Nhập tên tiện ích hoặc chuyên gia';
+  String get searchFieldLabel => 'Tìm kiếm chức năng, tiện ích...';
+
+  @override
+  ThemeData appBarTheme(BuildContext context) {
+    return Theme.of(context).copyWith(
+      appBarTheme: AppBarTheme(
+        backgroundColor: Colors.green[700],
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      inputDecorationTheme: const InputDecorationTheme(
+        hintStyle: TextStyle(color: Colors.white70, fontSize: 16),
+        border: InputBorder.none,
+      ),
+      textTheme: const TextTheme(
+        titleLarge: TextStyle(color: Colors.white, fontSize: 16),
+      ),
+    );
+  }
+
+  // Danh sách TẤT CẢ chức năng của app
+  List<_SearchItem> get _allFeatures => [
+    // --- Chuyên gia & AI ---
+    _SearchItem(
+      name: "AI Phân Tích Chuyên Sâu",
+      description: "Phân tích sâu bệnh, thời tiết bằng AI",
+      icon: Icons.forum_outlined,
+      color: Colors.purple,
+      category: "Chuyên gia & AI",
+      builder: () => const ExpertScreen(),
+    ),
+    _SearchItem(
+      name: "Đặt Lịch Chuyên Gia",
+      description: "Tìm và đặt lịch hẹn với chuyên gia nông nghiệp",
+      icon: Icons.calendar_month_outlined,
+      color: Colors.teal,
+      category: "Chuyên gia & AI",
+      builder: () => const FindExpertScreen(),
+    ),
+    _SearchItem(
+      name: "Trò chuyện AI",
+      description: "Hỏi đáp với trợ lý AI thông minh",
+      icon: Icons.smart_toy_outlined,
+      color: Colors.deepPurple,
+      category: "Chuyên gia & AI",
+      builder: () => const AiChatScreen(),
+    ),
+
+    // --- Tra cứu & Chăm sóc ---
+    _SearchItem(
+      name: "Lịch Tưới",
+      description: "Quản lý lịch tưới tiêu cho cây trồng",
+      icon: Icons.water_drop_outlined,
+      color: Colors.blue,
+      category: "Tra cứu & Chăm sóc",
+      builder: () => const IrrigationScreen(),
+    ),
+    _SearchItem(
+      name: "Tra cứu sâu bệnh",
+      description: "Tra cứu thông tin các loại sâu bệnh hại",
+      icon: Icons.bug_report_outlined,
+      color: Colors.red,
+      category: "Tra cứu & Chăm sóc",
+      builder: () => const PestDiseaseScreen(),
+    ),
+    _SearchItem(
+      name: "Phân tích ảnh bệnh",
+      description: "Chụp ảnh lá cây để AI nhận diện bệnh",
+      icon: Icons.camera_alt_outlined,
+      color: Colors.green,
+      category: "Tra cứu & Chăm sóc",
+      builder: () => const AnalyzeDiseaseScreen(),
+    ),
+
+    // --- Thương mại & Cộng đồng ---
+    _SearchItem(
+      name: "Giá Nông Sản",
+      description: "Cập nhật giá sầu riêng, cà phê, hồ tiêu...",
+      icon: Icons.trending_up,
+      color: Colors.amber,
+      category: "Thương mại & Cộng đồng",
+      builder: () => const AgriPriceHome(),
+    ),
+
+    // --- Thời tiết ---
+    _SearchItem(
+      name: "Chi tiết thời tiết",
+      description: "Xem thời tiết, cảnh báo thiên tai khu vực",
+      icon: Icons.cloud_outlined,
+      color: Colors.lightBlue,
+      category: "Thời tiết",
+      builder: () => const WeatherScreen(initialLocation: 'Buôn Ma Thuột'),
+    ),
+
+    // --- Cá nhân ---
+    _SearchItem(
+      name: "Hồ sơ cá nhân",
+      description: "Quản lý thông tin tài khoản của bạn",
+      icon: Icons.person_outline,
+      color: Colors.blueGrey,
+      category: "Cá nhân",
+      builder: () => const ProfileScreen(),
+    ),
+    _SearchItem(
+      name: "Thông báo",
+      description: "Xem các thông báo lịch hẹn, tin nhắn",
+      icon: Icons.notifications_outlined,
+      color: Colors.orange,
+      category: "Cá nhân",
+      builder: () => const NotificationScreen(),
+    ),
+    _SearchItem(
+      name: "Tin nhắn",
+      description: "Danh sách tin nhắn với chuyên gia",
+      icon: Icons.message_outlined,
+      color: Colors.indigo,
+      category: "Cá nhân",
+      builder: () => const ExpertChatListScreen(),
+    ),
+    _SearchItem(
+      name: "Nhật Ký Nông Hộ",
+      description: "Ghi chép hoạt động canh tác hàng ngày",
+      icon: Icons.book_outlined,
+      color: Colors.orange,
+      category: "Cá nhân",
+      builder: () => const FarmDiaryScreen(),
+    ),
+  ];
 
   @override
   List<Widget>? buildActions(BuildContext context) {
     return [
-      IconButton(
-        icon: const Icon(Icons.clear),
-        onPressed: () => query = '',
-      ),
+      if (query.isNotEmpty)
+        IconButton(
+          icon: const Icon(Icons.clear, color: Colors.white),
+          onPressed: () => query = '',
+        ),
     ];
   }
 
   @override
   Widget? buildLeading(BuildContext context) {
     return IconButton(
-      icon: const Icon(Icons.arrow_back),
+      icon: const Icon(Icons.arrow_back, color: Colors.white),
       onPressed: () => close(context, null),
     );
   }
 
   @override
-  Widget buildResults(BuildContext context) => _buildSearchResults(context);
+  Widget buildResults(BuildContext context) => _buildSearchBody(context);
 
   @override
-  Widget buildSuggestions(BuildContext context) => _buildSearchResults(context);
+  Widget buildSuggestions(BuildContext context) => _buildSearchBody(context);
 
-  Widget _buildSearchResults(BuildContext context) {
-    final Map<String, Widget> routes = {
-      "Giá Nông Sản": const AgriPriceHome(),
-      "Lịch Tưới": const IrrigationScreen(),
-      "Tra cứu sâu bệnh": const PestDiseaseScreen(),
-      "AI Phân Tích Chuyên Sâu": const ExpertScreen(),
-      "Đặt lịch Chuyên gia": const FindExpertScreen(),
-      "Phân tích ảnh bệnh": const AnalyzeDiseaseScreen(),
-      "Hỏi AI & Cập nhật giá": const AiChatScreen(),
-    };
-    
-    final results = routes.keys.where((k) => k.toLowerCase().contains(query.toLowerCase())).toList();
+  Widget _buildSearchBody(BuildContext context) {
+    final lowerQuery = query.toLowerCase().trim();
+
+    // Nếu chưa nhập gì → hiện tất cả theo nhóm
+    if (lowerQuery.isEmpty) {
+      return _buildAllFeatures(context);
+    }
+
+    // Lọc kết quả
+    final results = _allFeatures.where((item) {
+      return item.name.toLowerCase().contains(lowerQuery) ||
+          item.description.toLowerCase().contains(lowerQuery) ||
+          item.category.toLowerCase().contains(lowerQuery);
+    }).toList();
 
     if (results.isEmpty) {
-      return const Center(child: Text("Không tìm thấy kết quả phù hợp"));
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.search_off_rounded, size: 64, color: Colors.grey[300]),
+            const SizedBox(height: 16),
+            Text(
+              "Không tìm thấy \"$query\"",
+              style: TextStyle(fontSize: 16, color: Colors.grey[500]),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "Thử tìm: thời tiết, sâu bệnh, chuyên gia...",
+              style: TextStyle(fontSize: 13, color: Colors.grey[400]),
+            ),
+          ],
+        ),
+      );
     }
 
     return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: results.length,
       itemBuilder: (context, index) {
-        return ListTile(
-          leading: Icon(Icons.search, color: Colors.green[700]),
-          title: Text(results[index]),
-          onTap: () {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => routes[results[index]]!));
-          },
-        );
+        return _buildResultTile(context, results[index]);
       },
     );
   }
+
+  Widget _buildAllFeatures(BuildContext context) {
+    // Nhóm theo category
+    final Map<String, List<_SearchItem>> grouped = {};
+    for (final item in _allFeatures) {
+      grouped.putIfAbsent(item.category, () => []).add(item);
+    }
+
+    return ListView(
+      padding: const EdgeInsets.only(top: 12, bottom: 24),
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          child: Text(
+            "Tất cả chức năng",
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[500],
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
+        ...grouped.entries.expand((entry) {
+          return [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+              child: Text(
+                entry.key,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.green[700],
+                ),
+              ),
+            ),
+            ...entry.value.map((item) => _buildResultTile(context, item)),
+          ];
+        }),
+      ],
+    );
+  }
+
+  Widget _buildResultTile(BuildContext context, _SearchItem item) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () {
+            close(context, null);
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => item.builder()),
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: item.color.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(item.icon, color: item.color, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        item.description,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[500],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: Colors.grey[400], size: 20),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SearchItem {
+  final String name;
+  final String description;
+  final IconData icon;
+  final Color color;
+  final String category;
+  final Widget Function() builder;
+
+  const _SearchItem({
+    required this.name,
+    required this.description,
+    required this.icon,
+    required this.color,
+    required this.category,
+    required this.builder,
+  });
 }
 
 // ==========================================
@@ -969,7 +1509,11 @@ class DraggableAiBot extends StatefulWidget {
   final VoidCallback onTap;
   final VoidCallback onDismiss;
 
-  const DraggableAiBot({super.key, required this.onTap, required this.onDismiss});
+  const DraggableAiBot({
+    super.key,
+    required this.onTap,
+    required this.onDismiss,
+  });
 
   @override
   State<DraggableAiBot> createState() => _DraggableAiBotState();
@@ -1007,7 +1551,11 @@ class _DraggableAiBotState extends State<DraggableAiBot> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 boxShadow: [
-                  BoxShadow(color: Colors.green.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 5)),
+                  BoxShadow(
+                    color: Colors.green.withOpacity(0.3),
+                    blurRadius: 15,
+                    offset: const Offset(0, 5),
+                  ),
                 ],
                 image: const DecorationImage(
                   image: AssetImage('assets/images/ai_logo.png'),

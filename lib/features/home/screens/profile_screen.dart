@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'expert_registration_screen.dart';
+import 'farm_diary_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -275,9 +276,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _buildGridMenuItem(Icons.wallet, "Thanh toán", Colors.blue),
-                      _buildGridMenuItem(Icons.book, "Nhật ký nông hộ", Colors.orange),
-                      _buildGridMenuItem(Icons.spa, "Mô hình xanh", Colors.teal),
+                      _buildGridMenuItem(Icons.wallet, "Thanh toán", Colors.blue, onTap: () {}),
+                      _buildGridMenuItem(Icons.book, "Nhật ký nông hộ", Colors.orange, onTap: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => const FarmDiaryScreen()));
+                      }),
+                      _buildGridMenuItem(Icons.spa, "Mô hình xanh", Colors.teal, onTap: () {}),
                     ],
                   ),
 
@@ -369,21 +372,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildGridMenuItem(IconData icon, String title, MaterialColor color) {
+  Widget _buildGridMenuItem(IconData icon, String title, MaterialColor color, {VoidCallback? onTap}) {
     return Expanded(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color[400], size: 32),
-            const SizedBox(height: 8),
-            Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
-          ],
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, color: color[400], size: 32),
+              const SizedBox(height: 8),
+              Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
+            ],
+          ),
         ),
       ),
     );

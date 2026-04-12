@@ -129,96 +129,125 @@ class _PestDiseaseScreenState extends State<PestDiseaseScreen>
 
   // ── Sliver AppBar ──────────────────────────────────────────────────────────
   Widget _buildSliverAppBar() {
+    final topPadding = MediaQuery.of(context).padding.top;
     return SliverAppBar(
-      expandedHeight: 160,
+      expandedHeight: 180, // Increased from 160 to prevent overflow
       pinned: true,
-      backgroundColor: kPrimary,
-      foregroundColor: Colors.white,
-      flexibleSpace: FlexibleSpaceBar(
-        background: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [kPrimary, kPrimaryL],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+      backgroundColor: const Color(0xFFF4F6F8),
+      surfaceTintColor: Colors.transparent,
+      foregroundColor: Colors.black87,
+      centerTitle: false,
+      leadingWidth: 70, // Ensure enough space for the custom back button
+      leading: Padding(
+        padding: const EdgeInsets.only(left: 16),
+        child: Center(
+          child: InkWell(
+            onTap: () => Navigator.pop(context),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 2)),
+                ],
+              ),
+              child: const Icon(Icons.arrow_back_ios_new, size: 18, color: Colors.black87),
             ),
           ),
-          child: Stack(
-            children: [
-              // Decorative circles
-              Positioned(top: -20, right: -20,
-                child: Container(width: 120, height: 120,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withOpacity(0.06),
-                    )),
-              ),
-              Positioned(bottom: 30, right: 60,
-                child: Container(width: 60, height: 60,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withOpacity(0.08),
-                    )),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 56, 20, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(children: [
+        ),
+      ),
+      flexibleSpace: FlexibleSpaceBar(
+        background: Container(
+          color: const Color(0xFFF4F6F8),
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(20, topPadding + 6, 20, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Indent the title row to the right to avoid overlapping with the back button
+                Padding(
+                  padding: const EdgeInsets.only(left: 54), // Room for back button
+                  child: Row(
+                    children: [
                       Container(
-                        padding: const EdgeInsets.all(8),
+                        width: 38,
+                        height: 38,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(10),
+                          shape: BoxShape.circle,
+                          image: const DecorationImage(
+                            image: AssetImage('assets/images/ai_logo.png'),
+                            fit: BoxFit.cover,
+                          ),
+                          boxShadow: [
+                            BoxShadow(color: Colors.black12, blurRadius: 6, offset: const Offset(0, 3)),
+                          ],
                         ),
-                        child: const Text('🔬', style: TextStyle(fontSize: 20)),
                       ),
                       const SizedBox(width: 12),
-                      const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Thư Viện Sâu Bệnh',
-                              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800,
-                                  color: Colors.white, letterSpacing: -0.3)),
-                          Text('Bác sĩ cây trồng • Cập nhật liên tục',
-                              style: TextStyle(fontSize: 12, color: Colors.white70)),
-                        ],
-                      ),
-                    ]),
-                    const SizedBox(height: 14),
-                    // Search bar
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: [BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 12, offset: const Offset(0, 4),
-                        )],
-                      ),
-                      child: TextField(
-                        controller: _searchController,
-                        decoration: InputDecoration(
-                          hintText: 'Tìm bệnh, triệu chứng, từ khóa...',
-                          hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-                          prefixIcon: Icon(Icons.search_rounded, color: kPrimaryL),
-                          suffixIcon: _searchQuery.isNotEmpty
-                              ? IconButton(
-                            icon: Icon(Icons.cancel_rounded, color: Colors.grey[400]),
-                            onPressed: () { _searchController.clear();
-                            FocusManager.instance.primaryFocus?.unfocus(); },
-                          )
-                              : null,
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Tra Cứu Sâu Bệnh',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.black87,
+                                letterSpacing: -0.5,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              'Bác sĩ cây trồng • Cập nhật liên tục',
+                              style: TextStyle(fontSize: 12, color: Colors.grey),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 14),
+                // Search bar - wrap in a container with a bit more breathing room
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.06),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      )
+                    ],
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Tìm bệnh, triệu chứng, từ khóa...',
+                      hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+                      prefixIcon: Icon(Icons.search_rounded, color: kPrimaryL),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: Icon(Icons.cancel_rounded, color: Colors.grey[400]),
+                              onPressed: () {
+                                _searchController.clear();
+                                FocusManager.instance.primaryFocus?.unfocus();
+                              },
+                            )
+                          : null,
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

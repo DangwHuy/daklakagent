@@ -5,37 +5,104 @@ import 'dart:convert';
 // =========, required String initialLocation, required String initialLocation, required String initialLocation=================================
 // 1. MÀN HÌNH CHÍNH (WRAPPER)
 // ==========================================
-class WeatherScreen extends StatelessWidget {
+class WeatherScreen extends StatefulWidget {
   final String? initialLocation;
 
-  // 2. SỬA DÒNG NÀY (Thêm this.initialLocation vào trong ngoặc)
   const WeatherScreen({super.key, this.initialLocation});
+
+  @override
+  State<WeatherScreen> createState() => _WeatherScreenState();
+}
+
+class _WeatherScreenState extends State<WeatherScreen> {
+  final ScrollController _scrollController = ScrollController();
+  bool _showScrollTop = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(() {
+      if (_scrollController.offset > 200 && !_showScrollTop) {
+        setState(() => _showScrollTop = true);
+      } else if (_scrollController.offset <= 200 && _showScrollTop) {
+        setState(() => _showScrollTop = false);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToTop() {
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: const Color(0xFFF4F6F8),
       appBar: AppBar(
-        title: const Text('CHI TIẾT THỜI TIẾT'),
-        backgroundColor: Colors.green[800],
+        backgroundColor: const Color(0xFFF4F6F8),
         elevation: 0,
-        centerTitle: true,
+        surfaceTintColor: Colors.transparent, // Disable material 3 tint
+        titleSpacing: 16,
+        centerTitle: false,
+        title: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                image: const DecorationImage(
+                  image: AssetImage('assets/images/ai_logo.png'),
+                  fit: BoxFit.cover,
+                ),
+                boxShadow: [
+                  BoxShadow(color: Colors.black12, blurRadius: 6, offset: const Offset(0, 3)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              "Chi tiết thời tiết",
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 22,
+                color: Colors.black87,
+                letterSpacing: -0.5,
+              ),
+            ),
+          ],
+        ),
       ),
+      floatingActionButton: _showScrollTop
+          ? FloatingActionButton(
+              onPressed: _scrollToTop,
+              backgroundColor: Colors.green[600],
+              elevation: 4,
+              shape: const CircleBorder(),
+              child: const Icon(Icons.arrow_upward_rounded, color: Colors.white),
+            )
+          : null,
       body: SingleChildScrollView(
+        controller: _scrollController,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 16),
 
             // WIDGET CHÍNH CÓ CHỨC NĂNG CHỌN KHU VỰC
-            ProWeatherCardV35(initialLocation: initialLocation),
+            ProWeatherCardV35(initialLocation: widget.initialLocation),
 
-            const SizedBox(height: 24),
-
-            // WIDGET PHỤ: CẨM NANG VIETGAP
-            const _VietGapFastGuide(),
-
-            const SizedBox(height: 30),
+            const SizedBox(height: 50),
           ],
         ),
       ),
@@ -61,6 +128,7 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
 
   // Biến lưu khu vực đang chọn
   String? _selectedLocationName;
+  bool _showDetails = false;
 
   // ⚠️⚠️⚠️ THAY LINK NGROK MỚI CỦA BẠN VÀO ĐÂY
   final String pythonApiUrl = 'https://arica-baldish-consuelo.ngrok-free.dev/api/phan-tich-sau-rieng';
@@ -165,24 +233,29 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
             children: [
               // === MENU CHỌN KHU VỰC (DROPDOWN) ===
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.green.shade300),
-                  boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10)],
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: _selectedLocationName,
                     isExpanded: true,
-                    icon: const Icon(Icons.location_on, color: Colors.green),
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey),
                     items: listData.map<DropdownMenuItem<String>>((item) {
                       return DropdownMenuItem<String>(
                         value: item['khu_vuc'],
-                        child: Text(
-                          item['khu_vuc'],
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.location_on_rounded, color: Colors.green, size: 18),
+                            const SizedBox(width: 8),
+                            Text(
+                              item['khu_vuc'],
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87),
+                            ),
+                          ],
                         ),
                       );
                     }).toList(),
@@ -216,7 +289,7 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
     );
   }
 
-  // --- HÀM XÂY DỰNG THẺ THÔNG MINH (Đã chỉnh sửa để hiện full màn hình) ---
+  // --- HÀM XÂY DỰNG THẺ THÔNG MINH (PHIÊN BẢN HIỆN ĐẠI) ---
   Widget _buildSmartCardV35(dynamic item) {
     String khuVuc = item['khu_vuc'] ?? 'N/A';
     double nhietDo = (item['nhiet_do'] as num?)?.toDouble() ?? 0.0;
@@ -233,27 +306,26 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
     if (chiSoLuLut >= 70) themeColor = Colors.red;
 
     return Container(
-      width: double.infinity, // Full chiều ngang
+      width: double.infinity,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: themeColor.withOpacity(0.5), width: 2),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
-          BoxShadow(color: themeColor.withOpacity(0.1), blurRadius: 15, offset: const Offset(0, 8))
+          BoxShadow(
+            color: themeColor.withOpacity(0.12),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          )
         ],
       ),
       child: Column(
         children: [
           // 1. Header (Nhiệt độ & Thời tiết)
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [themeColor.withOpacity(0.2), Colors.white],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+              color: themeColor.withOpacity(0.08),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -261,62 +333,113 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(khuVuc, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                    Text(moTa.toUpperCase(), style: TextStyle(color: Colors.grey[700], fontSize: 13, letterSpacing: 1.2)),
-                    const SizedBox(height: 8),
                     Row(
                       children: [
-                        Icon(Icons.water_drop, size: 14, color: Colors.blue[700]),
-                        Text(" $doAm% ẩm", style: TextStyle(color: Colors.blue[900], fontWeight: FontWeight.bold)),
-                      ],
+                        Icon(Icons.location_on_rounded, size: 18, color: themeColor),
+                        const SizedBox(width: 4),
+                        Text(khuVuc, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.black87)),
+                      ]
+                    ),
+                    const SizedBox(height: 6),
+                    Text(moTa.toUpperCase(), style: TextStyle(color: Colors.grey[700], fontSize: 13, letterSpacing: 1.2, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.water_drop, size: 16, color: Colors.blue[600]),
+                          const SizedBox(width: 4),
+                          Text("Độ ẩm: $doAm%", style: TextStyle(color: Colors.blue[800], fontWeight: FontWeight.bold, fontSize: 13)),
+                        ],
+                      ),
                     )
                   ],
                 ),
                 Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Image.network(
                       "https://openweathermap.org/img/wn/$iconThoiTiet@2x.png",
-                      width: 60, height: 60,
+                      width: 70, height: 70,
                       errorBuilder: (_,__,___) => const Icon(Icons.cloud, size: 60),
                     ),
-                    Text("$nhietDo°C", style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: themeColor)),
+                    Text("${nhietDo.round()}°", style: TextStyle(fontSize: 38, fontWeight: FontWeight.w900, color: themeColor)),
                   ],
                 ),
               ],
             ),
           ),
 
-          // 2. Dashboard Chỉ số (3 ô tròn)
+          // 2. Dashboard Chỉ số (3 ô vuông bo góc)
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             child: Row(
               children: [
                 Expanded(child: _buildRiskGauge("Lũ lụt", chiSoLuLut, Icons.tsunami, Colors.red)),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Expanded(child: _buildRiskGauge("Nấm", chiSoNam, Icons.coronavirus, Colors.orange)),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Expanded(child: _buildRiskGauge("Nhiệt", chiSoStress, Icons.thermostat, Colors.deepOrange)),
               ],
             ),
           ),
 
-          // 3. Nội dung Cảnh báo & Kế hoạch
+          // 3. Nội dung Cảnh báo & Kế hoạch (có thể Ẩn/Hiện)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Cảnh báo
-                if (item['danh_sach_canh_bao'] != null)
-                  ...(item['danh_sach_canh_bao'] as List).map((cb) => _buildAlertCard(cb)).toList(),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _showDetails = !_showDetails;
+                    });
+                  },
+                  icon: Icon(
+                    _showDetails ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                    color: themeColor,
+                  ),
+                  label: Text(
+                    _showDetails ? "Thu gọn chi tiết" : "Xem chi tiết cảnh báo & kế hoạch",
+                    style: TextStyle(color: themeColor, fontWeight: FontWeight.bold),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    side: BorderSide(color: themeColor.withOpacity(0.5)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  child: !_showDetails
+                      ? const SizedBox.shrink()
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 16),
+                            // Cảnh báo
+                            if (item['danh_sach_canh_bao'] != null)
+                              ...(item['danh_sach_canh_bao'] as List).map((cb) => _buildAlertCard(cb)).toList(),
 
-                const SizedBox(height: 16),
+                            const SizedBox(height: 16),
 
-                // Kế hoạch hành động
-                if (item['ke_hoach_hanh_dong'] != null)
-                  _buildActionPlan(item['ke_hoach_hanh_dong']),
+                            // Kế hoạch hành động
+                            if (item['ke_hoach_hanh_dong'] != null)
+                              _buildActionPlan(item['ke_hoach_hanh_dong']),
 
-                const SizedBox(height: 16),
+                            const SizedBox(height: 10),
+                          ],
+                        ),
+                ),
               ],
             ),
           )
@@ -329,21 +452,21 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
 
   Widget _buildRiskGauge(String label, int value, IconData icon, MaterialColor color) {
     bool isHighRisk = value >= 50;
-    return Column(
-      children: [
-        Container(
-          height: 60, width: 60,
-          decoration: BoxDecoration(
-            color: isHighRisk ? color[50] : Colors.green[50],
-            shape: BoxShape.circle,
-            border: Border.all(color: isHighRisk ? color : Colors.green, width: 2),
-          ),
-          child: Icon(icon, color: isHighRisk ? color : Colors.green, size: 28),
-        ),
-        const SizedBox(height: 8),
-        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-        Text("$value%", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isHighRisk ? color : Colors.black)),
-      ],
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: BoxDecoration(
+        color: isHighRisk ? color[50] : Colors.green[50],
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: isHighRisk ? color[600] : Colors.green[600], size: 30),
+          const SizedBox(height: 8),
+          Text("$value%", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: isHighRisk ? color[700] : Colors.green[800])),
+          const SizedBox(height: 4),
+          Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isHighRisk ? color[600] : Colors.green[600])),
+        ],
+      ),
     );
   }
 
@@ -351,34 +474,49 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
     String iconName = cb['icon'] ?? 'info';
     Color color = _getIconColor(iconName);
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(10),
-        border: Border(left: BorderSide(color: color, width: 4)),
+        color: color.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.1)),
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(_getIconData(iconName), size: 20, color: color),
-              const SizedBox(width: 8),
-              Expanded(child: Text(cb['tieu_de'] ?? '', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87))),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(cb['noi_dung'] ?? '', style: const TextStyle(fontSize: 13, height: 1.4)),
-          const SizedBox(height: 8),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6)),
-            child: Row(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [BoxShadow(color: color.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2))],
+            ),
+            child: Icon(_getIconData(iconName), size: 20, color: color),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.arrow_forward, size: 14, color: Colors.blue),
-                const SizedBox(width: 6),
-                Expanded(child: Text(cb['hanh_dong'] ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.blue[800]))),
+                Text(cb['tieu_de'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
+                const SizedBox(height: 4),
+                Text(cb['noi_dung'] ?? '', style: const TextStyle(fontSize: 14, height: 1.5, color: Colors.black54)),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                      color: Colors.white, 
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 2, offset: const Offset(0, 1))],
+                  ),
+                  child: Row(
+                    children: [
+                     const Icon(Icons.psychology_outlined, size: 16, color: Colors.blue),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(cb['hanh_dong'] ?? '', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue[800]))),
+                    ],
+                  ),
+                )
               ],
             ),
           )
@@ -389,7 +527,7 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
 
   Widget _buildActionPlan(Map<String, dynamic> keHoach) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.green[50],
         borderRadius: BorderRadius.circular(16),
@@ -400,16 +538,23 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
         children: [
           Row(
             children: [
-              Icon(Icons.playlist_add_check, size: 24, color: Colors.green[800]),
-              const SizedBox(width: 8),
-              Text("HÀNH ĐỘNG CỤ THỂ", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green[900], fontSize: 16)),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.green[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.playlist_add_check_circle_rounded, size: 20, color: Colors.green[800]),
+              ),
+              const SizedBox(width: 10),
+              Text("Hành Động Khuyến Nghị", style: TextStyle(fontWeight: FontWeight.w800, color: Colors.green[900], fontSize: 16)),
             ],
           ),
-          const Divider(),
+          const SizedBox(height: 16),
           if (keHoach['uu_tien_cao'] != null)
-            _buildPriorityList("LÀM NGAY HÔM NAY:", keHoach['uu_tien_cao'], Colors.red),
+            _buildPriorityList("LÀM NGAY HÔM NAY", keHoach['uu_tien_cao'], Colors.red),
           if (keHoach['trung_binh'] != null)
-            _buildPriorityList("KẾ HOẠCH TUẦN NÀY:", keHoach['trung_binh'], Colors.orange),
+            _buildPriorityList("KẾ HOẠCH TUẦN NÀY", keHoach['trung_binh'], Colors.orange),
         ],
       ),
     );
@@ -419,20 +564,30 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
     List list = items is List ? items : [];
     if (list.isEmpty) return const SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color[700])),
-          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(Icons.flag_rounded, size: 16, color: color[700]),
+              const SizedBox(width: 6),
+              Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: color[800], letterSpacing: 0.5)),
+            ],
+          ),
+          const SizedBox(height: 8),
           ...list.map((e) => Padding(
-            padding: const EdgeInsets.only(bottom: 4),
+            padding: const EdgeInsets.only(bottom: 8, left: 2),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("•", style: TextStyle(color: color, fontWeight: FontWeight.bold)),
-                const SizedBox(width: 6),
-                Expanded(child: Text(e.toString(), style: const TextStyle(fontSize: 13))),
+                Container(
+                   margin: const EdgeInsets.only(top: 6),
+                   width: 5, height: 5,
+                   decoration: BoxDecoration(color: color[400], shape: BoxShape.circle)
+                ),
+                const SizedBox(width: 10),
+                Expanded(child: Text(e.toString(), style: const TextStyle(fontSize: 14, height: 1.4, color: Colors.black87))),
               ],
             ),
           )).toList(),
@@ -468,39 +623,4 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
     if (iconName == 'medical_services') return Colors.blue;
     return Colors.orange;
   }
-}
-
-// ==========================================
-// 3. WIDGET CẨM NANG (Phụ trợ)
-// ==========================================
-class _VietGapFastGuide extends StatelessWidget {
-  const _VietGapFastGuide();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text("📘 Tra cứu nhanh VietGAP", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 10),
-          _buildGuideItem(Icons.water, "Ngập úng", "Rút nước > Rải vôi > Tưới thuốc nấm"),
-          _buildGuideItem(Icons.bug_report, "Phòng bệnh", "Dọn cỏ, tỉa cành thông thoáng"),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGuideItem(IconData icon, String title, String desc) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: Icon(icon, color: Colors.green),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(desc),
-        dense: true,
-      ),
-    );
-  }
-}
+}
