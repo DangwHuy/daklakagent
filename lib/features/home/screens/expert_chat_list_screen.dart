@@ -14,10 +14,38 @@ class ExpertChatListScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: const Text("Tin nhắn của bà con", style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.green[700],
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.grey[100],
         elevation: 0,
+        surfaceTintColor: Colors.transparent, // Disable material 3 tint
+        titleSpacing: 16,
+        title: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                image: const DecorationImage(
+                  image: AssetImage('assets/images/ai_logo.png'),
+                  fit: BoxFit.cover,
+                ),
+                boxShadow: [
+                  BoxShadow(color: Colors.black12, blurRadius: 6, offset: const Offset(0, 3)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              "Tin nhắn của bà con",
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 22,
+                color: Colors.black87,
+                letterSpacing: -0.5,
+              ),
+            ),
+          ],
+        ),
       ),
       body: StreamBuilder<QuerySnapshot>(
         // SỬA ĐỔI: Dùng hàm where chuẩn của Firebase dựa vào cấu trúc mảng users bạn cung cấp

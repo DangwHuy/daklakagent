@@ -76,19 +76,44 @@ class _ExpertAppointmentsScreenState
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F8),
       appBar: AppBar(
-        title: const Text(
-          "Quản Lý Lịch Hẹn",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.green[700],
-        foregroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF4F6F8),
         elevation: 0,
+        surfaceTintColor: Colors.transparent, // Disable material 3 tint
+        titleSpacing: 16,
+        title: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                image: const DecorationImage(
+                  image: AssetImage('assets/images/ai_logo.png'),
+                  fit: BoxFit.cover,
+                ),
+                boxShadow: [
+                  BoxShadow(color: Colors.black12, blurRadius: 6, offset: const Offset(0, 3)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              "Quản lý lịch hẹn",
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 22,
+                color: Colors.black87,
+                letterSpacing: -0.5,
+              ),
+            ),
+          ],
+        ),
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: Colors.white,
+          indicatorColor: Colors.green[700],
           indicatorWeight: 3,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
+          labelColor: Colors.green[800],
+          unselectedLabelColor: Colors.grey[500],
           labelStyle:
           const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
           tabs: [
@@ -132,13 +157,13 @@ class _ExpertAppointmentsScreenState
                   padding: const EdgeInsets.symmetric(
                       horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Colors.red[600],
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
                     '$count',
-                    style: TextStyle(
-                      color: Colors.green[700],
+                    style: const TextStyle(
+                      color: Colors.white,
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
                     ),

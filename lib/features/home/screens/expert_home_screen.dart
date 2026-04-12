@@ -145,6 +145,12 @@ class _DashboardContentState extends State<_DashboardContent>
   // Timer làm mới đếm ngược mỗi phút
   Timer? _countdownTimer;
 
+  // Cached Streams to prevent Page Reloads
+  Stream<DocumentSnapshot>? _userProfileStream;
+  Stream<QuerySnapshot>? _appointmentsStream;
+  Stream<QuerySnapshot>? _confirmedAppointmentsStream;
+  Stream<QuerySnapshot>? _unreadNotificationsStream;
+
   @override
   void initState() {
     super.initState();
@@ -154,6 +160,14 @@ class _DashboardContentState extends State<_DashboardContent>
     )..repeat(reverse: true);
     _blinkAnimation =
         Tween<double>(begin: 0.25, end: 1.0).animate(_blinkController);
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      _userProfileStream = FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots();
+      _appointmentsStream = FirebaseFirestore.instance.collection('appointments').where('expertId', isEqualTo: user.uid).snapshots();
+      _confirmedAppointmentsStream = FirebaseFirestore.instance.collection('appointments').where('expertId', isEqualTo: user.uid).where('status', isEqualTo: 'confirmed').snapshots();
+      _unreadNotificationsStream = FirebaseFirestore.instance.collection('notifications').where('receiverId', isEqualTo: user.uid).where('isRead', isEqualTo: false).snapshots();
+    }
 
     // Rebuild mỗi 60 giây để cập nhật đếm ngược
     _countdownTimer = Timer.periodic(
@@ -401,7 +415,7 @@ class _DashboardContentState extends State<_DashboardContent>
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
+    if (user == null || _userProfileStream == null) {
       return const Scaffold(
           body: Center(child: Text("Lỗi: Chưa đăng nhập")));
     }
@@ -409,39 +423,71 @@ class _DashboardContentState extends State<_DashboardContent>
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F8),
       appBar: AppBar(
-        title: const Text(
-          "Bảng Điều Khiển",
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-        ),
-        backgroundColor: Colors.green[700],
-        foregroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF4F6F8),
         elevation: 0,
+        surfaceTintColor: Colors.transparent, // Disable material 3 tint
+        titleSpacing: 16,
+        title: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                image: const DecorationImage(
+                  image: AssetImage('assets/images/ai_logo.png'),
+                  fit: BoxFit.cover,
+                ),
+                boxShadow: [
+                  BoxShadow(color: Colors.black12, blurRadius: 6, offset: const Offset(0, 3)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              "Chuyên gia",
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 22,
+                color: Colors.black87,
+                letterSpacing: -0.5,
+              ),
+            ),
+          ],
+        ),
         actions: [
           StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance.collection('notifications')
-                .where('receiverId', isEqualTo: user.uid)
-                .where('isRead', isEqualTo: false)
-                .snapshots(),
+            stream: _unreadNotificationsStream,
             builder: (context, snapshot) {
               int unreadCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
               return Stack(
                 alignment: Alignment.center,
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.notifications_outlined),
-                    onPressed: () => _showNotificationsDialog(user.uid),
-                    tooltip: "Thông báo",
+                  Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.grey[300]!, width: 1),
+                    ),
+                    child: IconButton(
+                      icon: Icon(Icons.notifications_outlined, color: Colors.grey[800], size: 22),
+                      onPressed: () => _showNotificationsDialog(user.uid),
+                      tooltip: "Thông báo",
+                      constraints: const BoxConstraints(),
+                      padding: const EdgeInsets.all(8),
+                    ),
                   ),
                   if (unreadCount > 0)
                     Positioned(
-                      right: 12,
-                      top: 12,
+                      right: 6,
+                      top: 10,
                       child: Container(
                         padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                        decoration: BoxDecoration(color: Colors.red[600], shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 1.5)),
                         child: Text(
                           unreadCount > 9 ? '9+' : unreadCount.toString(),
-                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                          style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
                         ),
                       ),
                     ),
@@ -449,18 +495,25 @@ class _DashboardContentState extends State<_DashboardContent>
               );
             }
           ),
-          IconButton(
-            icon: const Icon(Icons.logout_rounded),
-            onPressed: _handleLogout,
-            tooltip: "Đăng xuất",
+          Container(
+            margin: const EdgeInsets.only(right: 16, left: 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.grey[300]!, width: 1),
+            ),
+            child: IconButton(
+              icon: Icon(Icons.logout_rounded, color: Colors.red[600], size: 20),
+              onPressed: _handleLogout,
+              tooltip: "Đăng xuất",
+              constraints: const BoxConstraints(),
+              padding: const EdgeInsets.all(10),
+            ),
           ),
         ],
       ),
       body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .snapshots(),
+        stream: _userProfileStream,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Center(child: Text("Lỗi: ${snapshot.error}"));
@@ -742,11 +795,7 @@ class _DashboardContentState extends State<_DashboardContent>
     DateTime(now.year, now.month, now.day, 23, 59, 59);
 
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('appointments')
-          .where('expertId', isEqualTo: expertUid)
-          .where('status', isEqualTo: 'confirmed')
-          .snapshots(),
+      stream: _confirmedAppointmentsStream,
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return const SizedBox.shrink();
@@ -1041,10 +1090,7 @@ class _DashboardContentState extends State<_DashboardContent>
           const SizedBox(height: 18),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('appointments')
-                  .where('expertId', isEqualTo: expertUid)
-                  .snapshots(),
+              stream: _appointmentsStream,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
@@ -1370,10 +1416,7 @@ class _DashboardContentState extends State<_DashboardContent>
       ),
       height: 230,
       child: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('appointments')
-            .where('expertId', isEqualTo: expertUid)
-            .snapshots(),
+        stream: _appointmentsStream,
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
             return const Center(
