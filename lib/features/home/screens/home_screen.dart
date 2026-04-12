@@ -19,6 +19,7 @@ import 'package:daklakagent/features/home/screens/profile_screen.dart';
 import 'package:daklakagent/features/auth/screens/login_screen.dart';
 import 'notification_screen.dart';
 import 'farm_diary_screen.dart';
+import 'package:daklakagent/features/community/screens/posts_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../widgets/banner_carousel.dart';
 import 'dart:convert';
@@ -41,8 +42,9 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<Widget> _screens = [
     const HomeContent(), // Tab 0: Trang chủ
     const WeatherScreen(initialLocation: 'Buôn Ma Thuột'), // Tab 1: Thời tiết
-    const ExpertChatListScreen(), // Tab 2: Tin nhắn
-    const ProfileScreen(), // Tab 3: Cá nhân (Giao diện Profile đầy đủ)
+    const PostsScreen(), // Tab 2: Diễn đàn
+    const ExpertChatListScreen(), // Tab 3: Tin nhắn
+    const ProfileScreen(), // Tab 4: Cá nhân (Giao diện Profile đầy đủ)
   ];
 
   @override
@@ -69,12 +71,12 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       bottomNavigationBar: Container(
-        margin: const EdgeInsets.only(left: 16, right: 16, bottom: 20),
+        margin: const EdgeInsets.only(left: 16, right: 16, bottom: 12), // Giảm lề dưới một chút
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(30),
           boxShadow: [
             BoxShadow(
-              color: Colors.green.withOpacity(0.15),
+              color: Colors.green.withValues(alpha: 0.15),
               blurRadius: 25,
               offset: const Offset(0, 10),
             ),
@@ -82,52 +84,81 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(30),
-          child: NavigationBar(
-            height: 65,
-            selectedIndex: _selectedIndex,
-            onDestinationSelected: (int index) {
+          child: BottomNavigationBar(
+            currentIndex: _selectedIndex,
+            onTap: (int index) {
               setState(() {
                 _selectedIndex = index;
               });
             },
             backgroundColor: Colors.white,
             elevation: 0,
-            indicatorColor: Colors.green[100],
-            destinations: [
-              NavigationDestination(
-                selectedIcon: Icon(
-                  Icons.home,
-                  color: Colors.green[800],
-                  size: 26,
+            type: BottomNavigationBarType.fixed,
+            selectedItemColor: Colors.green[800],
+            unselectedItemColor: Colors.grey,
+            selectedFontSize: 12,
+            unselectedFontSize: 12,
+            selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900),
+            unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
+            items: [
+              BottomNavigationBarItem(
+                activeIcon: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.green[100],
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.home, size: 24),
                 ),
-                icon: const Icon(Icons.home_outlined, color: Colors.grey),
+                icon: const Icon(Icons.home_outlined, size: 24),
                 label: 'Trang chủ',
               ),
-              NavigationDestination(
-                selectedIcon: Icon(
-                  Icons.cloud,
-                  color: Colors.green[800],
-                  size: 26,
+              BottomNavigationBarItem(
+                activeIcon: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.green[100],
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.cloud, size: 24),
                 ),
-                icon: const Icon(Icons.cloud_outlined, color: Colors.grey),
+                icon: const Icon(Icons.cloud_outlined, size: 24),
                 label: 'Thời tiết',
               ),
-              NavigationDestination(
-                selectedIcon: Icon(
-                  Icons.message,
-                  color: Colors.green[800],
-                  size: 26,
+              BottomNavigationBarItem(
+                activeIcon: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.green[100],
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.groups, size: 24),
                 ),
-                icon: const Icon(Icons.message_outlined, color: Colors.grey),
+                icon: const Icon(Icons.groups_outlined, size: 24),
+                label: 'Diễn đàn',
+              ),
+              BottomNavigationBarItem(
+                activeIcon: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.green[100],
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.message, size: 24),
+                ),
+                icon: const Icon(Icons.message_outlined, size: 24),
                 label: 'Tin nhắn',
               ),
-              NavigationDestination(
-                selectedIcon: Icon(
-                  Icons.person,
-                  color: Colors.green[800],
-                  size: 26,
+              BottomNavigationBarItem(
+                activeIcon: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.green[100],
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.person, size: 24),
                 ),
-                icon: const Icon(Icons.person_outline, color: Colors.grey),
+                icon: const Icon(Icons.person_outline, size: 24),
                 label: 'Cá nhân',
               ),
             ],
@@ -654,8 +685,11 @@ class HomeContent extends StatelessWidget {
                 label: "Diễn Đàn Nông Nghiệp",
                 color: Colors.indigo,
                 onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Chức năng đang phát triển")),
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const PostsScreen(),
+                    ),
                   );
                 },
               ),

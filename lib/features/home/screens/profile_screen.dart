@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'expert_registration_screen.dart';
 import 'farm_diary_screen.dart';
 
@@ -53,6 +54,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final String downloadUrl = await snapshot.ref.getDownloadURL();
 
       await _user!.updatePhotoURL(downloadUrl);
+      
+      // Đồng bộ ảnh đại diện vào Firestore cho Diễn đàn
+      await FirebaseFirestore.instance.collection('users').doc(_user!.uid).set({
+        'photoUrl': downloadUrl,
+      }, SetOptions(merge: true));
+
       await _user!.reload();
       setState(() {
         _user = _auth.currentUser;
@@ -95,7 +102,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Navigator.pop(context);
               setState(() => _isLoading = true);
               try {
+                // 1. Cập nhật Firebase Auth
                 await _user!.updateDisplayName(nameController.text.trim());
+                
+                // 2. Cập nhật Firestore để đồng bộ cho Diễn đàn
+                await FirebaseFirestore.instance.collection('users').doc(_user!.uid).set({
+                  'displayName': nameController.text.trim(),
+                  'photoUrl': _user!.photoURL,
+                  'email': _user!.email,
+                }, SetOptions(merge: true));
+
                 await _user!.reload();
                 setState(() => _user = _auth.currentUser);
                 if (mounted) {

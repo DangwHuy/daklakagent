@@ -18,6 +18,7 @@ import 'package:daklakagent/features/expret/ExpertAppointment.dart';
 import 'package:daklakagent/features/home/screens/expert_chat_list_screen.dart';
 import 'package:daklakagent/features/expret/expert_report_screen.dart';
 import 'package:daklakagent/features/expret/expert_today_screen.dart';
+import 'package:daklakagent/features/community/screens/posts_screen.dart';
 // ─── Enum bộ lọc thời gian biểu đồ ──────────────────────────────────────────
 enum ChartPeriod { day7, month, quarter, year }
 
@@ -57,6 +58,7 @@ class _ExpertHomeScreenState extends State<ExpertHomeScreen> {
     _pages = [
       _DashboardContent(onNavigate: _onItemTapped), // Truyền hàm chuyển tab xuống
       const ExpertAppointmentsScreen(),
+      const PostsScreen(),
       const ExpertChatListScreen(),
       const ExpertProfileSetup(),
     ];
@@ -69,49 +71,94 @@ class _ExpertHomeScreenState extends State<ExpertHomeScreen> {
     return Scaffold(
       body: IndexedStack(index: _selectedIndex, children: _pages),
       bottomNavigationBar: Container(
+        margin: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
         decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, -5),
+              color: Colors.green.withValues(alpha: 0.15),
+              blurRadius: 25,
+              offset: const Offset(0, 10),
             ),
           ],
         ),
-        child: BottomNavigationBar(
-          currentIndex: _selectedIndex,
-          onTap: _onItemTapped,
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: Colors.white,
-          selectedItemColor: Colors.green[700],
-          unselectedItemColor: Colors.grey[400],
-          selectedLabelStyle:
-          const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-          unselectedLabelStyle:
-          const TextStyle(fontWeight: FontWeight.normal, fontSize: 12),
-          elevation: 0,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.dashboard_rounded),
-              activeIcon: Icon(Icons.dashboard_rounded, size: 28),
-              label: 'Tổng quan',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.calendar_month_rounded),
-              activeIcon: Icon(Icons.calendar_month_rounded, size: 28),
-              label: 'Lịch hẹn',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.chat_rounded),
-              activeIcon: Icon(Icons.chat_rounded, size: 28),
-              label: 'Tin nhắn',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_rounded),
-              activeIcon: Icon(Icons.person_rounded, size: 28),
-              label: 'Hồ sơ',
-            ),
-          ],
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+          child: BottomNavigationBar(
+            currentIndex: _selectedIndex,
+            onTap: _onItemTapped,
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: Colors.white,
+            selectedItemColor: Colors.green[800],
+            unselectedItemColor: Colors.grey,
+            selectedFontSize: 12,
+            unselectedFontSize: 12,
+            selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900),
+            unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
+            elevation: 0,
+            items: [
+              BottomNavigationBarItem(
+                activeIcon: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.green[100],
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.dashboard, size: 24),
+                ),
+                icon: const Icon(Icons.dashboard_outlined, size: 24),
+                label: 'Tổng quan',
+              ),
+              BottomNavigationBarItem(
+                activeIcon: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.green[100],
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.calendar_month, size: 24),
+                ),
+                icon: const Icon(Icons.calendar_month_outlined, size: 24),
+                label: 'Lịch hẹn',
+              ),
+              BottomNavigationBarItem(
+                activeIcon: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.green[100],
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.groups, size: 24),
+                ),
+                icon: const Icon(Icons.groups_outlined, size: 24),
+                label: 'Diễn đàn',
+              ),
+              BottomNavigationBarItem(
+                activeIcon: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.green[100],
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.chat, size: 24),
+                ),
+                icon: const Icon(Icons.chat_outlined, size: 24),
+                label: 'Tin nhắn',
+              ),
+              BottomNavigationBarItem(
+                activeIcon: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.green[100],
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.person, size: 24),
+                ),
+                icon: const Icon(Icons.person_outline, size: 24),
+                label: 'Hồ sơ',
+              ),
+            ],
+          ),
         ),
       ),
     );

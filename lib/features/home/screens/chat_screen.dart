@@ -6,26 +6,26 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
+import 'package:daklakagent/services/presence_service.dart';
+import 'package:daklakagent/utils/time_ago.dart';
 
 // ─────────────────────────────────────────────
 //  DESIGN TOKENS — Nông nghiệp xanh tươi
 // ─────────────────────────────────────────────
 class _AgriColors {
-  static const bg           = Color(0xFFF4F7F2);
-  static const leafDark     = Color(0xFF2D6A4F);
-  static const leafMid      = Color(0xFF40916C);
-  static const leafLight    = Color(0xFF74C69D);
-  static const mist         = Color(0xFFD8F3DC);
-  static const soil         = Color(0xFF8B5E3C);
-  static const wheat        = Color(0xFFFFD166);
+  static const bg           = Color(0xFFF8FAF8);
+  static const leafDark     = Color(0xFF1B4D35);
+  static const leafMid      = Color(0xFF2D6A4F);
+  static const leafLight    = Color(0xFF52A880);
+  static const mist         = Color(0xFFE8F2EC);
   static const white        = Color(0xFFFFFFFF);
   static const textDark     = Color(0xFF1B3A2D);
-  static const textGrey     = Color(0xFF7A9E8B);
-  static const bubbleSelf   = Color(0xFF40916C);
+  static const textGrey     = Color(0xFF6B8477);
+  static const bubbleSelf   = Color(0xFF2D6A4F);
   static const bubblePeer   = Color(0xFFFFFFFF);
-  static const shadow       = Color(0x18000000);
-  static const inputBg      = Color(0xFFECF4EE);
-  static const divider      = Color(0xFFCDE8D6);
+  static const shadow       = Color(0x0F000000);
+  static const inputBg      = Color(0xFFF0F4F1);
+  static const divider      = Color(0xFFE0EAE3);
 }
 
 // ─────────────────────────────────────────────
@@ -53,6 +53,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   final TextEditingController _msgController  = TextEditingController();
   final ScrollController       _scrollCtrl    = ScrollController();
   final ImagePicker            _picker        = ImagePicker();
+  final FirebaseFirestore      _firestore     = FirebaseFirestore.instance;
   final String currentUserId = FirebaseAuth.instance.currentUser!.uid;
 
   bool _isUploading = false;
@@ -109,7 +110,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Không thể gửi ảnh, vui lòng thử lại'),
-            backgroundColor: _AgriColors.soil,
+            backgroundColor: Colors.red[400],
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
@@ -136,13 +137,14 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       'createdAt': timestamp,
     });
 
-    await FirebaseFirestore.instance
+    await _firestore
         .collection('chat_rooms')
         .doc(widget.chatRoomId)
         .set({
       'chatRoomId'     : widget.chatRoomId,
       'lastMessage'    : imageUrl != null ? '📷 Hình ảnh' : text,
       'lastMessageTime': timestamp,
+      'lastSenderId'   : currentUserId,
       'users'          : [currentUserId, widget.peerId],
     }, SetOptions(merge: true));
   }
@@ -180,107 +182,132 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
   // ── APP BAR ──────────────────────────────────
   Widget _buildAppBar(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end:   Alignment.bottomRight,
-          colors: [Color(0xFF1B4D35), Color(0xFF2D6A4F)],
-        ),
-        boxShadow: [
-          BoxShadow(
-              color: _AgriColors.leafDark.withOpacity(0.35),
-              blurRadius: 16, offset: const Offset(0, 4)),
-        ],
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-          child: Row(
-            children: [
-              // Back button
-              IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                    color: Colors.white, size: 20),
-              ),
-              // Avatar with online ring
-              Stack(
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: _AgriColors.leafLight, width: 2.5),
-                      boxShadow: [
-                        BoxShadow(color: Colors.black26, blurRadius: 8,
-                            offset: const Offset(0, 2)),
-                      ],
-                    ),
-                    child: CircleAvatar(
-                      radius: 22,
-                      backgroundColor: _AgriColors.mist,
-                      backgroundImage: widget.peerAvatar.isNotEmpty
-                          ? NetworkImage(widget.peerAvatar) : null,
-                      child: widget.peerAvatar.isEmpty
-                          ? Text(widget.peerName[0].toUpperCase(),
-                          style: TextStyle(
-                              color: _AgriColors.leafDark,
-                              fontWeight: FontWeight.bold, fontSize: 18))
-                          : null,
-                    ),
-                  ),
-                  // Online dot
-                  Positioned(
-                    right: 0, bottom: 0,
-                    child: Container(
-                      width: 12, height: 12,
-                      decoration: BoxDecoration(
-                        color: _AgriColors.wheat,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: _AgriColors.leafDark, width: 2),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 12),
-              // Name + subtitle
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(widget.peerName,
-                        style: const TextStyle(
-                            color: Colors.white, fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.2),
-                        overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        Container(
-                            width: 6, height: 6,
-                            decoration: const BoxDecoration(
-                                color: _AgriColors.wheat, shape: BoxShape.circle)),
-                        const SizedBox(width: 5),
-                        const Text('Đang hoạt động',
-                            style: TextStyle(
-                                color: Color(0xFFB7DFC8), fontSize: 11)),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              // More options
-              IconButton(
-                icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
-                onPressed: () {},
+    return StreamBuilder<DocumentSnapshot>(
+      stream: PresenceService().getUserPresenceStream(widget.peerId),
+      builder: (context, snapshot) {
+        final data = snapshot.data?.data() as Map<String, dynamic>?;
+        final bool isOnline = data?['isOnline'] ?? false;
+        final lastActive = (data?['lastActive'] as Timestamp?)?.toDate();
+        
+        return Container(
+          padding: const EdgeInsets.only(top: 8),
+          decoration: BoxDecoration(
+            color: _AgriColors.white,
+            border: const Border(
+              bottom: BorderSide(color: _AgriColors.divider, width: 0.5),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
-        ),
-      ),
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(4, 4, 16, 12),
+              child: Row(
+                children: [
+                  // Back button
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                        color: _AgriColors.textDark, size: 20),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  // Avatar with online ring
+                  Stack(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: isOnline ? Colors.green[100]! : Colors.grey[200]!, width: 2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: (isOnline ? Colors.green : Colors.grey).withValues(alpha: 0.1),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: CircleAvatar(
+                          radius: 20,
+                          backgroundColor: Colors.green[50],
+                          backgroundImage: widget.peerAvatar.isNotEmpty
+                              ? NetworkImage(widget.peerAvatar) : null,
+                          child: widget.peerAvatar.isEmpty
+                              ? Text(widget.peerName[0].toUpperCase(),
+                              style: const TextStyle(
+                                  color: _AgriColors.leafDark,
+                                  fontWeight: FontWeight.w900, fontSize: 18))
+                              : null,
+                        ),
+                      ),
+                      // Online dot
+                      Positioned(
+                        right: 2, bottom: 2,
+                        child: Container(
+                          width: 12, height: 12,
+                          decoration: BoxDecoration(
+                            color: isOnline ? Colors.green[500] : Colors.grey[400],
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 12),
+                  // Name + subtitle
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.peerName,
+                          style: const TextStyle(
+                            color: _AgriColors.textDark,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.3,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            Text(
+                              isOnline ? 'Đang hoạt động' : (lastActive != null ? 'Hoạt động ${TimeAgo.format(lastActive)}' : 'Ngoại tuyến'),
+                              style: TextStyle(
+                                  color: isOnline ? Colors.green : Colors.grey[500], 
+                                  fontSize: 11, 
+                                  fontWeight: FontWeight.w700),
+                            ),
+                            if (isOnline) ...[
+                              const SizedBox(width: 4),
+                              Icon(Icons.circle, color: Colors.green[500], size: 6),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Interaction options
+                  IconButton(
+                    icon: const Icon(Icons.more_horiz_rounded, color: _AgriColors.textDark),
+                    onPressed: () {},
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -406,40 +433,36 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: ConstrainedBox(
         constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.72),
+            maxWidth: MediaQuery.of(context).size.width * 0.75),
         child: Container(
           margin: EdgeInsets.only(
-            bottom: 6,
-            left:  isMe ? 48 : 0,
-            right: isMe ? 0 : 48,
+            bottom: 8,
+            left:  isMe ? 40 : 0,
+            right: isMe ? 0 : 40,
           ),
           decoration: BoxDecoration(
             color: isMe ? _AgriColors.bubbleSelf : _AgriColors.bubblePeer,
             borderRadius: BorderRadius.only(
-              topLeft:     const Radius.circular(20),
-              topRight:    const Radius.circular(20),
-              bottomLeft:  Radius.circular(isMe ? 20 : 4),
-              bottomRight: Radius.circular(isMe ? 4 : 20),
+              topLeft:     const Radius.circular(22),
+              topRight:    const Radius.circular(22),
+              bottomLeft:  Radius.circular(isMe ? 22 : 4),
+              bottomRight: Radius.circular(isMe ? 4 : 22),
             ),
             boxShadow: [
               BoxShadow(
-                  color: _AgriColors.leafDark.withOpacity(0.08),
-                  blurRadius: 8, offset: const Offset(0, 3)),
+                color: Colors.black.withValues(alpha: isMe ? 0.08 : 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
             ],
-            // Subtle gradient for self bubble
-            gradient: isMe
-                ? const LinearGradient(
-                begin: Alignment.topLeft,
-                end:   Alignment.bottomRight,
-                colors: [Color(0xFF52A880), Color(0xFF2D6A4F)])
-                : null,
+            border: isMe ? null : Border.all(color: _AgriColors.divider.withOpacity(0.5), width: 1),
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.only(
-              topLeft:     const Radius.circular(20),
-              topRight:    const Radius.circular(20),
-              bottomLeft:  Radius.circular(isMe ? 20 : 4),
-              bottomRight: Radius.circular(isMe ? 4 : 20),
+              topLeft:     const Radius.circular(22),
+              topRight:    const Radius.circular(22),
+              bottomLeft:  Radius.circular(isMe ? 22 : 4),
+              bottomRight: Radius.circular(isMe ? 4 : 22),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -448,17 +471,20 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                   _buildImageMessage(data['imageUrl'] ?? '')
                 else
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
                     child: Text(
                       data['text'] ?? '',
                       style: TextStyle(
-                          color: isMe ? Colors.white : _AgriColors.textDark,
-                          fontSize: 15, height: 1.4),
+                        color: isMe ? Colors.white : _AgriColors.textDark,
+                        fontSize: 15.5,
+                        height: 1.45,
+                        fontWeight: isMe ? FontWeight.w500 : FontWeight.normal,
+                      ),
                     ),
                   ),
                 Padding(
                   padding: EdgeInsets.fromLTRB(
-                      isImg ? 0 : 14, isImg ? 0 : 0, 10, 8),
+                      isImg ? 0 : 16, 0, 12, 10),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -467,15 +493,16 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                           DateFormat('HH:mm').format(time),
                           style: TextStyle(
                               color: isMe
-                                  ? Colors.white.withOpacity(0.65)
+                                  ? Colors.white.withOpacity(0.7)
                                   : _AgriColors.textGrey,
-                              fontSize: 10),
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold),
                         ),
                       if (isMe) ...[
                         const SizedBox(width: 4),
                         Icon(Icons.done_all_rounded,
-                            size: 13,
-                            color: Colors.white.withOpacity(0.65)),
+                            size: 14,
+                            color: Colors.white.withOpacity(0.85)),
                       ]
                     ],
                   ),
@@ -629,15 +656,15 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       alignment: Alignment.bottomLeft,
       child: _showAttachMenu
           ? Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: _AgriColors.white,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-                color: _AgriColors.leafDark.withOpacity(0.12),
-                blurRadius: 20, offset: const Offset(0, -4)),
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 16, offset: const Offset(0, 4)),
           ],
         ),
         child: Row(
@@ -645,20 +672,20 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
             _attachBtn(
               icon: Icons.photo_library_rounded,
               label: 'Thư viện',
-              color: _AgriColors.leafMid,
+              color: Colors.blue,
               onTap: () => _pickAndSendImage(ImageSource.gallery),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 16),
             _attachBtn(
               icon: Icons.camera_alt_rounded,
               label: 'Máy ảnh',
-              color: _AgriColors.soil,
+              color: Colors.orange,
               onTap: () => _pickAndSendImage(ImageSource.camera),
             ),
             const Spacer(),
-            GestureDetector(
-              onTap: () => _toggleAttachMenu(false),
-              child: const Icon(Icons.close_rounded,
+            IconButton(
+              onPressed: () => _toggleAttachMenu(false),
+              icon: const Icon(Icons.close_rounded,
                   color: _AgriColors.textGrey, size: 22),
             ),
           ],
@@ -676,20 +703,21 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   }) {
     return GestureDetector(
       onTap: onTap,
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            padding: const EdgeInsets.all(9),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(12),
+              color: color.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: color, size: 20),
+            child: Icon(icon, color: color, size: 24),
           ),
-          const SizedBox(width: 7),
+          const SizedBox(height: 6),
           Text(label,
               style: TextStyle(
-                  color: color, fontSize: 13, fontWeight: FontWeight.w600)),
+                  color: color, fontSize: 11, fontWeight: FontWeight.bold)),
         ],
       ),
     );
@@ -698,18 +726,13 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   // ── INPUT BAR ────────────────────────────────
   Widget _buildInputBar() {
     return Container(
-      decoration: BoxDecoration(
-        color: _AgriColors.white,
-        boxShadow: [
-          BoxShadow(
-              color: _AgriColors.shadow,
-              blurRadius: 16, offset: const Offset(0, -4)),
-        ],
+      decoration: const BoxDecoration(
+        color: Colors.transparent,
       ),
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -718,55 +741,68 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                 onTap: () => _toggleAttachMenu(!_showAttachMenu),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.all(10),
+                  width: 50,
+                  height: 50,
                   decoration: BoxDecoration(
                     color: _showAttachMenu
                         ? _AgriColors.leafMid
-                        : _AgriColors.inputBg,
-                    borderRadius: BorderRadius.circular(14),
+                        : _AgriColors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: Icon(
                     _showAttachMenu
                         ? Icons.close_rounded
-                        : Icons.add_photo_alternate_outlined,
+                        : Icons.add_rounded,
                     color: _showAttachMenu
                         ? Colors.white
                         : _AgriColors.leafMid,
-                    size: 22,
+                    size: 28,
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
 
-              // Text field
+              // Text field container
               Expanded(
                 child: Container(
-                  constraints: const BoxConstraints(maxHeight: 120),
+                  constraints: const BoxConstraints(maxHeight: 120, minHeight: 50),
                   decoration: BoxDecoration(
-                    color: _AgriColors.inputBg,
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(
-                        color: _AgriColors.divider, width: 1.2),
+                    color: _AgriColors.white,
+                    borderRadius: BorderRadius.circular(28),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: TextField(
                     controller: _msgController,
                     maxLines: null,
                     textCapitalization: TextCapitalization.sentences,
                     style: const TextStyle(
-                        color: _AgriColors.textDark, fontSize: 15),
+                        color: _AgriColors.textDark, fontSize: 15, fontWeight: FontWeight.w500),
                     decoration: const InputDecoration(
                       hintText: 'Nhập tin nhắn…',
                       hintStyle: TextStyle(
                           color: _AgriColors.textGrey, fontSize: 15),
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(
-                          horizontal: 18, vertical: 11),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 14),
                     ),
                     onSubmitted: (_) => _sendMessage(),
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
 
               // Send button
               ValueListenableBuilder<TextEditingValue>(
@@ -774,31 +810,29 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                 builder: (_, value, __) {
                   final hasText = value.text.trim().isNotEmpty;
                   return AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: 46, height: 46,
+                    duration: const Duration(milliseconds: 250),
+                    width: 50, 
+                    height: 50,
                     decoration: BoxDecoration(
-                      gradient: hasText
-                          ? const LinearGradient(
-                          colors: [Color(0xFF52A880), Color(0xFF2D6A4F)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight)
-                          : null,
-                      color: hasText ? null : _AgriColors.inputBg,
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: hasText
-                          ? [BoxShadow(
-                          color: _AgriColors.leafDark.withOpacity(0.3),
-                          blurRadius: 8, offset: const Offset(0, 3))]
-                          : null,
+                      color: hasText ? _AgriColors.leafMid : _AgriColors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: hasText 
+                              ? _AgriColors.leafMid.withValues(alpha: 0.3)
+                              : Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: IconButton(
-                      padding: EdgeInsets.zero,
+                      onPressed: hasText ? _sendMessage : null,
                       icon: Icon(
                         Icons.send_rounded,
                         size: 20,
                         color: hasText ? Colors.white : _AgriColors.textGrey,
                       ),
-                      onPressed: hasText ? _sendMessage : null,
                     ),
                   );
                 },
@@ -829,7 +863,7 @@ class _BackgroundDecor extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Positioned.fill(
-      child: CustomPaint(painter: _LeafPatternPainter()),
+      child: IgnorePointer(child: CustomPaint(painter: _LeafPatternPainter())),
     );
   }
 }
@@ -838,7 +872,7 @@ class _LeafPatternPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFF74C69D).withOpacity(0.06)
+      ..color = _AgriColors.leafLight.withOpacity(0.02)
       ..style = PaintingStyle.fill;
 
     // Top-right decorative blob
@@ -857,7 +891,7 @@ class _LeafPatternPainter extends CustomPainter {
       ..quadraticBezierTo(
           size.width * 0.18, size.height * 0.88, 0, size.height * 0.82)
       ..close();
-    canvas.drawPath(p2, paint..color = const Color(0xFF40916C).withOpacity(0.05));
+    canvas.drawPath(p2, paint..color = _AgriColors.leafMid.withOpacity(0.015));
   }
 
   @override

@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart'; // <-- THÊM THƯ VIỆN NÀY ĐỂ NHẬN THÔNG BÁO
 import 'firebase_options.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:daklakagent/services/presence_service.dart';
 
 // --- GIỮ NGUYÊN CÁC IMPORT CỦA BẠN ---
 import 'package:daklakagent/features/auth/screens/login_screen.dart';
@@ -42,11 +43,36 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  final PresenceService _presenceService = PresenceService();
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _setupFCM(); // Gọi hàm cài đặt FCM khi vừa mở app
+    _presenceService.updateUserStatus(true); // Cập nhật online khi mở app
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _presenceService.updateUserStatus(false);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    // Theo dõi trạng thái ẩn/hiện/đóng app
+    if (state == AppLifecycleState.resumed) {
+      _presenceService.updateUserStatus(true);
+    } else if (state == AppLifecycleState.paused || 
+               state == AppLifecycleState.inactive || 
+               state == AppLifecycleState.detached) {
+      _presenceService.updateUserStatus(false);
+    }
   }
 
   Future<void> _setupFCM() async {

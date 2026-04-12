@@ -27,7 +27,7 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
 
   // Dữ liệu Radar cũ từ API sẽ không còn dùng để vẽ biểu đồ nữa,
   // nhưng vẫn giữ lại mảng labels để hiển thị
-  final List<String> _radarLabels = ["Số ca", "Hoàn thành", "Doanh thu", "Tốc độ", "Đánh giá"];
+  final List<String> _radarLabels = ["Số ca", "Thành công", "Doanh thu", "Khách quen", "Đánh giá"];
 
   @override
   void initState() {
@@ -224,13 +224,43 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F8),
       appBar: AppBar(
-        title: const Text(
-          "Báo Cáo & Phân Tích",
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-        ),
-        backgroundColor: Colors.green[700],
-        foregroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF4F6F8),
         elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        titleSpacing: 16,
+        centerTitle: false,
+        title: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                image: const DecorationImage(
+                  image: AssetImage('assets/images/ai_logo.png'),
+                  fit: BoxFit.cover,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 6,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              "Báo Cáo & Phân Tích",
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 22,
+                color: Colors.black87,
+                letterSpacing: -0.5,
+              ),
+            ),
+          ],
+        ),
       ),
       body: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance
@@ -252,7 +282,7 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
           final double rating = (expertInfo['rating'] ?? 5.0).toDouble();
 
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -260,9 +290,17 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
                 _buildAIAssistantCard(),
 
                 const SizedBox(height: 24),
-                const Text(
-                  "Tổng Quan Doanh Thu",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+                Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: Text(
+                    "TỔNG QUAN DOANH THU",
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.grey[600],
+                      letterSpacing: 1.2,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 12),
 
@@ -270,9 +308,17 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
                 _buildRevenueCard(revenue),
 
                 const SizedBox(height: 24),
-                const Text(
-                  "Đánh Giá Năng Lực (Real-time)",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+                Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: Text(
+                    "ĐÁNH GIÁ NĂNG LỰC",
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.grey[600],
+                      letterSpacing: 1.2,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 12),
 
@@ -280,9 +326,17 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
                 _buildRadarChartCard(user.uid, totalBookings, revenue, rating),
 
                 const SizedBox(height: 24),
-                const Text(
-                  "Hiệu Suất Công Việc",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+                Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: Text(
+                    "HIỆU SUẤT CÔNG VIỆC",
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.grey[600],
+                      letterSpacing: 1.2,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 12),
 
@@ -294,7 +348,7 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
                 // 5. Danh sách Top 3 Khách Hàng Thân Thiết
                 _buildLoyalCustomersCard(user.uid),
 
-                const SizedBox(height: 30),
+                const SizedBox(height: 100), // Khoảng trống cuối trang
               ],
             ),
           );
@@ -309,16 +363,16 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Colors.purple[800]!, Colors.purple[400]!],
+          colors: [const Color(0xFF6A11CB), const Color(0xFF2575FC)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.purple.withOpacity(0.4),
+            color: const Color(0xFF6A11CB).withValues(alpha: 0.3),
             blurRadius: 20,
-            offset: const Offset(0, 8),
+            offset: const Offset(0, 10),
           ),
         ],
       ),
@@ -333,36 +387,42 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.25),
-                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    child: const Icon(Icons.auto_awesome, color: Colors.white, size: 24),
+                    child: const Icon(Icons.auto_awesome, color: Colors.white, size: 22),
                   ),
                   const SizedBox(width: 12),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        "Trợ lý AI Đắk Lắk",
+                        "AI Phân Tích",
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
                       if (_lastAnalyzedTime != null)
                         Text(
                           "Cập nhật: ${DateFormat('HH:mm dd/MM').format(_lastAnalyzedTime!)}",
-                          style: const TextStyle(color: Colors.white70, fontSize: 11),
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 11),
                         ),
                     ],
                   ),
                 ],
               ),
-              IconButton(
-                icon: const Icon(Icons.history_rounded, color: Colors.white, size: 22),
-                tooltip: "Lịch sử nhận xét",
-                onPressed: _showHistoryBottomSheet,
+              GestureDetector(
+                onTap: _showHistoryBottomSheet,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.history_rounded, color: Colors.white, size: 20),
+                ),
               )
             ],
           ),
@@ -371,10 +431,13 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const CircleAvatar(
-                radius: 18,
-                backgroundColor: Colors.white,
-                child: Icon(Icons.smart_toy_rounded, color: Colors.purple, size: 22),
+              Container(
+                margin: const EdgeInsets.only(top: 4),
+                child: const CircleAvatar(
+                  radius: 16,
+                  backgroundColor: Colors.white,
+                  child: Icon(Icons.smart_toy_rounded, color: Color(0xFF6A11CB), size: 18),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -383,12 +446,12 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: const BorderRadius.only(
-                      topRight: Radius.circular(20),
-                      bottomLeft: Radius.circular(20),
-                      bottomRight: Radius.circular(20),
+                      topRight: Radius.circular(24),
+                      bottomLeft: Radius.circular(24),
+                      bottomRight: Radius.circular(24),
                     ),
                     boxShadow: [
-                      BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))
+                      BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 15, offset: const Offset(0, 5))
                     ],
                   ),
                   child: _isLoadingAPI
@@ -411,17 +474,20 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
                     children: [
                       TypewriterText(
                         text: _aiMessage,
-                        style: const TextStyle(color: Colors.black87, fontSize: 14.5, height: 1.5, fontWeight: FontWeight.w500),
+                        style: const TextStyle(color: Colors.black87, fontSize: 15, height: 1.5, fontWeight: FontWeight.w600),
                       ),
                       if (_aiMessage != "Đang chờ kết nối với Máy chủ AI...")
                         Align(
                           alignment: Alignment.centerRight,
-                          child: IconButton(
-                            icon: const Icon(Icons.copy_rounded, color: Colors.grey, size: 18),
-                            onPressed: () {
+                          child: InkWell(
+                            onTap: () {
                               Clipboard.setData(ClipboardData(text: _aiMessage));
-                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Đã chép!")));
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Đã chép vào clipboard!")));
                             },
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Icon(Icons.copy_rounded, color: Colors.grey[400], size: 18),
+                            ),
                           ),
                         )
                     ],
@@ -430,24 +496,24 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
 
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: _isLoadingAPI ? null : _fetchNewAIData,
               icon: _isLoadingAPI
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.purple, strokeWidth: 2))
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Color(0xFF6A11CB), strokeWidth: 2))
                   : const Icon(Icons.bolt_rounded, size: 20),
               label: Text(
-                _isLoadingAPI ? "Đang nhờ AI nhận xét..." : "Xin nhận xét mới nhất từ AI",
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                _isLoadingAPI ? "Đang nhờ AI nhận xét..." : "Xin nhận phân tích mới",
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.white,
-                foregroundColor: Colors.purple[700],
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                foregroundColor: const Color(0xFF6A11CB),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 elevation: 0,
               ),
             ),
@@ -464,20 +530,26 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 4))],
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.green.withValues(alpha: 0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          )
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Text(
             "TỔNG THU NHẬP ƯỚC TÍNH",
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey[500], letterSpacing: 1.2),
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.grey[500], letterSpacing: 1.2),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Text(
             "${NumberFormat("#,##0", "vi_VN").format(revenue)} VNĐ",
-            style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.green[700]),
+            style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.green[700], letterSpacing: -1),
           ),
         ],
       ),
@@ -493,114 +565,99 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
             .snapshots(),
         builder: (context, snapshot) {
 
-          // 1. Tính toán giá trị nội bộ nếu có dữ liệu
+          // 1. Khởi tạo điểm mặc định là 4.0 (mức Khá)
+          double sVolume = 4.0;
+          double sSuccess = 4.0; 
+          double sRevenue = 4.0;
+          double sLoyalty = 4.0; 
+          double sRating = uiRating > 0 ? uiRating : 4.0;
+
           int completedCount = 0;
           int cancelledCount = 0;
           int actualLen = 0;
+          
+          final Map<String, int> farmerOccurrences = {};
 
-          // Biến phục vụ tính tốc độ
-          int totalValidSpeedDocs = 0;
-          int totalConfirmationMinutes = 0;
-
-          if (snapshot.hasData) {
+          if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
             actualLen = snapshot.data!.docs.length;
             for (var doc in snapshot.data!.docs) {
               final data = doc.data() as Map<String, dynamic>;
-              if (data['status'] == 'completed') completedCount++;
-              if (data['status'] == 'cancelled') cancelledCount++;
+              final status = (data['status']?.toString() ?? "").toLowerCase();
+              final fId = data['farmerId']?.toString() ?? "";
 
-              // ─── SỬA: Ưu tiên confirmedAt, fallback sang completedAt ───────
-              // Hỗ trợ cả dữ liệu cũ (chỉ có completedAt) lẫn dữ liệu mới (có confirmedAt)
-              final createdAtData = data['createdAt'];
-              final confirmedAtData = data['confirmedAt'];
-              final completedAtData = data['completedAt'];
+              if (status == 'completed') completedCount++;
+              if (status == 'cancelled') cancelledCount++;
 
-              final Timestamp? endTimestamp =
-              (confirmedAtData is Timestamp) ? confirmedAtData :
-              (completedAtData is Timestamp) ? completedAtData : null;
-
-              if (createdAtData is Timestamp && endTimestamp != null) {
-                int diffMinutes = endTimestamp.toDate()
-                    .difference(createdAtData.toDate()).inMinutes;
-                if (diffMinutes >= 0) {
-                  totalConfirmationMinutes += diffMinutes;
-                  totalValidSpeedDocs++;
-                }
+              if (fId.isNotEmpty) {
+                farmerOccurrences[fId] = (farmerOccurrences[fId] ?? 0) + 1;
               }
-              // ────────────────────────────────────────────────────────────────
             }
-          }
 
-          int totalForCalc = max(actualLen, uiTotalBookings);
-          List<double> localRadarValues = [0, 0, 0, 0, 0];
+            // --- TÍNH TOÁN ĐIỂM SỐ ---
+            
+            // 1. Điểm Khối lượng (Volume)
+            int totalForCalc = max(actualLen, uiTotalBookings);
+            if (totalForCalc > 0) {
+              sVolume = (totalForCalc / 10.0) * 5.0;
+              if (sVolume > 5.0) sVolume = 5.0;
+              if (sVolume < 2.5) sVolume = 2.5; 
+            }
 
-          if (totalForCalc > 0) {
-            // A. Điểm Số ca (Volume)
-            double sVolume = (totalForCalc / 10.0) * 5.0;
-            if (sVolume > 5.0) sVolume = 5.0;
-
-            // B. Điểm Hoàn thành (Success)
-            // Chỉ tính trên ca đã kết thúc (completed + cancelled), bỏ qua pending/confirmed đang chờ
-            double sSuccess = 0.0;
+            // 2. Điểm Thành công (Success Rate)
             final int finishedCount = completedCount + cancelledCount;
             if (finishedCount > 0) {
               sSuccess = (completedCount / finishedCount) * 5.0;
+              if (sSuccess < 3.0) sSuccess = 3.0;
+            } else if (actualLen > 0) {
+              // Nếu có ca nhưng chưa ca nào kết thúc (đang pending) thì để 4.0
+              sSuccess = 4.0;
             }
 
-            // C. Điểm Doanh thu (Revenue)
-            double sRevenue = (uiTotalRevenue / 2000000.0) * 5.0;
-            if (sRevenue > 5.0) sRevenue = 5.0;
-
-            // D. Điểm Tốc độ (Speed) - Dựa vào Timestamp
-            double sSpeed = 0.0;
-            if (totalValidSpeedDocs > 0) {
-              double avgMinutes = totalConfirmationMinutes / totalValidSpeedDocs;
-              if (avgMinutes <= 30) {
-                sSpeed = 5.0; // Phản hồi dưới 30 phút -> Tuyệt vời
-              } else if (avgMinutes <= 120) {
-                sSpeed = 4.5; // Phản hồi dưới 2 tiếng -> Rất tốt
-              } else if (avgMinutes <= 360) {
-                sSpeed = 4.0; // Phản hồi dưới 6 tiếng -> Tốt
-              } else if (avgMinutes <= 720) {
-                sSpeed = 3.5; // Phản hồi dưới 12 tiếng -> Khá
-              } else if (avgMinutes <= 1440) {
-                sSpeed = 3.0; // Phản hồi dưới 24 tiếng -> Trung bình
-              } else {
-                sSpeed = 2.0; // Quá 24 tiếng -> Chậm
-              }
-            } else {
-              // Không có dữ liệu timestamp nào hợp lệ -> để 0 cho trung thực
-              sSpeed = 0.0;
+            // 3. Điểm Doanh thu (Revenue)
+            if (uiTotalRevenue > 0) {
+              sRevenue = (uiTotalRevenue / 2000000.0) * 5.0;
+              if (sRevenue > 5.0) sRevenue = 5.0;
+              if (sRevenue < 3.0) sRevenue = 3.0;
             }
 
-            // E. Điểm Đánh giá (Rating)
-            double sRating = uiRating;
-            if (sRating > 5.0) sRating = 5.0;
-
-            localRadarValues = [sVolume, sSuccess, sRevenue, sSpeed, sRating];
+            // 4. Điểm Khách quen (Loyalty/Retention)
+            // Tính số lượng khách hàng quay lại từ lần 2 trở lên
+            int repeatedFarmers = farmerOccurrences.values.where((count) => count > 1).length;
+            if (actualLen > 0) {
+              sLoyalty = 3.5 + (repeatedFarmers * 0.5); // Mỗi khách quen +0.5 điểm
+              if (sLoyalty > 5.0) sLoyalty = 5.0;
+            }
           }
+
+          List<double> localRadarValues = [sVolume, sSuccess, sRevenue, sLoyalty, sRating];
 
           // 2. Giao diện Vẽ Biểu đồ
           return Container(
             padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 4))],
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.green.withValues(alpha: 0.08),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                )
+              ],
             ),
             child: Column(
               children: [
                 SizedBox(
                   height: 250,
                   child: snapshot.connectionState == ConnectionState.waiting
-                      ? const Center(child: CircularProgressIndicator(color: Colors.purple))
+                      ? const Center(child: CircularProgressIndicator(color: Color(0xFF6A11CB)))
                       : RadarChart(
                     RadarChartData(
                       radarShape: RadarShape.polygon,
                       tickCount: 5,
                       ticksTextStyle: const TextStyle(color: Colors.transparent, fontSize: 0),
-                      gridBorderData: BorderSide(color: Colors.grey.withOpacity(0.3), width: 1.5),
-                      tickBorderData: BorderSide(color: Colors.grey.withOpacity(0.3)),
+                      gridBorderData: BorderSide(color: Colors.grey.withValues(alpha: 0.3), width: 1.5),
+                      tickBorderData: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),
                       titlePositionPercentageOffset: 0.2,
                       getTitle: (index, angle) {
                         return RadarChartTitle(
@@ -608,11 +665,11 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
                           angle: 0,
                         );
                       },
-                      titleTextStyle: TextStyle(color: Colors.grey[800], fontSize: 13, fontWeight: FontWeight.bold),
+                      titleTextStyle: TextStyle(color: Colors.grey[800], fontSize: 13, fontWeight: FontWeight.w900),
                       dataSets: [
                         RadarDataSet(
-                          fillColor: Colors.purple.withOpacity(0.25),
-                          borderColor: Colors.purple[600]!,
+                          fillColor: const Color(0xFF6A11CB).withValues(alpha: 0.15),
+                          borderColor: const Color(0xFF6A11CB),
                           entryRadius: 4,
                           dataEntries: localRadarValues.map((v) => RadarEntry(value: v)).toList(),
                           borderWidth: 2.5,
@@ -626,17 +683,19 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    color: Colors.purple.shade50,
-                    borderRadius: BorderRadius.circular(10),
+                    color: const Color(0xFF6A11CB).withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.sync_rounded, size: 16, color: Colors.purple[700]),
-                      const SizedBox(width: 6),
+                      const Icon(Icons.auto_awesome, size: 16, color: Color(0xFF6A11CB)),
+                      const SizedBox(width: 8),
                       Text(
-                        "Biểu đồ Radar được tính trực tiếp (Real-time)",
-                        style: TextStyle(color: Colors.purple[800], fontSize: 12, fontWeight: FontWeight.bold),
+                        snapshot.data?.docs.isEmpty ?? true 
+                          ? "Hãy thực hiện ca đầu tiên để AI phân tích"
+                          : "Đã hoàn thành: $completedCount ca | Khách quen: ${farmerOccurrences.values.where((c) => c > 1).length} người",
+                        style: TextStyle(color: const Color(0xFF6A11CB), fontSize: 12, fontWeight: FontWeight.w900),
                       ),
                     ],
                   ),
@@ -648,6 +707,7 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
     );
   }
 
+
   // ─── THỐNG KÊ HIỆU SUẤT TRUYỀN THỐNG ──────────────────────────────────────
   Widget _buildPerformanceStats(int totalBookings, double rating) {
     return Row(
@@ -657,16 +717,22 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 4))],
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.green.withValues(alpha: 0.08),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                )
+              ],
             ),
             child: Column(
               children: [
                 Icon(Icons.people_alt_rounded, color: Colors.blue[600], size: 32),
                 const SizedBox(height: 12),
-                Text(totalBookings.toString(), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                Text(totalBookings.toString(), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 4),
-                const Text("Tổng ca tư vấn", style: TextStyle(color: Colors.grey, fontSize: 13)),
+                const Text("Tổng ca tư vấn", style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w600)),
               ],
             ),
           ),
@@ -677,8 +743,14 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 4))],
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.green.withValues(alpha: 0.08),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                )
+              ],
             ),
             child: Column(
               children: [
@@ -689,12 +761,12 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   textBaseline: TextBaseline.alphabetic,
                   children: [
-                    Text(rating.toStringAsFixed(1), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                    const Text(" / 5.0", style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.bold)),
+                    Text(rating.toStringAsFixed(1), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+                    const Text(" / 5.0", style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w900)),
                   ],
                 ),
                 const SizedBox(height: 4),
-                const Text("Đánh giá TB", style: TextStyle(color: Colors.grey, fontSize: 13)),
+                const Text("Đánh giá TB", style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w600)),
               ],
             ),
           ),
@@ -747,9 +819,17 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              "Top 3 Khách Hàng VIP (Thân thiết)",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+            Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: Text(
+                "TOP 3 KHÁCH HÀNG VIP",
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.grey[600],
+                  letterSpacing: 1.2,
+                ),
+              ),
             ),
             const SizedBox(height: 12),
             ...loyalCustomers.asMap().entries.map((entry) {
@@ -764,15 +844,21 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 4))],
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.green.withValues(alpha: 0.08),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    )
+                  ],
                 ),
                 child: Row(
                   children: [
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: medalColor.withOpacity(0.15),
+                        color: medalColor.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(Icons.emoji_events_rounded, color: medalColor, size: 24),
@@ -782,28 +868,28 @@ class _ExpertReportScreenState extends State<ExpertReportScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(c['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          Text(c['name'], style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Colors.black87)),
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              Icon(Icons.phone_rounded, size: 14, color: Colors.grey[600]),
-                              const SizedBox(width: 4),
-                              Text(c['phone'].toString().isNotEmpty ? c['phone'] : 'Chưa có SĐT', style: TextStyle(color: Colors.grey[700], fontSize: 13)),
+                              Icon(Icons.phone_rounded, size: 14, color: Colors.grey[400]),
+                              const SizedBox(width: 6),
+                              Text(c['phone'].toString().isNotEmpty ? c['phone'] : 'Chưa có SĐT', style: TextStyle(color: Colors.grey[600], fontSize: 13, fontWeight: FontWeight.w600)),
                             ],
                           ),
                         ],
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(
                         color: Colors.green[50],
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(14),
                       ),
                       child: Column(
                         children: [
-                          Text("${c['count']}", style: TextStyle(color: Colors.green[700], fontWeight: FontWeight.bold, fontSize: 16)),
-                          Text("lượt đặt", style: TextStyle(color: Colors.green[700], fontSize: 10)),
+                          Text("${c['count']}", style: TextStyle(color: Colors.green[700], fontWeight: FontWeight.w900, fontSize: 18)),
+                          Text("lượt", style: TextStyle(color: Colors.green[700], fontSize: 10, fontWeight: FontWeight.w900)),
                         ],
                       ),
                     ),

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
-import 'chat_screen.dart'; // Đảm bảo bạn đã import đúng
+import 'chat_screen.dart'; 
+import 'package:daklakagent/services/presence_service.dart';
+import 'package:daklakagent/utils/time_ago.dart';
 
 class ExpertChatListScreen extends StatelessWidget {
   const ExpertChatListScreen({super.key});
@@ -177,23 +179,28 @@ class ExpertChatListScreen extends StatelessWidget {
                     return false;
                   }
                 },
-                child: FutureBuilder<DocumentSnapshot>(
-                  future: FirebaseFirestore.instance.collection('users').doc(peerId).get(),
+                child: StreamBuilder<DocumentSnapshot>(
+                  stream: PresenceService().getUserPresenceStream(peerId),
                   builder: (context, userSnapshot) {
                     if (!userSnapshot.hasData) return const SizedBox.shrink();
                     final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
                     if (userData == null) return const SizedBox.shrink();
-
+ 
                     final peerName = userData['displayName'] ?? "Nông dân";
                     final peerAvatar = userData['photoUrl'] ?? "";
+                    final bool isOnline = userData['isOnline'] ?? false;
+                    final DateTime? lastActive = (userData['lastActive'] as Timestamp?)?.toDate();
+
+                    // Xác định tin nhắn chưa đọc: Người gửi cuối KHÔNG phải là mình
+                    final bool isUnread = data['lastSenderId'] != currentUserId;
 
                     DateTime? time;
                     if (data['lastMessageTime'] != null) {
                       time = (data['lastMessageTime'] as Timestamp).toDate();
                     }
-
+ 
                     return Container(
-                      color: isPinned ? Colors.blue.withOpacity(0.02) : Colors.transparent,
+                      color: isPinned ? Colors.blue.withOpacity(0.02) : (isUnread ? Colors.green.withOpacity(0.02) : Colors.transparent),
                       child: ListTile(
                         onTap: () {
                           Navigator.push(
@@ -210,11 +217,15 @@ class ExpertChatListScreen extends StatelessWidget {
                         },
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         leading: Stack(
+                          clipBehavior: Clip.none,
                           children: [
                             Container(
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.green.withOpacity(0.2), width: 2),
+                                border: Border.all(
+                                  color: isOnline ? Colors.green.withOpacity(0.3) : Colors.grey.withAlpha(51), 
+                                  width: 2.5
+                                ),
                               ),
                               child: CircleAvatar(
                                 radius: 28,
@@ -225,43 +236,111 @@ class ExpertChatListScreen extends StatelessWidget {
                                     : null,
                               ),
                             ),
+                            // Chấm xanh Online hoặc Thời gian Offline
+                            if (isOnline)
+                              Positioned(
+                                right: -2,
+                                bottom: 2,
+                                child: Container(
+                                  width: 16,
+                                  height: 16,
+                                  decoration: BoxDecoration(
+                                    color: Colors.green[500],
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white, width: 2.5),
+                                    boxShadow: [
+                                      BoxShadow(color: Colors.black12, blurRadius: 4, offset: const Offset(0, 2)),
+                                    ],
+                                  ),
+                                ),
+                              )
+                            else if (lastActive != null)
+                              Positioned(
+                                right: -4,
+                                bottom: -4,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[100],
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: Colors.white, width: 1.5),
+                                    boxShadow: [
+                                      BoxShadow(color: Colors.black.withAlpha(13), blurRadius: 4, offset: const Offset(0, 2)),
+                                    ],
+                                  ),
+                                  child: Text(
+                                    TimeAgo.formatShort(lastActive),
+                                    style: TextStyle(
+                                      color: Colors.grey[600], 
+                                      fontSize: 8, 
+                                      fontWeight: FontWeight.w800
+                                    ),
+                                  ),
+                                ),
+                              ),
                             if (isPinned)
                               Positioned(
-                                right: 0,
-                                bottom: 0,
+                                left: -2,
+                                top: -2,
                                 child: Container(
                                   padding: const EdgeInsets.all(4),
                                   decoration: const BoxDecoration(color: Colors.blue, shape: BoxShape.circle),
-                                  child: const Icon(Icons.push_pin, color: Colors.white, size: 10),
+                                  child: const Icon(Icons.push_pin, color: Colors.white, size: 8),
                                 ),
                               ),
                           ],
                         ),
                         title: Row(
                           children: [
-                            Expanded(child: Text(peerName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87))),
+                            Expanded(
+                              child: Text(
+                                peerName, 
+                                style: TextStyle(
+                                  fontWeight: isUnread ? FontWeight.w900 : FontWeight.bold, 
+                                  fontSize: 16, 
+                                  color: isUnread ? Colors.black : Colors.black87
+                                )
+                              )
+                            ),
                             if (time != null)
                               Text(
                                 _formatTime(time),
-                                style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                                style: TextStyle(
+                                  color: isUnread ? Colors.green[700] : Colors.grey[500], 
+                                  fontSize: 12,
+                                  fontWeight: isUnread ? FontWeight.w800 : FontWeight.normal
+                                ),
                               ),
                           ],
                         ),
                         subtitle: Padding(
-                          padding: const EdgeInsets.only(top: 6.0),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  data['lastMessage'] ?? "Đã gửi hình ảnh/file...",
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(color: Colors.grey[600], fontSize: 14),
-                                ),
-                              ),
-                              // (Tùy chọn) Thêm badge cho tin nhắn chưa đọc nếu có field unreadCount
-                            ],
-                          ),
+                           padding: const EdgeInsets.only(top: 6.0),
+                           child: Row(
+                             children: [
+                               Expanded(
+                                 child: Text(
+                                   data['lastMessage'] ?? "Đã gửi hình ảnh/file...",
+                                   maxLines: 1,
+                                   overflow: TextOverflow.ellipsis,
+                                   style: TextStyle(
+                                     color: isUnread ? Colors.black87 : Colors.grey[600], 
+                                     fontSize: 14,
+                                     fontWeight: isUnread ? FontWeight.w700 : FontWeight.normal
+                                   ),
+                                 ),
+                               ),
+                               if (isUnread)
+                                 Container(
+                                   margin: const EdgeInsets.only(left: 8),
+                                   width: 10,
+                                   height: 10,
+                                   decoration: const BoxDecoration(
+                                     color: Colors.green,
+                                     shape: BoxShape.circle,
+                                   ),
+                                 ),
+                             ],
+                           ),
                         ),
                       ),
                     );

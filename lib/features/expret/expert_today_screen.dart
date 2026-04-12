@@ -78,7 +78,12 @@ class _ExpertTodayScreenState extends State<ExpertTodayScreen> {
                   final appRef = FirebaseFirestore.instance.collection('appointments').doc(appointmentId);
                   final userRef = FirebaseFirestore.instance.collection('users').doc(currentUser!.uid);
 
-                  batch.update(appRef, {'status': 'completed', 'earnedRevenue': amount, 'completedAt': FieldValue.serverTimestamp()});
+                  batch.update(appRef, {
+                    'status': 'completed',
+                    'earnedRevenue': amount,
+                    'completedAt': FieldValue.serverTimestamp(),
+                    'confirmedAt': FieldValue.serverTimestamp(), // Đảm bảo luôn có mốc xác nhận để tính Radar
+                  });
                   batch.update(userRef, {
                     'expertInfo.revenue': FieldValue.increment(amount),
                   });
