@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 // Import màn hình Chat (Hãy sửa lại đường dẫn nếu thư mục của bạn khác)
@@ -711,7 +714,21 @@ class FarmerAppointmentsScreen extends StatefulWidget {
 
 class _FarmerAppointmentsScreenState extends State<FarmerAppointmentsScreen> {
 
-  Future<void> _submitRatingHandler(String expertId, int stars, String appointmentId) async {
+  // ─── UPLOAD NHIỀU ẢNH LÊN FIREBASE STORAGE ─────────────────────────────────
+  Future<List<String>> _uploadReviewImages(List<File> images, String appointmentId) async {
+    List<String> urls = [];
+    for (int i = 0; i < images.length; i++) {
+      final ref = FirebaseStorage.instance.ref().child(
+        'reviews/$appointmentId/${DateTime.now().millisecondsSinceEpoch}_$i.jpg',
+      );
+      await ref.putFile(images[i]);
+      final url = await ref.getDownloadURL();
+      urls.add(url);
+    }
+    return urls;
+  }
+
+  Future<void> _submitRatingHandler(String expertId, int stars, String appointmentId, {String comment = '', List<File> images = const []}) async {
     try {
       final firestore = FirebaseFirestore.instance;
       final expertRef = firestore.collection('users').doc(expertId);
@@ -726,6 +743,12 @@ class _FarmerAppointmentsScreenState extends State<FarmerAppointmentsScreen> {
       final int newCount = currentCount + 1;
       final double newAvg = ((currentRating * currentCount) + stars) / newCount;
 
+      // Upload ảnh nếu có
+      List<String> imageUrls = [];
+      if (images.isNotEmpty) {
+        imageUrls = await _uploadReviewImages(images, appointmentId);
+      }
+
       final batch = firestore.batch();
 
       batch.update(expertRef, {
@@ -737,6 +760,9 @@ class _FarmerAppointmentsScreenState extends State<FarmerAppointmentsScreen> {
       batch.update(appRef, {
         'isRated': true,
         'ratingValue': stars,
+        'reviewComment': comment,
+        'reviewImages': imageUrls,
+        'ratedAt': FieldValue.serverTimestamp(),
       });
 
       await batch.commit();
@@ -746,59 +772,220 @@ class _FarmerAppointmentsScreenState extends State<FarmerAppointmentsScreen> {
         const SnackBar(content: Text("Đánh giá thành công! Cảm ơn bạn."), backgroundColor: Colors.green),
       );
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Lỗi đánh giá: $e")));
     }
   }
 
   void _showRatingDialog(BuildContext context, String expertId, String expertName, String appointmentId) {
     int selectedStars = 5;
+    final commentController = TextEditingController();
+    List<File> pickedImages = [];
+    bool isSubmitting = false;
+    final ImagePicker picker = ImagePicker();
 
     showDialog(
         context: context,
+        barrierDismissible: false,
         builder: (dialogContext) {
           return StatefulBuilder(
               builder: (context, setDialogState) {
                 return AlertDialog(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                  title: const Text("Đánh giá tư vấn", textAlign: TextAlign.center),
-                  content: Column(
-                    mainAxisSize: MainAxisSize.min,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  title: Column(
                     children: [
-                      Text("Chất lượng tư vấn của chuyên gia\n$expertName?", textAlign: TextAlign.center),
-                      const SizedBox(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: List.generate(5, (index) {
-                          return IconButton(
-                            iconSize: 36,
-                            icon: Icon(
-                              index < selectedStars ? Icons.star : Icons.star_border,
-                              color: Colors.amber,
-                            ),
-                            onPressed: () {
-                              setDialogState(() {
-                                selectedStars = index + 1;
-                              });
-                            },
-                          );
-                        }),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade50,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.rate_review_rounded, color: Colors.amber, size: 32),
                       ),
-                      Text("$selectedStars Sao", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+                      const SizedBox(height: 12),
+                      const Text("Đánh giá tư vấn", textAlign: TextAlign.center, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                     ],
                   ),
+                  content: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text("Chất lượng tư vấn của\n$expertName?", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey[600])),
+                        const SizedBox(height: 16),
+
+                        // ★ Chọn sao
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(5, (index) {
+                            return GestureDetector(
+                              onTap: () => setDialogState(() => selectedStars = index + 1),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                padding: const EdgeInsets.all(4),
+                                child: Icon(
+                                  index < selectedStars ? Icons.star_rounded : Icons.star_outline_rounded,
+                                  color: Colors.amber,
+                                  size: 40,
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+                        Text("$selectedStars Sao", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 16)),
+
+                        const SizedBox(height: 20),
+
+                        // ✏️ Bình luận
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text("Bình luận:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey[700])),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: commentController,
+                          maxLines: 3,
+                          decoration: InputDecoration(
+                            hintText: "Chia sẻ trải nghiệm của bạn...",
+                            hintStyle: TextStyle(color: Colors.grey[400], fontSize: 13),
+                            filled: true,
+                            fillColor: Colors.grey[100],
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.all(14),
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // 📸 Ảnh minh chứng
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text("Ảnh minh chứng (tuỳ chọn):", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey[700])),
+                        ),
+                        const SizedBox(height: 8),
+
+                        // Hiển thị ảnh đã chọn
+                        if (pickedImages.isNotEmpty)
+                          SizedBox(
+                            height: 80,
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: pickedImages.asMap().entries.map((entry) {
+                                  final i = entry.key;
+                                  return Container(
+                                    margin: const EdgeInsets.only(right: 8),
+                                    child: Stack(
+                                      children: [
+                                        ClipRRect(
+                                          borderRadius: BorderRadius.circular(10),
+                                          child: Image.file(pickedImages[i], width: 80, height: 80, fit: BoxFit.cover),
+                                        ),
+                                        Positioned(
+                                          top: 2,
+                                          right: 2,
+                                          child: GestureDetector(
+                                            onTap: () => setDialogState(() => pickedImages.removeAt(i)),
+                                            child: Container(
+                                              padding: const EdgeInsets.all(2),
+                                              decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                                              child: const Icon(Icons.close, color: Colors.white, size: 14),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                          ),
+
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () async {
+                                  final picked = await picker.pickImage(source: ImageSource.camera, maxWidth: 1024, imageQuality: 80);
+                                  if (picked != null) {
+                                    setDialogState(() => pickedImages.add(File(picked.path)));
+                                  }
+                                },
+                                icon: const Icon(Icons.camera_alt_rounded, size: 18),
+                                label: const Text("Chụp", style: TextStyle(fontSize: 12)),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.green[700],
+                                  side: BorderSide(color: Colors.green[300]!),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () async {
+                                  final results = await picker.pickMultiImage(maxWidth: 1024, imageQuality: 80);
+                                  if (results.isNotEmpty) {
+                                    setDialogState(() {
+                                      pickedImages.addAll(results.map((f) => File(f.path)));
+                                    });
+                                  }
+                                },
+                                icon: const Icon(Icons.photo_library_rounded, size: 18),
+                                label: const Text("Thư viện", style: TextStyle(fontSize: 12)),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.blue[700],
+                                  side: BorderSide(color: Colors.blue[300]!),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        if (isSubmitting)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 20),
+                            child: Column(
+                              children: [
+                                CircularProgressIndicator(color: Colors.green),
+                                SizedBox(height: 8),
+                                Text("Đang gửi đánh giá...", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                   actionsAlignment: MainAxisAlignment.center,
-                  actions: [
+                  actions: isSubmitting ? [] : [
                     TextButton(
                       onPressed: () => Navigator.pop(dialogContext),
                       child: const Text("Hủy", style: TextStyle(color: Colors.grey)),
                     ),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-                      onPressed: () {
-                        Navigator.pop(dialogContext);
-                        _submitRatingHandler(expertId, selectedStars, appointmentId);
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      ),
+                      icon: const Icon(Icons.send_rounded, size: 18),
+                      label: const Text("Gửi đánh giá", style: TextStyle(fontWeight: FontWeight.bold)),
+                      onPressed: () async {
+                        setDialogState(() => isSubmitting = true);
+                        await _submitRatingHandler(
+                          expertId, selectedStars, appointmentId,
+                          comment: commentController.text.trim(),
+                          images: pickedImages,
+                        );
+                        if (dialogContext.mounted) Navigator.pop(dialogContext);
                       },
-                      child: const Text("Gửi đánh giá"),
                     ),
                   ],
                 );
@@ -915,6 +1102,9 @@ class _FarmerAppointmentsScreenState extends State<FarmerAppointmentsScreen> {
     final String? cancelReason = data['cancelReason'];
     final bool isRated = data['isRated'] ?? false;
     final int? ratingValue = data['ratingValue'];
+    final String reviewComment = data['reviewComment'] ?? '';
+    final List<dynamic> reviewImages = data['reviewImages'] ?? [];
+    final List<dynamic> confirmImages = data['confirmImages'] ?? [];
 
     showDialog(
       context: context,
@@ -965,7 +1155,6 @@ class _FarmerAppointmentsScreenState extends State<FarmerAppointmentsScreen> {
                     ),
                   )
                 ]
-                // ĐÃ FIX: Cho phép hiển thị thông tin và Đánh giá khi status là 'completed'
                 else if (status == 'confirmed' || status == 'accepted' || status == 'completed') ...[
                   const Text("Thông tin liên hệ chuyên gia:", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
                   const SizedBox(height: 10),
@@ -994,44 +1183,147 @@ class _FarmerAppointmentsScreenState extends State<FarmerAppointmentsScreen> {
                           _buildContactRow(Icons.location_on, address),
                           const SizedBox(height: 12),
 
-                          const Divider(),
-                          // CHỈ CHO ĐÁNH GIÁ KHI ĐÃ HOÀN THÀNH HOẶC XÁC NHẬN
-                          if (isRated)
-                            Center(
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(10)),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
+                          // ==========================================
+                          // NÂNG CẤP: LOGIC ĐÁNH GIÁ & ẢNH XÁC NHẬN
+                          // ==========================================
+                          if (status == 'completed') ...[
+                            // 1. Chỉ hiện ảnh xác nhận khi đã hoàn thành
+                            if (confirmImages.isNotEmpty) ...[
+                              const Divider(),
+                              Row(
+                                children: [
+                                  Icon(Icons.verified_rounded, size: 16, color: Colors.blue[700]),
+                                  const SizedBox(width: 6),
+                                  Text("Ảnh xác nhận từ chuyên gia (${confirmImages.length})", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blue[700])),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                height: 100,
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    children: confirmImages.map<Widget>((url) {
+                                      return GestureDetector(
+                                        onTap: () => _showFullImageDialog(context, url),
+                                        child: Container(
+                                          margin: const EdgeInsets.only(right: 8),
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(10),
+                                            child: Image.network(
+                                              url,
+                                              width: 100,
+                                              height: 100,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) => Container(
+                                                width: 100, height: 100,
+                                                color: Colors.grey[200],
+                                                child: Icon(Icons.broken_image, color: Colors.grey[400]),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                ),
+                              ),
+                            ],
+
+                            const Divider(),
+
+                            // 2. Chỉ cho phép đánh giá khi ĐÃ HOÀN THÀNH
+                            if (isRated) ...[
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(12)),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text("Bạn đã đánh giá: ", style: TextStyle(fontWeight: FontWeight.w500)),
                                     Row(
-                                      children: List.generate(5, (index) => Icon(
-                                        index < (ratingValue ?? 5) ? Icons.star : Icons.star_border,
-                                        color: Colors.amber,
-                                        size: 18,
-                                      )),
-                                    )
+                                      children: [
+                                        const Text("Đánh giá của bạn: ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                        ...List.generate(5, (index) => Icon(
+                                          index < (ratingValue ?? 5) ? Icons.star_rounded : Icons.star_outline_rounded,
+                                          color: Colors.amber,
+                                          size: 18,
+                                        )),
+                                      ],
+                                    ),
+                                    if (reviewComment.isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      Text("\"$reviewComment\"", style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic, color: Colors.black87, height: 1.4)),
+                                    ],
+                                    if (reviewImages.isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      SizedBox(
+                                        height: 70,
+                                        child: SingleChildScrollView(
+                                          scrollDirection: Axis.horizontal,
+                                          child: Row(
+                                            children: reviewImages.map<Widget>((url) {
+                                              return GestureDetector(
+                                                onTap: () => _showFullImageDialog(context, url),
+                                                child: Container(
+                                                  margin: const EdgeInsets.only(right: 6),
+                                                  child: ClipRRect(
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    child: Image.network(url, width: 70, height: 70, fit: BoxFit.cover,
+                                                      errorBuilder: (_, __, ___) => Container(width: 70, height: 70, color: Colors.grey[200], child: Icon(Icons.broken_image, size: 20, color: Colors.grey[400])),
+                                                    ),
+                                                  ),
+                                                ),
+                                              );
+                                            }).toList(),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),
-                            )
-                          else
-                            SizedBox(
-                              width: double.infinity,
-                              child: OutlinedButton.icon(
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                  _showRatingDialog(context, expertId, expertName, appointmentId);
-                                },
-                                icon: const Icon(Icons.star_outline, color: Colors.amber),
-                                label: const Text("Đánh giá chuyên gia này", style: TextStyle(color: Colors.black87)),
-                                style: OutlinedButton.styleFrom(
-                                    side: const BorderSide(color: Colors.amber),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
+                            ] else
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                    _showRatingDialog(context, expertId, expertName, appointmentId);
+                                  },
+                                  icon: const Icon(Icons.star_outline, color: Colors.amber),
+                                  label: const Text("Đánh giá chuyên gia này", style: TextStyle(color: Colors.black87)),
+                                  style: OutlinedButton.styleFrom(
+                                      side: const BorderSide(color: Colors.amber),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
+                                  ),
                                 ),
+                              )
+                          ] else ...[
+                            // 3. Trạng thái Đã xác nhận / Chấp nhận: Báo chờ hoàn thành
+                            const Divider(),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade50,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      "Bạn có thể đánh giá sau khi ca tư vấn được chuyên gia xác nhận hoàn thành.",
+                                      style: TextStyle(color: Colors.blue[800], fontSize: 13),
+                                    ),
+                                  ),
+                                ],
                               ),
                             )
+                          ]
+                          // ==========================================
                         ],
                       );
                     },
@@ -1063,6 +1355,39 @@ class _FarmerAppointmentsScreenState extends State<FarmerAppointmentsScreen> {
           ],
         );
       },
+    );
+  }
+
+  void _showFullImageDialog(BuildContext context, String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.network(imageUrl, fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => Container(
+                  height: 200, color: Colors.grey[300],
+                  child: const Center(child: Icon(Icons.broken_image, size: 48)),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 8, right: 8,
+              child: GestureDetector(
+                onTap: () => Navigator.pop(ctx),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                  child: const Icon(Icons.close, color: Colors.white, size: 20),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1159,7 +1484,7 @@ class FarmerChatListScreen extends StatelessWidget {
           allDocs.sort((a, b) {
             final dataA = a.data() as Map<String, dynamic>;
             final dataB = b.data() as Map<String, dynamic>;
-            
+
             final List<dynamic> pinnedByA = dataA['pinnedBy'] ?? [];
             final List<dynamic> pinnedByB = dataB['pinnedBy'] ?? [];
             final bool isPinnedA = pinnedByA.contains(currentUserId);
@@ -1368,4 +1693,4 @@ class FarmerChatListScreen extends StatelessWidget {
       ),
     );
   }
-}
+}

@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:daklakagent/features/home/screens/chat_screen.dart';
@@ -38,73 +41,316 @@ class _ExpertTodayScreenState extends State<ExpertTodayScreen> {
     }
   }
 
-  void _markAsCompleted(String appointmentId) async {
-    // Hiện popup nhập số tiền doanh thu nếu muốn giống chuẩn cũ. 
-    // Tuy nhiên ở màn này ta đơn giản hóa, chỉ đổi trạng thái là 'completed'. Doanh thu tính sau hoặc nhập nhanh.
-    showDialog(
+  // ─── UPLOAD NHIỀU ẢNH LÊN FIREBASE STORAGE ───────────────────────────
+  Future<List<String>> _uploadConfirmImages(List<File> images, String appointmentId) async {
+    List<String> urls = [];
+    for (int i = 0; i < images.length; i++) {
+      final ref = FirebaseStorage.instance.ref().child(
+        'confirmations/$appointmentId/${DateTime.now().millisecondsSinceEpoch}_$i.jpg',
+      );
+      await ref.putFile(images[i]);
+      final url = await ref.getDownloadURL();
+      urls.add(url);
+    }
+    return urls;
+  }
+
+  // ─── CẬP NHẬT TRẠNG THÁI (DUYỆT/TỪ CHỐI) ───────────────────────────────
+  Future<void> _updateStatus(String appointmentId, String newStatus) async {
+    final bool? confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) {
-        final TextEditingController _amountController = TextEditingController();
-        return AlertDialog(
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(newStatus == 'confirmed' ? 'Chấp nhận lịch hẹn?' : 'Từ chối lịch hẹn?'),
+        content: Text(newStatus == 'confirmed' 
+          ? 'Bạn đồng ý tiếp nhận ca tư vấn này?' 
+          : 'Bạn chắc chắn muốn từ chối ca tư vấn này?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Hủy")),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: newStatus == 'confirmed' ? Colors.green : Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text("Xác nhận"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await FirebaseFirestore.instance.collection('appointments').doc(appointmentId).update({
+        'status': newStatus,
+        if (newStatus == 'confirmed') 'acceptedAt': FieldValue.serverTimestamp(),
+        if (newStatus == 'cancelled') 'cancelledAt': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(newStatus == 'confirmed' ? "✅ Đã chấp nhận lịch hẹn!" : "❌ Đã từ chối lịch hẹn."),
+          backgroundColor: newStatus == 'confirmed' ? Colors.green[700] : Colors.red[700],
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Lỗi: $e")));
+      }
+    }
+  }
+
+  // ─── NÂNG CẤP: Đánh dấu hoàn thành & Nhập Doanh thu + Ảnh xác nhận (ĐỒNG NHẤT VỚI QUẢN LÝ LỊCH HẸN) ───────
+  Future<void> _markAsCompleted(String appointmentId) async {
+    final TextEditingController revenueController = TextEditingController();
+    List<File> pickedImages = [];
+    bool isUploading = false;
+    final ImagePicker picker = ImagePicker();
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text("Xác nhận hoàn thành"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
+          title: Column(
             children: [
-              const Text("Vuốt xác nhận đã tư vấn xong & Nhập thu nhập (tùy chọn):"),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _amountController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: "Thu nhập (VNĐ)",
-                  prefixIcon: const Icon(Icons.attach_money, color: Colors.green),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(15))
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  shape: BoxShape.circle,
                 ),
-              )
+                child: Icon(Icons.verified_rounded, color: Colors.green[700], size: 32),
+              ),
+              const SizedBox(height: 12),
+              const Text('Xác nhận hoàn thành?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             ],
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Hủy")),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Số tiền
+                const Text('Số tiền thực nhận (VNĐ):', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: revenueController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    hintText: 'VD: 500000',
+                    suffixText: 'VNĐ',
+                    filled: true,
+                    fillColor: Colors.grey[100],
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.green.shade600, width: 2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Ảnh xác nhận (3-5 ảnh bắt buộc)
+                Row(
+                  children: [
+                    Icon(Icons.camera_alt_rounded, size: 18, color: Colors.green[700]),
+                    const SizedBox(width: 6),
+                    const Text('Ảnh xác nhận công việc:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Bắt buộc 3-5 ảnh minh chứng (đã chọn ${pickedImages.length}/5)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: pickedImages.length < 3 ? Colors.red[600] : Colors.green[600],
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                // Hiển thị ảnh đã chọn
+                if (pickedImages.isNotEmpty)
+                  SizedBox(
+                    height: 90,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: pickedImages.asMap().entries.map((entry) {
+                          final i = entry.key;
+                          return Container(
+                            margin: const EdgeInsets.only(right: 8),
+                            child: Stack(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.file(pickedImages[i], width: 90, height: 90, fit: BoxFit.cover),
+                                ),
+                                Positioned(
+                                  top: 4, right: 4,
+                                  child: GestureDetector(
+                                    onTap: () => setDialogState(() => pickedImages.removeAt(i)),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(3),
+                                      decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                                      child: const Icon(Icons.close, color: Colors.white, size: 14),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: pickedImages.length >= 5 ? null : () async {
+                          final picked = await picker.pickImage(source: ImageSource.camera, maxWidth: 1024, imageQuality: 80);
+                          if (picked != null && pickedImages.length < 5) {
+                            setDialogState(() => pickedImages.add(File(picked.path)));
+                          }
+                        },
+                        icon: const Icon(Icons.camera_alt_rounded, size: 18),
+                        label: const Text("Chụp ảnh", style: TextStyle(fontSize: 12)),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.green[700],
+                          side: BorderSide(color: Colors.green[300]!),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: pickedImages.length >= 5 ? null : () async {
+                          final remaining = 5 - pickedImages.length;
+                          final results = await picker.pickMultiImage(maxWidth: 1024, imageQuality: 80);
+                          if (results.isNotEmpty) {
+                            setDialogState(() {
+                              pickedImages.addAll(results.take(remaining).map((f) => File(f.path)));
+                            });
+                          }
+                        },
+                        icon: const Icon(Icons.photo_library_rounded, size: 18),
+                        label: const Text("Thư viện", style: TextStyle(fontSize: 12)),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.blue[700],
+                          side: BorderSide(color: Colors.blue[300]!),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                if (isUploading)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 20),
+                    child: Center(
+                      child: Column(
+                        children: [
+                          CircularProgressIndicator(color: Colors.green),
+                          SizedBox(height: 8),
+                          Text("Đang tải ảnh lên...", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          actions: isUploading ? [] : [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text('Hủy', style: TextStyle(color: Colors.grey[600]))),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-              child: const Text("Xác nhận"),
-              onPressed: () async {
-                Navigator.pop(ctx);
-                try {
-                  double amount = double.tryParse(_amountController.text.replaceAll(',', '')) ?? 0.0;
-                  
-                  final batch = FirebaseFirestore.instance.batch();
-                  final appRef = FirebaseFirestore.instance.collection('appointments').doc(appointmentId);
-                  final userRef = FirebaseFirestore.instance.collection('users').doc(currentUser!.uid);
-
-                  batch.update(appRef, {
-                    'status': 'completed',
-                    'earnedRevenue': amount,
-                    'completedAt': FieldValue.serverTimestamp(),
-                    'confirmedAt': FieldValue.serverTimestamp(), // Đảm bảo luôn có mốc xác nhận để tính Radar
-                  });
-                  batch.update(userRef, {
-                    'expertInfo.revenue': FieldValue.increment(amount),
-                  });
-                  
-                  await batch.commit();
-
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Đã lưu hoàn thành ca tư vấn!"), backgroundColor: Colors.green));
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Lỗi: $e")));
-                  }
-                }
-              }
-            )
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: pickedImages.length >= 3 ? Colors.green[600] : Colors.grey[400],
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+              onPressed: pickedImages.length < 3 ? () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Vui lòng chọn ít nhất 3 ảnh minh chứng (đã chọn ${pickedImages.length})'),
+                    backgroundColor: Colors.red[600],
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                );
+              } : () => Navigator.pop(ctx, true),
+              child: const Text('Hoàn thành', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
           ],
-        );
-      }
+        ),
+      ),
     );
+
+    if (confirm != true) return;
+
+    // Lấy số tiền người dùng đã nhập (Nếu để trống thì mặc định là 0)
+    final double earnedAmount = double.tryParse(revenueController.text.trim().replaceAll(',', '')) ?? 0.0;
+
+    try {
+      // Upload ảnh xác nhận
+      List<String> imageUrls = [];
+      if (pickedImages.isNotEmpty) {
+        imageUrls = await _uploadConfirmImages(pickedImages, appointmentId);
+      }
+
+      final batch = FirebaseFirestore.instance.batch();
+      final appRef = FirebaseFirestore.instance.collection('appointments').doc(appointmentId);
+      final userRef = FirebaseFirestore.instance.collection('users').doc(currentUser!.uid);
+
+      // 1. Cập nhật trạng thái lịch hẹn & lưu lịch sử số tiền kiếm được
+      batch.update(appRef, {
+        'status': 'completed',
+        'completedAt': FieldValue.serverTimestamp(),
+        'earnedRevenue': earnedAmount,
+        'confirmImages': imageUrls,
+      });
+
+      // 2. Cộng dồn số tiền vào tổng thu nhập của Chuyên gia
+      batch.update(userRef, {
+        'expertInfo.revenue': FieldValue.increment(earnedAmount),
+      });
+
+      // Thực thi cùng lúc 2 lệnh trên
+      await batch.commit();
+
+      if (mounted) {
+        String message = "🎉 Ca tư vấn đã hoàn thành!";
+        if (earnedAmount > 0) {
+          message = "🎉 Hoàn thành! Đã cộng ${NumberFormat("#,##0", "vi_VN").format(earnedAmount)} VNĐ vào báo cáo.";
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.blue[600],
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Lỗi: $e")));
+      }
+    }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -151,11 +397,14 @@ class _ExpertTodayScreenState extends State<ExpertTodayScreen> {
 
           int total = todayDocs.length;
           int completed = todayDocs.where((d) => (d.data() as Map<String, dynamic>)['status'] == 'completed').length;
-          int pending = todayDocs.where((d) => (d.data() as Map<String, dynamic>)['status'] == 'pending' || (d.data() as Map<String, dynamic>)['status'] == 'confirmed').length;
+          int active = todayDocs.where((d) {
+            final s = (d.data() as Map<String, dynamic>)['status'];
+            return s != 'completed' && s != 'cancelled';
+          }).length;
 
           return Column(
             children: [
-               _buildHeaderPanel(now, total, completed, pending),
+               _buildHeaderPanel(now, total, completed, active),
                Expanded(
                  child: todayDocs.isEmpty 
                   ? _buildEmptyState() 
@@ -197,7 +446,7 @@ class _ExpertTodayScreenState extends State<ExpertTodayScreen> {
      );
   }
 
-  Widget _buildHeaderPanel(DateTime date, int total, int completed, int pending) {
+  Widget _buildHeaderPanel(DateTime date, int total, int completed, int active) {
     String formattedDate = DateFormat('EEEE, dd MMMM, yyyy', 'vi').format(date);
     // Vi hoá EEEE (Thứ) vì hệ thống đôi khi trả tiếng Anh nếu locale chưa chuẩn
     formattedDate = formattedDate.replaceAll('Monday', 'Thứ 2')
@@ -230,7 +479,7 @@ class _ExpertTodayScreenState extends State<ExpertTodayScreen> {
             children: [
               _buildStatBox(total.toString(), "Tổng ca", Icons.event_note),
               _buildStatBox(completed.toString(), "Đã xong", Icons.check_circle_outline),
-              _buildStatBox(pending.toString(), "Sắp diễn ra", Icons.access_time),
+              _buildStatBox(active.toString(), "Chưa xong", Icons.access_time),
             ],
           )
         ],
@@ -260,15 +509,22 @@ class _ExpertTodayScreenState extends State<ExpertTodayScreen> {
     final t = (data['time'] as Timestamp).toDate();
     final timeStr = DateFormat('HH:mm').format(t);
     final status = data['status'] ?? 'pending';
+
+    final now = DateTime.now();
+    final diff = t.difference(now);
+    final isUrgent = (status == 'confirmed' || status == 'accepted') && diff.inMinutes > 0 && diff.inMinutes <= 120;
     
     // Màu sắc theo trạng thái
     Color dotColor = Colors.orange;
     Color bgColor = Colors.white;
     String statusText = "Chờ duyệt";
 
+    final isDone = status == 'completed' || status == 'cancelled';
+    final isTimePassed = t.isBefore(now) && !isDone;
+
     if (status == 'confirmed' || status == 'accepted') {
-      dotColor = Colors.blue;
-      statusText = "Sắp tới";
+      dotColor = isUrgent ? Colors.red : (isTimePassed ? Colors.orange : Colors.blue);
+      statusText = isUrgent ? "Sắp diễn ra!" : (isTimePassed ? "Chưa hoàn thành" : "Sắp tới");
     } else if (status == 'completed') {
       dotColor = Colors.green;
       bgColor = Colors.green[50]!;
@@ -277,9 +533,10 @@ class _ExpertTodayScreenState extends State<ExpertTodayScreen> {
         dotColor = Colors.red;
         bgColor = Colors.red[50]!;
         statusText = "Đã hủy";
+    } else if (status == 'pending' && isTimePassed) {
+        dotColor = Colors.red[300]!;
+        statusText = "Quá hạn duyệt";
     }
-
-    final isDone = status == 'completed' || status == 'cancelled';
 
     return IntrinsicHeight(
       child: Row(
@@ -314,7 +571,7 @@ class _ExpertTodayScreenState extends State<ExpertTodayScreen> {
                 decoration: BoxDecoration(
                   color: bgColor,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.grey[200]!),
+                  border: Border.all(color: isUrgent ? Colors.red.withOpacity(0.3) : Colors.grey[200]!),
                   boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))]
                 ),
                 child: ClipRRect(
@@ -334,7 +591,7 @@ class _ExpertTodayScreenState extends State<ExpertTodayScreen> {
                                decoration: BoxDecoration(color: dotColor, borderRadius: BorderRadius.circular(10)),
                                child: Text(statusText, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
                             ),
-                            if (!isDone) 
+                            if (!isDone && (status == 'confirmed' || status == 'accepted')) 
                             InkWell(
                               onTap: () => _markAsCompleted(docId),
                               child: Container(
@@ -353,6 +610,29 @@ class _ExpertTodayScreenState extends State<ExpertTodayScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // Countdown
+                            if ((status == 'confirmed' || status == 'accepted') && diff.inMinutes > 0) ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                margin: const EdgeInsets.only(bottom: 12),
+                                decoration: BoxDecoration(
+                                  color: isUrgent ? Colors.red.withOpacity(0.06) : Colors.blue.withOpacity(0.06),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.timer_rounded, size: 15, color: isUrgent ? Colors.red[700] : Colors.blue[700]),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      _formatCountdown(diff),
+                                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isUrgent ? Colors.red[700] : Colors.blue[700]),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+
                             Row(
                               children: [
                                 CircleAvatar(backgroundColor: Colors.blue[100], child: Text((data['farmerName']?[0] ?? "N").toUpperCase(), style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold))),
@@ -362,7 +642,10 @@ class _ExpertTodayScreenState extends State<ExpertTodayScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(data['farmerName'] ?? "Nhà nông", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                                      Text(data['farmerPhone'] ?? "Không có SĐT", style: TextStyle(fontSize: 13, color: Colors.grey[700])),
+                                      GestureDetector(
+                                        onTap: () => _showFarmerDetailDialog(context, data['farmerId'], data['farmerName'] ?? "Nông dân", data['farmerPhone'] ?? "", data['farmerAddress'] ?? ""),
+                                        child: Text("Xem thông tin liên hệ →", style: TextStyle(color: Colors.green[600], fontSize: 12, fontWeight: FontWeight.w500)),
+                                      ),
                                     ],
                                   ),
                                 )
@@ -390,61 +673,130 @@ class _ExpertTodayScreenState extends State<ExpertTodayScreen> {
                               ],
                             ),
                             
+                            // NÂNG CẤP: Hiển thị doanh thu thực nhận
+                            if (status == 'completed' && data['earnedRevenue'] != null)
+                              _revenueBox(data['earnedRevenue'].toDouble()),
+
+                            // NÂNG CẤP: Hiển thị ảnh xác nhận của chuyên gia
+                            if (status == 'completed' && data['confirmImages'] != null)
+                              _confirmImagesBox(data['confirmImages'] as List<dynamic>),
+
+                            // NÂNG CẤP: Hiển thị đánh giá của nông dân
+                            if (status == 'completed' && (data['isRated'] ?? false))
+                              _farmerReviewBox(data['ratingValue'], data['reviewComment'] ?? '', data['reviewImages'] ?? []),
+
                             const SizedBox(height: 16),
-                            // Menu hành động nhanh
+                            
+                            // MENU HÀNH ĐỘNG
                             if (!isDone)
-                            Row(
+                            Column(
                               children: [
-                                Expanded(
-                                  child: OutlinedButton.icon(
-                                    onPressed: () {
-                                       final String chatRoomId = "${data['farmerId']}_${currentUser!.uid}";
-        
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => ChatScreen(
-                                              chatRoomId: chatRoomId,
-                                              peerId: data['farmerId'],
-                                              peerName: data['farmerName'] ?? "Nông dân",
-                                              peerAvatar: "", // Add default generic
-                                            ),
+                                // Case 1: Appointment is Pending -> Show Accept/Reject
+                                if (status == 'pending') ...[
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: ElevatedButton.icon(
+                                          onPressed: () => _updateStatus(docId, 'confirmed'),
+                                          icon: const Icon(Icons.check_circle_outline, size: 18),
+                                          label: const Text("Chấp nhận", style: TextStyle(fontWeight: FontWeight.bold)),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.green[600],
+                                            foregroundColor: Colors.white,
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                            elevation: 0,
                                           ),
-                                        );
-                                    },
-                                    icon: const Icon(Icons.chat, size: 16),
-                                    label: const Text("Chat"),
-                                    style: OutlinedButton.styleFrom(
-                                        foregroundColor: Colors.blue[700], side: BorderSide(color: Colors.blue[200]!),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
-                                    ),
-                                  )
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: ElevatedButton.icon(
-                                    onPressed: () {
-                                      _callPhone(data['farmerPhone'] ?? "");
-                                    },
-                                    icon: const Icon(Icons.phone, size: 16),
-                                    label: const Text("Gọi"),
-                                    style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.green[600], foregroundColor: Colors.white,
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), elevation: 0
-                                    ),
-                                  )
-                                ),
-                                const SizedBox(width: 8),
-                                InkWell(
-                                  onTap: () {
-                                    _openMap(data['farmerAddress'] ?? "");
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(color: Colors.orange[50], borderRadius: BorderRadius.circular(10)),
-                                    child: Icon(Icons.directions, color: Colors.orange[700], size: 20),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: OutlinedButton.icon(
+                                          onPressed: () => _updateStatus(docId, 'cancelled'),
+                                          icon: const Icon(Icons.cancel_outlined, size: 18),
+                                          label: const Text("Từ chối"),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: Colors.red[700],
+                                            side: BorderSide(color: Colors.red[200]!),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                )
+                                  const SizedBox(height: 12),
+                                ],
+
+                                // Case 2: Appointment is Confirmed/Accepted -> Show Confirm Completed
+                                if (status == 'confirmed' || status == 'accepted')
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: SizedBox(
+                                      width: double.infinity,
+                                      child: ElevatedButton.icon(
+                                        onPressed: () => _markAsCompleted(docId),
+                                        icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
+                                        label: const Text("Xác nhận đã hoàn thành", style: TextStyle(fontWeight: FontWeight.bold)),
+                                        style: ElevatedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(vertical: 12),
+                                          backgroundColor: Colors.green[600],
+                                          foregroundColor: Colors.white,
+                                          elevation: 0,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+
+                                // Chat, Call, Map
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () {
+                                          final String chatRoomId = "${data['farmerId']}_${currentUser!.uid}";
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => ChatScreen(
+                                                chatRoomId: chatRoomId,
+                                                peerId: data['farmerId'],
+                                                peerName: data['farmerName'] ?? "Nông dân",
+                                                peerAvatar: "",
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        icon: const Icon(Icons.chat, size: 16),
+                                        label: const Text("Chat"),
+                                        style: OutlinedButton.styleFrom(
+                                            foregroundColor: Colors.blue[700], side: BorderSide(color: Colors.blue[200]!),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
+                                        ),
+                                      )
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: ElevatedButton.icon(
+                                        onPressed: () => _callPhone(data['farmerPhone'] ?? ""),
+                                        icon: const Icon(Icons.phone, size: 16),
+                                        label: const Text("Gọi"),
+                                        style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.green[600], foregroundColor: Colors.white,
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), elevation: 0
+                                        ),
+                                      )
+                                    ),
+                                    const SizedBox(width: 8),
+                                    InkWell(
+                                      onTap: () => _openMap(data['farmerAddress'] ?? ""),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(10),
+                                        decoration: BoxDecoration(color: Colors.orange[50], borderRadius: BorderRadius.circular(10)),
+                                        child: Icon(Icons.directions, color: Colors.orange[700], size: 20),
+                                      ),
+                                    )
+                                  ],
+                                ),
                               ],
                             )
                           ],
@@ -460,4 +812,185 @@ class _ExpertTodayScreenState extends State<ExpertTodayScreen> {
       )
     );
   }
+
+  // ─── CÁC UI HELPER MỚI (ĐỒNG NHẤT VỚI QUẢN LÝ LỊCH HẸN) ────────────────────
+  
+  String _formatCountdown(Duration diff) {
+    if (diff.inMinutes < 60) return 'Còn ${diff.inMinutes} phút nữa';
+    return 'Còn ${diff.inHours} giờ ${diff.inMinutes % 60} phút nữa';
+  }
+
+  Widget _revenueBox(double amount) {
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(12),
+      width: double.infinity,
+      decoration: BoxDecoration(color: Colors.green[50], borderRadius: BorderRadius.circular(10)),
+      child: Row(
+        children: [
+          Icon(Icons.payments_rounded, size: 16, color: Colors.green[800]),
+          const SizedBox(width: 6),
+          Text(
+            "Thực nhận: ${NumberFormat("#,##0", "vi_VN").format(amount)} VNĐ",
+            style: TextStyle(color: Colors.green[800], fontSize: 13, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _confirmImagesBox(List<dynamic> images) {
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(12),
+      width: double.infinity,
+      decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(10)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.verified_rounded, size: 16, color: Colors.blue[700]),
+              const SizedBox(width: 6),
+              Text("Ảnh xác nhận (${images.length})", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.blue[700])),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 70,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: images.map<Widget>((url) {
+                  return GestureDetector(
+                    onTap: () => _showFullImageDialog(context, url),
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 6),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(url, width: 70, height: 70, fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(width: 70, height: 70, color: Colors.grey[200], child: Icon(Icons.broken_image, size: 20, color: Colors.grey[400])),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _farmerReviewBox(int? rating, String comment, List<dynamic> images) {
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(12),
+      width: double.infinity,
+      decoration: BoxDecoration(color: Colors.amber[50], borderRadius: BorderRadius.circular(10)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.rate_review_rounded, size: 16, color: Colors.amber[700]),
+              const SizedBox(width: 6),
+              Text("Đánh giá từ khách hàng", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.amber[800])),
+              const Spacer(),
+              ...List.generate(5, (i) => Icon(i < (rating ?? 5) ? Icons.star_rounded : Icons.star_outline_rounded, color: Colors.amber, size: 16)),
+            ],
+          ),
+          if (comment.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text('"$comment"', style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.grey[800], height: 1.3)),
+          ],
+          if (images.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 60,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: images.map<Widget>((url) {
+                    return GestureDetector(
+                      onTap: () => _showFullImageDialog(context, url),
+                      child: Container(
+                        margin: const EdgeInsets.only(right: 6),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: Image.network(url, width: 60, height: 60, fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(width: 60, height: 60, color: Colors.grey[200], child: Icon(Icons.broken_image, size: 16, color: Colors.grey[400])),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _showFullImageDialog(BuildContext context, String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.network(imageUrl, fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => Container(height: 200, color: Colors.grey[300], child: const Center(child: Icon(Icons.broken_image, size: 48))),
+              ),
+            ),
+            Positioned(
+              top: 8, right: 8,
+              child: GestureDetector(
+                onTap: () => Navigator.pop(ctx),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                  child: const Icon(Icons.close, color: Colors.white, size: 20),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showFarmerDetailDialog(BuildContext context, String farmerId, String name, String phone, String address) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.phone, color: Colors.green),
+              title: Text(phone),
+              onTap: () => _callPhone(phone),
+            ),
+            ListTile(
+              leading: const Icon(Icons.location_on, color: Colors.orange),
+              title: Text(address),
+              onTap: () => _openMap(address),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Đóng")),
+        ],
+      ),
+    );
+  }
+
 }
