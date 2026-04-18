@@ -291,64 +291,66 @@ class _ExpertTodayScreenState extends State<ExpertTodayScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                 );
-              } : () => Navigator.pop(ctx, true),
+              } : () async {
+                setDialogState(() => isUploading = true);
+                try {
+                  // Lấy số tiền người dùng đã nhập (Nếu để trống thì mặc định là 0)
+                  final double earnedAmount = double.tryParse(revenueController.text.trim().replaceAll(',', '')) ?? 0.0;
+
+                  // Upload ảnh xác nhận
+                  List<String> imageUrls = [];
+                  if (pickedImages.isNotEmpty) {
+                    imageUrls = await _uploadConfirmImages(pickedImages, appointmentId);
+                  }
+
+                  final batch = FirebaseFirestore.instance.batch();
+                  final appRef = FirebaseFirestore.instance.collection('appointments').doc(appointmentId);
+                  final userRef = FirebaseFirestore.instance.collection('users').doc(currentUser!.uid);
+
+                  // 1. Cập nhật trạng thái lịch hẹn & lưu lịch sử số tiền kiếm được
+                  batch.update(appRef, {
+                    'status': 'completed',
+                    'completedAt': FieldValue.serverTimestamp(),
+                    'earnedRevenue': earnedAmount,
+                    'confirmImages': imageUrls,
+                  });
+
+                  // 2. Cộng dồn số tiền vào tổng thu nhập của Chuyên gia
+                  batch.update(userRef, {
+                    'expertInfo.revenue': FieldValue.increment(earnedAmount),
+                  });
+
+                  // Thực thi cùng lúc 2 lệnh trên
+                  await batch.commit();
+
+                  if (ctx.mounted) {
+                    Navigator.pop(ctx, true);
+                    
+                    String message = "🎉 Ca tư vấn đã hoàn thành!";
+                    if (earnedAmount > 0) {
+                      message = "🎉 Hoàn thành! Đã cộng ${NumberFormat("#,##0", "vi_VN").format(earnedAmount)} VNĐ vào báo cáo.";
+                    }
+
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text(message),
+                      backgroundColor: Colors.blue[600],
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ));
+                  }
+                } catch (e) {
+                  setDialogState(() => isUploading = false);
+                  if (ctx.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Lỗi: $e")));
+                  }
+                }
+              },
               child: const Text('Hoàn thành', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
         ),
       ),
     );
-
-    if (confirm != true) return;
-
-    // Lấy số tiền người dùng đã nhập (Nếu để trống thì mặc định là 0)
-    final double earnedAmount = double.tryParse(revenueController.text.trim().replaceAll(',', '')) ?? 0.0;
-
-    try {
-      // Upload ảnh xác nhận
-      List<String> imageUrls = [];
-      if (pickedImages.isNotEmpty) {
-        imageUrls = await _uploadConfirmImages(pickedImages, appointmentId);
-      }
-
-      final batch = FirebaseFirestore.instance.batch();
-      final appRef = FirebaseFirestore.instance.collection('appointments').doc(appointmentId);
-      final userRef = FirebaseFirestore.instance.collection('users').doc(currentUser!.uid);
-
-      // 1. Cập nhật trạng thái lịch hẹn & lưu lịch sử số tiền kiếm được
-      batch.update(appRef, {
-        'status': 'completed',
-        'completedAt': FieldValue.serverTimestamp(),
-        'earnedRevenue': earnedAmount,
-        'confirmImages': imageUrls,
-      });
-
-      // 2. Cộng dồn số tiền vào tổng thu nhập của Chuyên gia
-      batch.update(userRef, {
-        'expertInfo.revenue': FieldValue.increment(earnedAmount),
-      });
-
-      // Thực thi cùng lúc 2 lệnh trên
-      await batch.commit();
-
-      if (mounted) {
-        String message = "🎉 Ca tư vấn đã hoàn thành!";
-        if (earnedAmount > 0) {
-          message = "🎉 Hoàn thành! Đã cộng ${NumberFormat("#,##0", "vi_VN").format(earnedAmount)} VNĐ vào báo cáo.";
-        }
-
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.blue[600],
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Lỗi: $e")));
-      }
-    }
   }
 
 
@@ -361,12 +363,40 @@ class _ExpertTodayScreenState extends State<ExpertTodayScreen> {
     final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: const Color(0xFFF4F6F8),
       appBar: AppBar(
-        title: const Text("Lịch trình Hôm nay", style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.green[700],
-        foregroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF4F6F8),
         elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        titleSpacing: 16,
+        title: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                image: const DecorationImage(
+                  image: AssetImage('assets/images/ai_logo.png'),
+                  fit: BoxFit.cover,
+                ),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 6, offset: const Offset(0, 3)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              "Lịch trình Hôm nay",
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 22,
+                color: Colors.black87,
+                letterSpacing: -0.5,
+              ),
+            ),
+          ],
+        ),
       ),
       body: StreamBuilder<QuerySnapshot>(
         // Lọc tất cả lịch hẹn của chuyên gia và sắp xếp bên client để tránh lỗi Index
@@ -448,7 +478,6 @@ class _ExpertTodayScreenState extends State<ExpertTodayScreen> {
 
   Widget _buildHeaderPanel(DateTime date, int total, int completed, int active) {
     String formattedDate = DateFormat('EEEE, dd MMMM, yyyy', 'vi').format(date);
-    // Vi hoá EEEE (Thứ) vì hệ thống đôi khi trả tiếng Anh nếu locale chưa chuẩn
     formattedDate = formattedDate.replaceAll('Monday', 'Thứ 2')
                                  .replaceAll('Tuesday', 'Thứ 3')
                                  .replaceAll('Wednesday', 'Thứ 4')
@@ -459,27 +488,24 @@ class _ExpertTodayScreenState extends State<ExpertTodayScreen> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      decoration: BoxDecoration(
-        color: Colors.green[700],
-        borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
-        boxShadow: [
-          BoxShadow(color: Colors.green.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5))
-        ]
-      ),
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Lịch làm việc", style: TextStyle(color: Colors.green[100], fontSize: 14, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 4),
-          Text(formattedDate, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 24),
+          Row(
+            children: [
+              Icon(Icons.calendar_today_rounded, size: 14, color: Colors.grey[600]),
+              const SizedBox(width: 8),
+              Text(formattedDate, style: TextStyle(color: Colors.grey[700], fontSize: 13, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildStatBox(total.toString(), "Tổng ca", Icons.event_note),
-              _buildStatBox(completed.toString(), "Đã xong", Icons.check_circle_outline),
-              _buildStatBox(active.toString(), "Chưa xong", Icons.access_time),
+              _buildStatBox(total.toString(), "Tổng ca", Icons.event_note, Colors.blue),
+              _buildStatBox(completed.toString(), "Đã xong", Icons.check_circle_outline, Colors.green),
+              _buildStatBox(active.toString(), "Chưa hoàn thành", Icons.access_time, Colors.orange),
             ],
           )
         ],
@@ -487,19 +513,34 @@ class _ExpertTodayScreenState extends State<ExpertTodayScreen> {
     );
   }
 
-  Widget _buildStatBox(String count, String label, IconData icon) {
+  Widget _buildStatBox(String count, String label, IconData icon, Color color) {
      return Container(
-       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+       width: (MediaQuery.of(context).size.width - 64) / 3,
+       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
        decoration: BoxDecoration(
-         color: Colors.white.withOpacity(0.15),
-         borderRadius: BorderRadius.circular(15)
+         color: Colors.white,
+         borderRadius: BorderRadius.circular(16),
+         boxShadow: [
+           BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))
+         ]
        ),
        child: Column(
          children: [
-           Icon(icon, color: Colors.white, size: 24),
-           const SizedBox(height: 8),
-           Text(count, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-           Text(label, style: TextStyle(color: Colors.green[50], fontSize: 12)),
+           Container(
+             padding: const EdgeInsets.all(8),
+             decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+             child: Icon(icon, color: color, size: 20),
+           ),
+           const SizedBox(height: 10),
+           Text(count, style: const TextStyle(color: Colors.black87, fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
+           const SizedBox(height: 2),
+           Text(
+             label, 
+             style: TextStyle(color: Colors.grey[600], fontSize: 10, fontWeight: FontWeight.bold),
+             textAlign: TextAlign.center,
+             maxLines: 1,
+             overflow: TextOverflow.ellipsis,
+           ),
          ],
        ),
      );

@@ -19,6 +19,9 @@ import 'package:daklakagent/features/home/screens/expert_chat_list_screen.dart';
 import 'package:daklakagent/features/expret/expert_report_screen.dart';
 import 'package:daklakagent/features/expret/expert_today_screen.dart';
 import 'package:daklakagent/features/community/screens/posts_screen.dart';
+import 'package:daklakagent/features/home/screens/pest_disease_screen.dart';
+import 'package:daklakagent/features/home/screens/price_screen.dart';
+import 'package:daklakagent/features/expret/expert_help_screen.dart';
 // ─── Enum bộ lọc thời gian biểu đồ ──────────────────────────────────────────
 enum ChartPeriod { day7, month, quarter, year }
 
@@ -657,51 +660,77 @@ class _DashboardContentState extends State<_DashboardContent>
 
   // ─── NÂNG CẤP: Quick Actions với logic kết nối ────────────────────────────
   Widget _buildQuickActions(int bookingCount, double revenue) {
-    final actions = [
+    final operationalActions = [
       {
         'icon': Icons.calendar_today_rounded,
         'label': 'Hôm nay',
         'color': Colors.blue[600]!,
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpertTodayScreen())),
       },
       {
         'icon': Icons.pending_actions_rounded,
         'label': 'Chờ duyệt',
         'color': Colors.orange[600]!,
+        'onTap': () => widget.onNavigate(1),
       },
       {
         'icon': Icons.bar_chart_rounded,
         'label': 'Báo cáo',
         'color': Colors.purple[600]!,
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpertReportScreen())),
       },
       {
         'icon': Icons.payments_rounded,
         'label': 'Thu nhập',
         'color': Colors.green[700]!,
+        'onTap': () => _showRevenueGuideDialog(),
       },
     ];
 
+    final utilityActions = [
+      {
+        'icon': Icons.bug_report_rounded,
+        'label': 'Tra sâu bệnh',
+        'color': Colors.red[600]!,
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PestDiseaseScreen())),
+      },
+      {
+        'icon': Icons.trending_up_rounded,
+        'label': 'Giá cả',
+        'color': Colors.orange[800]!,
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AgriPriceHome())),
+      },
+      {
+        'icon': Icons.help_outline_rounded,
+        'label': 'Trợ giúp',
+        'color': Colors.teal[600]!,
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpertHelpScreen())),
+      },
+      {
+        'icon': Icons.settings_rounded,
+        'label': 'Cài đặt',
+        'color': Colors.blueGrey[600]!,
+        'onTap': () {}, // Placeholder
+      },
+    ];
+
+    return Column(
+      children: [
+        _buildActionRow(operationalActions),
+        const SizedBox(height: 12),
+        _buildActionRow(utilityActions),
+      ],
+    );
+  }
+
+  Widget _buildActionRow(List<Map<String, dynamic>> actions) {
     return Row(
       children: List.generate(actions.length, (i) {
         final a = actions[i];
         final color = a['color'] as Color;
         return Expanded(
           child: GestureDetector(
-            onTap: () {
-              // NÂNG CẤP LOGIC Ở ĐÂY
-              if (i == 0) {
-                // Hôm nay -> mở ExpertTodayScreen mới
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpertTodayScreen()));
-              } else if (i == 1) {
-                // Chờ duyệt -> Chuyển sang Tab Lịch Hẹn (Index 1)
-                widget.onNavigate(1);
-              } else if (i == 2) {
-                // Chuyển sang file Báo cáo mới
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpertReportScreen()));
-              } else if (i == 3) {
-                // Thu nhập -> Hiện hướng dẫn thu tiền mặt
-                _showRevenueGuideDialog();
-              }
-            },
+            onTap: a['onTap'] as VoidCallback,
             child: Container(
               margin: EdgeInsets.only(left: i == 0 ? 0 : 8),
               padding: const EdgeInsets.symmetric(vertical: 14),

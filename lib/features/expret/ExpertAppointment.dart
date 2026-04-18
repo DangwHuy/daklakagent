@@ -1324,66 +1324,68 @@ class _ExpertAppointmentsScreenState
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                 );
-              } : () => Navigator.pop(ctx, true),
+              } : () async {
+                setDialogState(() => isUploading = true);
+                try {
+                  // Lấy số tiền người dùng đã nhập (Nếu để trống thì mặc định là 0)
+                  final double earnedAmount = double.tryParse(revenueController.text.trim()) ?? 0.0;
+                  final String expertId = FirebaseAuth.instance.currentUser!.uid;
+
+                  // Upload ảnh xác nhận
+                  List<String> imageUrls = [];
+                  if (pickedImages.isNotEmpty) {
+                    imageUrls = await _uploadConfirmImages(pickedImages, doc.id);
+                  }
+
+                  final batch = FirebaseFirestore.instance.batch();
+
+                  // 1. Cập nhật trạng thái lịch hẹn & lưu lịch sử số tiền kiếm được
+                  batch.update(doc.reference, {
+                    'status': 'completed',
+                    'completedAt': FieldValue.serverTimestamp(),
+                    'earnedRevenue': earnedAmount,
+                    'confirmImages': imageUrls,
+                  });
+
+                  // 2. Cộng dồn số tiền vào tổng thu nhập của Chuyên gia
+                  final expertRef = FirebaseFirestore.instance.collection('users').doc(expertId);
+                  batch.update(expertRef, {
+                    'expertInfo.revenue': FieldValue.increment(earnedAmount),
+                  });
+
+                  // Thực thi cùng lúc 2 lệnh trên
+                  await batch.commit();
+
+                  if (ctx.mounted) {
+                    Navigator.pop(ctx, true);
+                    
+                    String message = "🎉 Ca tư vấn đã hoàn thành!";
+                    if (earnedAmount > 0) {
+                      message = "🎉 Hoàn thành! Đã cộng ${NumberFormat("#,##0", "vi_VN").format(earnedAmount)} VNĐ vào báo cáo.";
+                    }
+
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text(message),
+                      backgroundColor: Colors.blue[600],
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ));
+                  }
+                } catch (e) {
+                  setDialogState(() => isUploading = false);
+                  if (ctx.mounted) {
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(SnackBar(content: Text("Lỗi: $e")));
+                  }
+                }
+              },
               child: const Text('Hoàn thành', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
         ),
       ),
     );
-
-    if (confirm != true) return;
-
-    // Lấy số tiền người dùng đã nhập (Nếu để trống thì mặc định là 0)
-    final double earnedAmount = double.tryParse(revenueController.text.trim()) ?? 0.0;
-    final String expertId = FirebaseAuth.instance.currentUser!.uid;
-
-    try {
-      // Upload ảnh xác nhận
-      List<String> imageUrls = [];
-      if (pickedImages.isNotEmpty) {
-        imageUrls = await _uploadConfirmImages(pickedImages, doc.id);
-      }
-
-      final batch = FirebaseFirestore.instance.batch();
-
-      // 1. Cập nhật trạng thái lịch hẹn & lưu lịch sử số tiền kiếm được
-      batch.update(doc.reference, {
-        'status': 'completed',
-        'completedAt': FieldValue.serverTimestamp(),
-        'earnedRevenue': earnedAmount,
-        'confirmImages': imageUrls,
-      });
-
-      // 2. Cộng dồn số tiền vào tổng thu nhập của Chuyên gia
-      final expertRef = FirebaseFirestore.instance.collection('users').doc(expertId);
-      batch.update(expertRef, {
-        'expertInfo.revenue': FieldValue.increment(earnedAmount),
-      });
-
-      // Thực thi cùng lúc 2 lệnh trên
-      await batch.commit();
-
-      if (mounted) {
-        String message = "🎉 Ca tư vấn đã hoàn thành!";
-        if (earnedAmount > 0) {
-          message = "🎉 Hoàn thành! Đã cộng ${NumberFormat("#,##0", "vi_VN").format(earnedAmount)} VNĐ vào báo cáo.";
-        }
-
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.blue[600],
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10)),
-        ));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Lỗi: $e")));
-      }
-    }
   }
 
   // ─── Dialog từ chối ──────────────────────────────────────────────────────
