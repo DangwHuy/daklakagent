@@ -1,5 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class SubmitDiseaseScreen extends StatefulWidget {
   const SubmitDiseaseScreen({super.key});
@@ -21,8 +24,9 @@ class _SubmitDiseaseScreenState extends State<SubmitDiseaseScreen> {
 
   // ── Controllers ────────────────────────────────────────────────────────────
   final _nameCtrl       = TextEditingController();
-  final _imageurlCtrl   = TextEditingController();
+  File? _pickedImage;
   final _submitterCtrl  = TextEditingController(); // tên người đề xuất (tuỳ chọn)
+  final ImagePicker _picker = ImagePicker();
 
   // List fields — mỗi cái dùng 1 controller text để nhập rồi thêm vào list
   final List<String> _affectedParts = [];
@@ -49,17 +53,46 @@ class _SubmitDiseaseScreenState extends State<SubmitDiseaseScreen> {
   final _severities = ['Rất cao', 'Cao', 'Trung bình', 'Thấp'];
   final _seasons    = ['Mùa mưa', 'Mùa khô', 'Quanh năm'];
   final _emergencies = ['Khẩn cấp', 'Cao', 'Trung bình', 'Thấp'];
-  final _icons     = ['Icons.bug_report', 'Icons.coronavirus', 'Icons.pest_control',
-    'Icons.water_damage', 'Icons.local_fire_department',
-    'Icons.science', 'Icons.park', 'Icons.warning'];
-  final _colors    = ['Colors.green', 'Colors.red', 'Colors.orange', 'Colors.amber',
-    'Colors.purple', 'Colors.blue', 'Colors.brown', 'Colors.pink'];
+
+  // --- VIETNAMESE LOCALIZATION FOR ICONS ---
+  final Map<String, String> _iconMap = {
+    'Sâu bọ / Côn trùng': 'Icons.bug_report',
+    'Vi khuẩn / Virus': 'Icons.coronavirus',
+    'Thuốc / BVTV': 'Icons.pest_control',
+    'Ẩm ướt / Úng nước': 'Icons.water_damage',
+    'Cháy lá / Khô quắt': 'Icons.local_fire_department',
+    'Phòng thí nghiệm': 'Icons.science',
+    'Cây trồng / Công viên': 'Icons.park',
+    'Cảnh báo khẩn cấp': 'Icons.warning',
+  };
+
+  // --- VIETNAMESE LOCALIZATION FOR COLORS ---
+  final Map<String, String> _colorMap = {
+    'Xanh lá (Bình thường)': 'Colors.green',
+    'Đỏ (Cực cao)': 'Colors.red',
+    'Cam (Cần chú ý)': 'Colors.orange',
+    'Vàng hổ phách': 'Colors.amber',
+    'Tím': 'Colors.purple',
+    'Xanh dương': 'Colors.blue',
+    'Nâu (Khô hạn)': 'Colors.brown',
+    'Hồng': 'Colors.pink',
+  };
+
+  String get _iconLabel => _iconMap.entries.firstWhere((e) => e.value == _icon).key;
+  String get _colorLabel => _colorMap.entries.firstWhere((e) => e.value == _color).key;
 
   @override
   void dispose() {
-    for (final c in [_nameCtrl, _imageurlCtrl, _submitterCtrl, _partCtrl,
+    for (final c in [_nameCtrl, _submitterCtrl, _partCtrl,
       _symptomCtrl, _treatmentCtrl, _preventionCtrl, _tagCtrl]) c.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final XFile? image = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 1024, imageQuality: 80);
+    if (image != null) {
+      setState(() => _pickedImage = File(image.path));
+    }
   }
 
   // ── Submit ─────────────────────────────────────────────────────────────────
@@ -72,6 +105,15 @@ class _SubmitDiseaseScreenState extends State<SubmitDiseaseScreen> {
 
     setState(() => _isSubmitting = true);
     try {
+      String imageUrl = "";
+      if (_pickedImage != null) {
+        final ref = FirebaseStorage.instance.ref().child(
+          'pest_diseases/submissions/${DateTime.now().millisecondsSinceEpoch}.jpg'
+        );
+        await ref.putFile(_pickedImage!);
+        imageUrl = await ref.getDownloadURL();
+      }
+
       // Đẩy thẳng vào 'pest_diseases'
       await FirebaseFirestore.instance.collection('pest_diseases').add({
         'name': _nameCtrl.text.trim(),
@@ -86,7 +128,7 @@ class _SubmitDiseaseScreenState extends State<SubmitDiseaseScreen> {
         'tags': _tags,
         'icon': _icon,
         'color': _color,
-        'imageUrl': _imageurlCtrl.text.trim(),
+        'imageUrl': imageUrl,
         'submitter_name': _submitterCtrl.text.trim(),
 
         // Giữ nguyên trạng thái chờ duyệt và ẩn
@@ -239,7 +281,50 @@ class _SubmitDiseaseScreenState extends State<SubmitDiseaseScreen> {
           const SizedBox(height: 16),
           _inputField(_submitterCtrl, 'Tên người đề xuất (tuỳ chọn)', Icons.person_outline),
           const SizedBox(height: 16),
-          _inputField(_imageurlCtrl, 'Link ảnh minh họa (tuỳ chọn)', Icons.image_outlined),
+          
+          // --- IMAGE PICKER WIDGET ---
+          const Text('Ảnh minh họa *', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF2D6A4F))),
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: _pickImage,
+            child: Container(
+              width: double.infinity,
+              height: 160,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFAFDFB),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFDDEEE6)),
+              ),
+              child: _pickedImage != null 
+                ? Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.file(_pickedImage!, width: double.infinity, height: 160, fit: BoxFit.cover),
+                      ),
+                      Positioned(
+                        top: 8, right: 8,
+                        child: GestureDetector(
+                          onTap: () => setState(() => _pickedImage = null),
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                            child: const Icon(Icons.close, color: Colors.white, size: 16),
+                          ),
+                        ),
+                      )
+                    ],
+                  )
+                : Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.add_a_photo_outlined, size: 32, color: Colors.grey[400]),
+                      const SizedBox(height: 8),
+                      Text('Nhấn để chọn ảnh từ máy', style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+                    ],
+                  ),
+            ),
+          ),
         ]),
         const SizedBox(height: 16),
 
@@ -259,11 +344,11 @@ class _SubmitDiseaseScreenState extends State<SubmitDiseaseScreen> {
         const SizedBox(height: 16),
 
         _formCard(children: [
-          _dropdownField('Icon đại diện', _icon, _icons, Icons.widgets_outlined,
-                  (v) => setState(() => _icon = v!)),
+          _dropdownField('Icon đại diện', _iconLabel, _iconMap.keys.toList(), Icons.widgets_outlined,
+                  (v) => setState(() => _icon = _iconMap[v!]!)),
           const SizedBox(height: 16),
-          _dropdownField('Màu sắc', _color, _colors, Icons.palette_outlined,
-                  (v) => setState(() => _color = v!)),
+          _dropdownField('Màu sắc hiển thị', _colorLabel, _colorMap.keys.toList(), Icons.palette_outlined,
+                  (v) => setState(() => _color = _colorMap[v!]!)),
         ]),
       ]),
     );
@@ -364,9 +449,19 @@ class _SubmitDiseaseScreenState extends State<SubmitDiseaseScreen> {
           _reviewRow('Mức độ', _severity),
           _reviewRow('Mùa', _season),
           _reviewRow('Khẩn cấp', _emergencyLevel),
+          _reviewRow('Icon', _iconLabel),
+          _reviewRow('Màu sắc', _colorLabel),
           if (_submitterCtrl.text.isNotEmpty)
             _reviewRow('Người đề xuất', _submitterCtrl.text),
         ]),
+        if (_pickedImage != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.file(_pickedImage!, height: 180, width: double.infinity, fit: BoxFit.cover),
+            ),
+          ),
         const SizedBox(height: 12),
 
         if (_affectedParts.isNotEmpty) _reviewListCard('📍 Bộ phận ảnh hưởng', _affectedParts),

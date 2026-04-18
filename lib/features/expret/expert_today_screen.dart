@@ -632,7 +632,7 @@ class _ExpertTodayScreenState extends State<ExpertTodayScreen> {
                                decoration: BoxDecoration(color: dotColor, borderRadius: BorderRadius.circular(10)),
                                child: Text(statusText, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
                             ),
-                            if (!isDone && (status == 'confirmed' || status == 'accepted')) 
+                            if (!isDone && (status == 'confirmed' || status == 'accepted') && isTimePassed) 
                             InkWell(
                               onTap: () => _markAsCompleted(docId),
                               child: Container(
@@ -774,12 +774,15 @@ class _ExpertTodayScreenState extends State<ExpertTodayScreen> {
                                     child: SizedBox(
                                       width: double.infinity,
                                       child: ElevatedButton.icon(
-                                        onPressed: () => _markAsCompleted(docId),
+                                        onPressed: isTimePassed ? () => _markAsCompleted(docId) : null,
                                         icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
-                                        label: const Text("Xác nhận đã hoàn thành", style: TextStyle(fontWeight: FontWeight.bold)),
+                                        label: Text(
+                                          isTimePassed ? "Xác nhận đã hoàn thành" : "Chờ đến giờ hẹn...", 
+                                          style: const TextStyle(fontWeight: FontWeight.bold)
+                                        ),
                                         style: ElevatedButton.styleFrom(
                                           padding: const EdgeInsets.symmetric(vertical: 12),
-                                          backgroundColor: Colors.green[600],
+                                          backgroundColor: isTimePassed ? Colors.green[600] : Colors.grey[400],
                                           foregroundColor: Colors.white,
                                           elevation: 0,
                                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

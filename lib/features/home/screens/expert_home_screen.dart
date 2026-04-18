@@ -22,6 +22,9 @@ import 'package:daklakagent/features/community/screens/posts_screen.dart';
 import 'package:daklakagent/features/home/screens/pest_disease_screen.dart';
 import 'package:daklakagent/features/home/screens/price_screen.dart';
 import 'package:daklakagent/features/expret/expert_help_screen.dart';
+import 'package:daklakagent/features/expret/expert_settings_screen.dart';
+import 'package:daklakagent/features/home/screens/expert_screen.dart';
+import 'package:daklakagent/features/home/screens/disease.dart';
 // ─── Enum bộ lọc thời gian biểu đồ ──────────────────────────────────────────
 enum ChartPeriod { day7, month, quarter, year }
 
@@ -658,68 +661,220 @@ class _DashboardContentState extends State<_DashboardContent>
     ),
   );
 
-  // ─── NÂNG CẤP: Quick Actions với logic kết nối ────────────────────────────
+  // ─── NÂNG CẤP: Quick Actions với logic gom nhóm & mở rộng ────────────────────
   Widget _buildQuickActions(int bookingCount, double revenue) {
-    final operationalActions = [
-      {
-        'icon': Icons.calendar_today_rounded,
-        'label': 'Hôm nay',
-        'color': Colors.blue[600]!,
-        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpertTodayScreen())),
-      },
-      {
-        'icon': Icons.pending_actions_rounded,
-        'label': 'Chờ duyệt',
-        'color': Colors.orange[600]!,
-        'onTap': () => widget.onNavigate(1),
-      },
-      {
-        'icon': Icons.bar_chart_rounded,
-        'label': 'Báo cáo',
-        'color': Colors.purple[600]!,
-        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpertReportScreen())),
-      },
-      {
-        'icon': Icons.payments_rounded,
-        'label': 'Thu nhập',
-        'color': Colors.green[700]!,
-        'onTap': () => _showRevenueGuideDialog(),
-      },
-    ];
-
-    final utilityActions = [
-      {
-        'icon': Icons.bug_report_rounded,
-        'label': 'Tra sâu bệnh',
-        'color': Colors.red[600]!,
-        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PestDiseaseScreen())),
-      },
-      {
-        'icon': Icons.trending_up_rounded,
-        'label': 'Giá cả',
-        'color': Colors.orange[800]!,
-        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AgriPriceHome())),
-      },
-      {
-        'icon': Icons.help_outline_rounded,
-        'label': 'Trợ giúp',
-        'color': Colors.teal[600]!,
-        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpertHelpScreen())),
-      },
-      {
-        'icon': Icons.settings_rounded,
-        'label': 'Cài đặt',
-        'color': Colors.blueGrey[600]!,
-        'onTap': () {}, // Placeholder
-      },
-    ];
-
     return Column(
       children: [
-        _buildActionRow(operationalActions),
+        _buildCollapsibleGroup(
+          title: "📦 QUẢN LÝ CÔNG VIỆC",
+          icon: Icons.assignment_rounded,
+          color: Colors.green[700]!,
+          actions: [
+            {
+              'icon': Icons.calendar_today_rounded,
+              'label': 'Hôm nay',
+              'color': Colors.blue[600]!,
+              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpertTodayScreen())),
+            },
+            {
+              'icon': Icons.pending_actions_rounded,
+              'label': 'Chờ duyệt',
+              'color': Colors.orange[600]!,
+              'onTap': () => widget.onNavigate(1),
+            },
+            {
+              'icon': Icons.history_rounded,
+              'label': 'Lịch hẹn',
+              'color': Colors.teal[600]!,
+              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpertAppointmentsScreen())),
+            },
+          ],
+        ),
         const SizedBox(height: 12),
-        _buildActionRow(utilityActions),
+        _buildCollapsibleGroup(
+          title: "🤖 CÔNG CỤ THÔNG MINH",
+          icon: Icons.psychology_rounded,
+          color: Colors.purple[700]!,
+          actions: [
+            {
+              'icon': Icons.auto_awesome_rounded,
+              'label': 'AI Phân tích', // ĐƯỢC CHỈ ĐỊNH LÀ ExpertScreen
+              'color': Colors.purple[600]!,
+              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpertScreen())),
+            },
+            {
+              'icon': Icons.camera_alt_rounded,
+              'label': 'Ảnh bệnh AI',
+              'color': Colors.green[600]!,
+              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyzeDiseaseScreen())),
+            },
+            {
+              'icon': Icons.bug_report_rounded,
+              'label': 'Tra sâu bệnh',
+              'color': Colors.red[600]!,
+              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PestDiseaseScreen())),
+            },
+          ],
+        ),
+        const SizedBox(height: 12),
+        _buildCollapsibleGroup(
+          title: "💼 TIỆN ÍCH & KINH DOANH",
+          icon: Icons.business_center_rounded,
+          color: Colors.orange[800]!,
+          actions: [
+            {
+              'icon': Icons.trending_up_rounded,
+              'label': 'Giá cả',
+              'color': Colors.orange[800]!,
+              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AgriPriceHome())),
+            },
+            {
+              'icon': Icons.shopping_cart_rounded,
+              'label': 'Cửa hàng',
+              'color': Colors.blue[700]!,
+              'onTap': () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Chức năng đang phát triển"))),
+            },
+            {
+              'icon': Icons.bar_chart_rounded,
+              'label': 'Báo cáo',
+              'color': Colors.indigo[600]!,
+              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpertReportScreen())),
+            },
+            {
+              'icon': Icons.payments_rounded,
+              'label': 'Thu nhập',
+              'color': Colors.green[700]!,
+              'onTap': () => _showRevenueGuideDialog(),
+            },
+          ],
+        ),
+        const SizedBox(height: 12),
+        _buildCollapsibleGroup(
+          title: "⚙️ HỆ THỐNG & HỖ TRỢ",
+          icon: Icons.settings_suggest_rounded,
+          color: Colors.blueGrey[700]!,
+          actions: [
+            {
+              'icon': Icons.settings_rounded,
+              'label': 'Cài đặt',
+              'color': Colors.blueGrey[600]!,
+              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpertSettingsScreen())),
+            },
+            {
+              'icon': Icons.help_outline_rounded,
+              'label': 'Trợ giúp',
+              'color': Colors.teal[600]!,
+              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpertHelpScreen())),
+            },
+          ],
+        ),
       ],
+    );
+  }
+
+  Widget _buildCollapsibleGroup({
+    required String title,
+    required IconData icon,
+    required Color color,
+    required List<Map<String, dynamic>> actions,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: title.contains("VẬN HÀNH") || title.contains("CÔNG VIỆC"),
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          title: Text(
+            title,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: color,
+              letterSpacing: 0.5,
+            ),
+          ),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          children: [
+            _buildActionGrid(actions),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionGrid(List<Map<String, dynamic>> actions) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 0.95,
+      ),
+      itemCount: actions.length,
+      itemBuilder: (context, index) {
+        final a = actions[index];
+        final color = a['color'] as Color;
+        return GestureDetector(
+          onTap: a['onTap'] as VoidCallback,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey[100]!),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.02),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(a['icon'] as IconData, color: color, size: 20),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  a['label'] as String,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey[800],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

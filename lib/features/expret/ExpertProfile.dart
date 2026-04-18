@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:geolocator/geolocator.dart';
 
 class ExpertProfileSetup extends StatefulWidget {
   const ExpertProfileSetup({super.key});
@@ -34,6 +35,11 @@ class _ExpertProfileSetupState extends State<ExpertProfileSetup> {
   // Danh sách các khung giờ rảnh
   List<DateTime> _availableSlots = [];
   bool _isLoading = false;
+
+  // --- FEATURE: Định vị chuyên gia ---
+  double? _latitude;
+  double? _longitude;
+  bool _isLocating = false;
 
   @override
   void initState() {
@@ -67,6 +73,13 @@ class _ExpertProfileSetupState extends State<ExpertProfileSetup> {
         _phoneController.text = data['phone'] ?? data['phoneNumber'] ?? '';
         _addressController.text = data['address'] ?? data['location'] ?? '';
         _photoUrl = data['photoUrl'] ?? '';
+
+        // Load tọa độ định vị
+        if (data['expertInfo'] != null) {
+          final info = data['expertInfo'] as Map<String, dynamic>;
+          _latitude = info['latitude'];
+          _longitude = info['longitude'];
+        }
 
         // Load thông tin chuyên gia
         if (data.containsKey('expertInfo')) {
@@ -171,6 +184,62 @@ class _ExpertProfileSetupState extends State<ExpertProfileSetup> {
     });
   }
 
+  // ─── 4. FEATURE: LẤY VỊ TRÍ GPS ──────────────────────────────────────────
+  Future<void> _getCurrentPosition() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    setState(() => _isLocating = true);
+
+    try {
+      // 1. Kiểm tra dịch vụ định vị có bật không
+      serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Vui lòng bật GPS trên thiết bị!")));
+        setState(() => _isLocating = false);
+        return;
+      }
+
+      // 2. Kiểm tra quyền
+      permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Quyền truy cập vị trí bị từ chối!")));
+          setState(() => _isLocating = false);
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Quyền vị trí bị từ chối vĩnh viễn, vui lòng mở trong Cài đặt!")));
+        setState(() => _isLocating = false);
+        return;
+      }
+
+      // 3. Lấy vị trí
+      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      setState(() {
+        _latitude = position.latitude;
+        _longitude = position.longitude;
+        _isLocating = false;
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text("Đã cập nhật vị trí GPS thành công!"),
+        backgroundColor: Colors.blue,
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Lỗi định vị: $e")));
+      setState(() => _isLocating = false);
+    }
+  }
+
   // ─── 4. LƯU TẤT CẢ DỮ LIỆU ───────────────────────────────────────────────
   Future<void> _saveProfile() async {
     if (_nameController.text.trim().isEmpty) {
@@ -200,6 +269,8 @@ class _ExpertProfileSetupState extends State<ExpertProfileSetup> {
         'expertInfo.specialty': _specialtyController.text.trim(),
         'expertInfo.experience': _experienceController.text.trim(),
         'expertInfo.bio': _bioController.text.trim(),
+        'expertInfo.latitude': _latitude,
+        'expertInfo.longitude': _longitude,
         // Lưu danh sách lịch rảnh mới (đã loại bỏ lịch cũ trên UI)
         'expertInfo.availableSlots': _availableSlots.map((e) => Timestamp.fromDate(e)).toList(),
         'expertInfo.updatedAt': FieldValue.serverTimestamp(),
@@ -320,6 +391,59 @@ class _ExpertProfileSetupState extends State<ExpertProfileSetup> {
             _buildTextField(_nameController, "Họ và tên chuyên gia (*)", Icons.person_outline),
             _buildTextField(_phoneController, "Số điện thoại liên hệ", Icons.phone_outlined, isPhone: true),
             _buildTextField(_addressController, "Địa chỉ cơ quan / Vườn mẫu", Icons.location_on_outlined),
+
+            // --- FEATURE ĐỊNH VỊ ---
+            Container(
+              margin: const EdgeInsets.only(top: 8, bottom: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blue.shade100),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.gps_fixed, color: Colors.blue[700], size: 20),
+                      const SizedBox(width: 8),
+                      const Text(
+                        "Vị trí định vị (GPS)",
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          (_latitude != null && _longitude != null)
+                              ? "Tọa độ: ${_latitude!.toStringAsFixed(6)}, ${_longitude!.toStringAsFixed(6)}"
+                              : "Chưa xác định vị trí GPS",
+                          style: TextStyle(fontSize: 13, color: Colors.blue[900]),
+                        ),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: _isLocating ? null : _getCurrentPosition,
+                        icon: _isLocating 
+                          ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.my_location, size: 16),
+                        label: Text(_isLocating ? "Đang quét..." : "Cập nhật"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue[600],
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          elevation: 0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
 
             const SizedBox(height: 24),
             _buildSectionHeader(Icons.school_rounded, "Chuyên môn & Kinh nghiệm"),

@@ -5,6 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:geolocator/geolocator.dart';
+import 'dart:math' show cos, sqrt, asin;
 
 // Import màn hình Chat (Hãy sửa lại đường dẫn nếu thư mục của bạn khác)
 import 'package:daklakagent/features/home/screens/chat_screen.dart';
@@ -20,6 +22,46 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchText = "";
   bool _isBooking = false;
+
+  // --- FEATURE: Định vị tìm chuyên gia gần nhất ---
+  double? _currentLat;
+  double? _currentLng;
+
+  @override
+  void initState() {
+    super.initState();
+    _getCurrentLocation();
+  }
+
+  Future<void> _getCurrentLocation() async {
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      
+      if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+        Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low);
+        if (mounted) {
+          setState(() {
+            _currentLat = position.latitude;
+            _currentLng = position.longitude;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Lỗi định vị nông dân: $e");
+    }
+  }
+
+  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    var p = 0.017453292519943295;
+    var c = cos;
+    var a = 0.5 - c((lat2 - lat1) * p) / 2 +
+        c(lat1 * p) * c(lat2 * p) *
+            (1 - c((lon2 - lon1) * p)) / 2;
+    return 12742 * asin(sqrt(a)); // Trả về số km
+  }
 
   final List<String> _categories = [
     'Tất cả',
@@ -203,9 +245,25 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                           'isOnline': expertInfo['isOnline'] ?? false,
                           'rating': expertInfo['rating']?.toDouble() ?? 5.0,
                           'bookingCount': expertInfo['bookingCount'] ?? 0,
+                          'latitude': expertInfo['latitude'],
+                          'longitude': expertInfo['longitude'],
                           'validSlots': validSlots,
                         };
                       }).toList();
+
+                      // --- LOGIC TÍNH KHOẢNG CÁCH ---
+                      if (_currentLat != null && _currentLng != null) {
+                        for (var e in experts) {
+                          if (e['latitude'] != null && e['longitude'] != null) {
+                            e['distance'] = _calculateDistance(
+                              _currentLat!, _currentLng!, 
+                              e['latitude'], e['longitude']
+                            );
+                          } else {
+                            e['distance'] = 9999.0; // Nếu chuyên gia không có tọa độ, đẩy về sau
+                          }
+                        }
+                      }
 
                       experts = experts.where((e) {
                         final bool isOnline = e['isOnline'] as bool;
@@ -221,6 +279,14 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                       }).toList();
 
                       experts.sort((a, b) {
+                        // 1. Ưu tiên theo khoảng cách nếu có tọa độ
+                        if (_currentLat != null && _currentLng != null) {
+                          double distA = a['distance'] ?? 9999.0;
+                          double distB = b['distance'] ?? 9999.0;
+                          if (distA != distB) return distA.compareTo(distB);
+                        }
+
+                        // 2. Nếu khoảng cách bằng nhau hoặc không có tọa độ, sắp xếp theo lịch gần nhất
                         DateTime firstSlotA = (a['validSlots'] as List<DateTime>).first;
                         DateTime firstSlotB = (b['validSlots'] as List<DateTime>).first;
                         return firstSlotA.compareTo(firstSlotB);
@@ -371,6 +437,25 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
+                      // --- HIỂN THỊ KHOẢNG CÁCH (NẾU CÓ) ---
+                      if (expert['distance'] != null && expert['distance'] < 9999.0)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              Icon(Icons.location_on, color: Colors.red[700], size: 14),
+                              const SizedBox(width: 4),
+                              Text(
+                                "Cách bạn ${expert['distance'].toStringAsFixed(1)} km",
+                                style: TextStyle(
+                                  color: Colors.red[700],
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       Text(
                         expert['bio'].toString().isNotEmpty ? expert['bio'] : "Sẵn sàng tư vấn hỗ trợ bà con.",
                         style: TextStyle(fontSize: 13, color: Colors.grey[600]),
@@ -566,6 +651,35 @@ class _FindExpertScreenState extends State<FindExpertScreen> {
                         border: OutlineInputBorder(),
                         contentPadding: EdgeInsets.all(12),
                         prefixIcon: Icon(Icons.location_on),
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: () async {
+                          try {
+                            Position position = await Geolocator.getCurrentPosition(
+                              desiredAccuracy: LocationAccuracy.high
+                            );
+                            setDialogState(() {
+                              addressController.text = 
+                                "${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}";
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("Đã lấy tọa độ GPS của bạn!"))
+                            );
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text("Không thể lấy vị trí: $e"))
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.my_location, size: 16),
+                        label: const Text("Lấy vị trí hiện tại", style: TextStyle(fontSize: 12)),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.blue[700],
+                          padding: EdgeInsets.zero,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 15),
