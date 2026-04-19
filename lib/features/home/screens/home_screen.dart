@@ -54,7 +54,10 @@ class _HomeScreenState extends State<HomeScreen> {
       extendBody: true, // Content flows under the bottom nav bar
       body: Stack(
         children: [
-          _screens[_selectedIndex],
+          IndexedStack(
+            index: _selectedIndex,
+            children: _screens,
+          ),
           if (_showAiBot)
             DraggableAiBot(
               onTap: () {
