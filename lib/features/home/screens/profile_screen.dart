@@ -7,6 +7,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'expert_registration_screen.dart';
 import 'farm_diary_screen.dart';
+import 'terms_policy_screen.dart';
+import 'support_center_screen.dart';
+import 'change_password_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -138,36 +141,84 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _changePassword() async {
-    if (_user?.email != null) {
-      setState(() => _isLoading = true);
-      try {
-        await _auth.sendPasswordResetEmail(email: _user!.email!);
-        if (mounted) {
-          showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text("Đổi mật khẩu"),
-              content: const Text("Chúng tôi đã gửi một email hướng dẫn đặt lại mật khẩu đến địa chỉ email của bạn. Vui lòng kiểm tra hộp thư."),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Đã hiểu"))
+    if (_user == null) return;
+
+    // Kiểm tra xem người dùng đăng nhập bằng phương thức nào
+    final providers = _user!.providerData.map((p) => p.providerId).toList();
+    final isGoogleUser = providers.contains('google.com');
+    final isPasswordUser = providers.contains('password');
+
+    if (isGoogleUser) {
+      // Thông báo cho người dùng Google
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.blue[700]),
+                const SizedBox(width: 10),
+                const Text("Thông báo"),
               ],
-            )
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Lỗi: $e"), backgroundColor: Colors.red),
-          );
-        }
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
+            ),
+            content: const Text(
+              "Tài khoản của bạn được quản lý bởi Google. Hệ thống không lưu trữ mật khẩu của bạn, vì vậy bạn không cần đổi mật khẩu tại đây.\n\nNếu muốn đổi mật khẩu, vui lòng thực hiện trong cài đặt tài khoản Google của bạn.",
+              style: TextStyle(height: 1.5),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text("Đã hiểu", style: TextStyle(color: Colors.green[700], fontWeight: FontWeight.bold)),
+              )
+            ],
+          ),
+        );
+      }
+      return;
+    }
+
+    if (isPasswordUser) {
+      // Điều hướng sang màn hình đổi mật khẩu trực tiếp
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const ChangePasswordScreen()),
+        );
       }
     } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Bạn chưa cung cấp Email để sử dụng hệ thống bảo mật mật khẩu"), backgroundColor: Colors.red),
-        );
+      // Trường hợp khác (nếu có) hoặc mặc định gửi email nếu không xác định được
+      if (_user?.email != null) {
+        setState(() => _isLoading = true);
+        try {
+          await _auth.sendPasswordResetEmail(email: _user!.email!);
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text("Đổi mật khẩu"),
+                content: const Text("Chúng tôi đã gửi một email hướng dẫn đặt lại mật khẩu đến địa chỉ email của bạn. Vui lòng kiểm tra hộp thư."),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Đã hiểu"))
+                ],
+              )
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("Lỗi: $e"), backgroundColor: Colors.red),
+            );
+          }
+        } finally {
+          if (mounted) setState(() => _isLoading = false);
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Bạn chưa cung cấp Email để sử dụng hệ thống bảo mật mật khẩu"), backgroundColor: Colors.red),
+          );
+        }
       }
     }
   }
@@ -323,8 +374,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   _buildSectionHeader("Hỗ trợ"),
                   _buildCardGroup(children: [
-                    _buildListTile(Icons.article_outlined, "Điều khoản và Chính sách", onTap: () {}),
-                    _buildListTile(Icons.headset_mic_outlined, "Trung tâm hỗ trợ", isLast: true, onTap: () {}),
+                    _buildListTile(Icons.article_outlined, "Điều khoản và Chính sách", onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const TermsPolicyScreen()),
+                      );
+                    }),
+                    _buildListTile(Icons.headset_mic_outlined, "Trung tâm hỗ trợ", isLast: true, onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const SupportCenterScreen()),
+                      );
+                    }),
                   ]),
                   
                   // The feedback card

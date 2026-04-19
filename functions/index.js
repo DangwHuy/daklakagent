@@ -51,3 +51,85 @@ exports.sendNotificationOnNewAppointment = functions.firestore
       return null;
     }
   });
+
+// Lắng nghe sự kiện CẬP NHẬT trong bảng 'expert_requests'
+exports.sendNotificationOnExpertRequestUpdate = functions.firestore
+  .document('expert_requests/{requestId}')
+  .onUpdate(async (change, context) => {
+    const beforeData = change.before.data();
+    const afterData = change.after.data();
+
+    // Lấy trạng thái trước và sau khi update
+    const previousStatus = beforeData.status;
+    const currentStatus = afterData.status;
+
+    // Chỉ thực hiện khi có sự thay đổi trạng thái
+    if (previousStatus === currentStatus) {
+      return null;
+    }
+
+    const userId = afterData.userId;
+    if (!userId) return null;
+
+    let title = "";
+    let body = "";
+
+    if (currentStatus === "approved" || currentStatus === "accepted") {
+      title = "Trở thành chuyên gia thành công! 🎉";
+      body = "Xin chúc mừng! Yêu cầu đăng ký chuyên gia của bạn đã được phê duyệt. Trải nghiệm ngay các tính năng cho chuyên gia.";
+      
+      try {
+        // Tự động nâng cấp role của người dùng thành 'expert'
+        await admin.firestore().collection('users').doc(userId).update({
+          role: 'expert'
+        });
+      } catch (err) {
+        console.error("Lỗi khi cập nhật role cho user:", err);
+      }
+    } else if (currentStatus === "rejected") {
+      title = "Hồ sơ chuyên gia cần xem xét lại 😔";
+      body = "Rất tiếc! Yêu cầu đăng ký chuyên gia của bạn chưa được duyệt. Vui lòng cập nhật lại hồ sơ năng lực hoặc liên hệ QTV.";
+    } else {
+       // Trạng thái khác thì bỏ qua
+       return null;
+    }
+
+    try {
+      // 1. Lưu thông báo vào bảng 'notifications' để hiện ở quả chuông (NotificationScreen)
+      await admin.firestore().collection('notifications').add({
+        receiverId: userId,
+        title: title,
+        body: body,
+        isRead: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        type: 'expert_registration'
+      });
+
+      // 2. Tùy chọn: Bắn cả thông báo push về điện thoại nếu có token
+      const userDoc = await admin.firestore().collection('users').doc(userId).get();
+      const userData = userDoc.data();
+      
+      if (userData && userData.fcmToken) {
+        const message = {
+          notification: {
+            title: title,
+            body: body,
+          },
+          android: {
+            priority: 'high',
+            notification: {
+              channelId: 'high_importance_channel',
+            },
+          },
+          token: userData.fcmToken,
+        };
+        await admin.messaging().send(message);
+        console.log("Đã gửi Push Notification báo kết quả chuyên gia.");
+      }
+
+      return null;
+    } catch (error) {
+      console.error("Lỗi khi gửi thông báo kết quả duyệt chuyên gia:", error);
+      return null;
+    }
+  });

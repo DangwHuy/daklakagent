@@ -185,6 +185,25 @@ class HomeContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final int hour = DateTime.now().hour;
+    List<Color> headerColors;
+    String greeting;
+    IconData timeIcon;
+
+    if (hour >= 5 && hour < 12) {
+      headerColors = [const Color(0xFF00C6FF), const Color(0xFF0072FF)]; // Buổi sáng: Khởi đầu mới
+      greeting = "Chào buổi sáng,";
+      timeIcon = Icons.light_mode_rounded;
+    } else if (hour >= 12 && hour < 18) {
+      headerColors = [const Color(0xFFFF8008), const Color(0xFFFFC837)]; // Buổi chiều: Ánh ráng vàng
+      greeting = "Chào buổi chiều,";
+      timeIcon = Icons.wb_twilight_rounded;
+    } else {
+      headerColors = [const Color(0xFF607D8B), const Color(0xFF455A64)]; // Buổi tối: Màu xám dịu (Blue Grey)
+      greeting = "Chào buổi tối,";
+      timeIcon = Icons.nights_stay_rounded;
+    }
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
 
@@ -213,7 +232,7 @@ class HomeContent extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [Colors.green[700]!, Colors.green[500]!],
+                        colors: headerColors,
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
@@ -222,13 +241,40 @@ class HomeContent extends StatelessWidget {
                         bottomRight: Radius.circular(30),
                       ),
                     ),
-                    child: StreamBuilder<User?>(
-                      stream: FirebaseAuth.instance.userChanges(),
-                      builder: (context, snapshot) {
-                        final user =
-                            snapshot.data ?? FirebaseAuth.instance.currentUser;
-                        return _buildWelcomeCard(context, user);
-                      },
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        // Đám mây bềnh bồng (scattered clouds)
+                        Positioned(
+                          left: -30,
+                          top: 10,
+                          child: Icon(Icons.cloud, size: 100, color: Colors.white.withOpacity(0.08)),
+                        ),
+                        Positioned(
+                          right: 60,
+                          top: -15,
+                          child: Icon(Icons.cloud, size: 70, color: Colors.white.withOpacity(0.05)),
+                        ),
+                        // Biểu tượng mặt trời / mặt trăng lớn
+                        Positioned(
+                          right: -20,
+                          top: -30,
+                          child: Icon(
+                            timeIcon,
+                            size: 150,
+                            color: Colors.white.withOpacity(0.12),
+                          ),
+                        ),
+                        // Nội dung chính: Tên và Lời chào
+                        StreamBuilder<User?>(
+                          stream: FirebaseAuth.instance.userChanges(),
+                          builder: (context, snapshot) {
+                            final user =
+                                snapshot.data ?? FirebaseAuth.instance.currentUser;
+                            return _buildWelcomeCard(context, user, greeting);
+                          },
+                        ),
+                      ],
                     ),
                   ),
                   // Floating Search Bar
@@ -384,7 +430,7 @@ class HomeContent extends StatelessWidget {
   }
 
   // CARD HIỂN THỊ AVATAR & TÊN ĐÃ ĐƯỢC NÂNG CẤP ĐỂ TỰ ĐỘNG LẤY ẢNH URL
-  Widget _buildWelcomeCard(BuildContext context, User? user) {
+  Widget _buildWelcomeCard(BuildContext context, User? user, String greeting) {
     // Lấy tên hiển thị, nếu không có thì lấy email, không có nữa thì gán mặc định
     String displayName = user?.displayName ?? user?.email ?? "Nhà nông 4.0";
     String? photoUrl = user?.photoURL;
@@ -424,9 +470,9 @@ class HomeContent extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        "Xin chào bà con,",
-                        style: TextStyle(color: Colors.white70, fontSize: 14),
+                      Text(
+                        greeting,
+                        style: const TextStyle(color: Colors.white70, fontSize: 14),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -576,6 +622,7 @@ class HomeContent extends StatelessWidget {
                 icon: Icons.calendar_month_outlined,
                 label: "Đặt Lịch Chuyên Gia",
                 color: Colors.teal,
+                isHot: true,
                 onTap: () {
                   Navigator.push(
                     context,
@@ -1132,78 +1179,117 @@ class _FeatureCard extends StatelessWidget {
   final String label;
   final Color color;
   final VoidCallback onTap;
+  final bool isHot;
 
   const _FeatureCard({
     required this.icon,
     required this.label,
     required this.color,
     required this.onTap,
+    this.isHot = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.12),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+    return Stack(
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.12),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            splashColor: color.withOpacity(0.1),
-            highlightColor: color.withOpacity(0.05),
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [color.withOpacity(0.7), color],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(18),
-                      boxShadow: [
-                        BoxShadow(
-                          color: color.withOpacity(0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onTap,
+                splashColor: color.withOpacity(0.1),
+                highlightColor: color.withOpacity(0.05),
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [color.withOpacity(0.7), color],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: [
+                              BoxShadow(
+                                color: color.withOpacity(0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Icon(icon, size: 26, color: Colors.white),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          label,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.1,
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
-                    child: Icon(icon, size: 26, color: Colors.white),
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.1,
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                ),
               ),
             ),
           ),
         ),
-      ),
+        if (isHot)
+          Positioned(
+            top: 0,
+            right: 0,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.redAccent,
+                borderRadius: const BorderRadius.only(
+                  topRight: Radius.circular(24),
+                  bottomLeft: Radius.circular(12),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.red.withOpacity(0.4),
+                    blurRadius: 4,
+                    offset: const Offset(-1, 2),
+                  ),
+                ],
+              ),
+              child: const Text(
+                'HOT',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

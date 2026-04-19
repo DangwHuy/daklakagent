@@ -611,7 +611,7 @@ class _ExpertScreenState extends State<ExpertScreen> with SingleTickerProviderSt
   Widget _buildSuggestedChip(String text, IconData icon) {
     return InkWell(
       onTap: () {
-        _questionController.text = text.replaceAll(RegExp(r'[^\w\s?]'), '').trim();
+        _questionController.text = text.trim();
         _sendQuestion();
       },
       child: Container(
