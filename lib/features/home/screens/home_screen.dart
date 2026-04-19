@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
+import 'package:geolocator/geolocator.dart';
 
 import 'price_screen.dart';
 import 'irrigation_screen.dart';
@@ -71,98 +72,96 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       bottomNavigationBar: Container(
-        margin: const EdgeInsets.only(left: 16, right: 16, bottom: 12), // Giảm lề dưới một chút
+        height: 75,
+        margin: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(30),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(35),
           boxShadow: [
             BoxShadow(
-              color: Colors.green.withValues(alpha: 0.15),
-              blurRadius: 25,
+              color: const Color(0xFF00B894).withOpacity(0.15),
+              blurRadius: 20,
               offset: const Offset(0, 10),
             ),
           ],
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(30),
-          child: BottomNavigationBar(
-            currentIndex: _selectedIndex,
-            onTap: (int index) {
-              setState(() {
-                _selectedIndex = index;
-              });
-            },
-            backgroundColor: Colors.white,
-            elevation: 0,
-            type: BottomNavigationBarType.fixed,
-            selectedItemColor: Colors.green[800],
-            unselectedItemColor: Colors.grey,
-            selectedFontSize: 12,
-            unselectedFontSize: 12,
-            selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900),
-            unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
-            items: [
-              BottomNavigationBarItem(
-                activeIcon: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.green[100],
-                    borderRadius: BorderRadius.circular(16),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final double tabWidth = constraints.maxWidth / 5;
+            return Stack(
+              children: [
+                // Hiệu ứng "Bong bóng" trượt (Sliding Bubble)
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 350),
+                  curve: Curves.easeOutBack,
+                  left: _selectedIndex * tabWidth,
+                  child: Container(
+                    width: tabWidth,
+                    height: 75,
+                    alignment: Alignment.center,
+                    child: Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFF00B894).withOpacity(0.2),
+                            const Color(0xFF55E6C1).withOpacity(0.1),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                    ),
                   ),
-                  child: const Icon(Icons.home, size: 24),
                 ),
-                icon: const Icon(Icons.home_outlined, size: 24),
-                label: 'Trang chủ',
-              ),
-              BottomNavigationBarItem(
-                activeIcon: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.green[100],
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Icon(Icons.cloud, size: 24),
+                // Các Tab Icon
+                Row(
+                  children: [
+                    _buildNavItem(0, Icons.grid_view_rounded, Icons.grid_view_outlined, "Home"),
+                    _buildNavItem(1, Icons.wb_sunny_rounded, Icons.wb_sunny_outlined, "Thời tiết"),
+                    _buildNavItem(2, Icons.forum_rounded, Icons.forum_outlined, "Hội nhóm"),
+                    _buildNavItem(3, Icons.chat_bubble_rounded, Icons.chat_bubble_outline_rounded, "Chat"),
+                    _buildNavItem(4, Icons.person_rounded, Icons.person_outline_rounded, "Tôi"),
+                  ],
                 ),
-                icon: const Icon(Icons.cloud_outlined, size: 24),
-                label: 'Thời tiết',
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem(int index, IconData activeIcon, IconData inactiveIcon, String label) {
+    final bool isSelected = _selectedIndex == index;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _selectedIndex = index),
+        behavior: HitTestBehavior.opaque,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedScale(
+              duration: const Duration(milliseconds: 300),
+              scale: isSelected ? 1.15 : 1.0,
+              child: Icon(
+                isSelected ? activeIcon : inactiveIcon,
+                color: isSelected ? const Color(0xFF00B894) : Colors.grey[400],
+                size: 26,
               ),
-              BottomNavigationBarItem(
-                activeIcon: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.green[100],
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Icon(Icons.groups, size: 24),
-                ),
-                icon: const Icon(Icons.groups_outlined, size: 24),
-                label: 'Diễn đàn',
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? const Color(0xFF009B77) : Colors.grey[400],
+                fontSize: 10,
+                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
               ),
-              BottomNavigationBarItem(
-                activeIcon: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.green[100],
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Icon(Icons.message, size: 24),
-                ),
-                icon: const Icon(Icons.message_outlined, size: 24),
-                label: 'Tin nhắn',
-              ),
-              BottomNavigationBarItem(
-                activeIcon: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.green[100],
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Icon(Icons.person, size: 24),
-                ),
-                icon: const Icon(Icons.person_outline, size: 24),
-                label: 'Cá nhân',
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -211,7 +210,7 @@ class HomeContent extends StatelessWidget {
         onRefresh: () async {
           await Future.delayed(const Duration(milliseconds: 500));
         },
-        color: Colors.green[700],
+        color: const Color(0xFF00B894),
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           child: Column(
@@ -362,7 +361,7 @@ class HomeContent extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
                   children: [
-                    Icon(Icons.apps, color: Colors.green[700]),
+                    const Icon(Icons.apps, color: Color(0xFF00B894)),
                     const SizedBox(width: 8),
                     const Text(
                       "Tiện ích nông nghiệp",
@@ -377,6 +376,10 @@ class HomeContent extends StatelessWidget {
 
               const SizedBox(height: 12),
               _buildGridMenu(context),
+              const SizedBox(height: 32),
+
+              _buildMembershipSection(context),
+              
               const SizedBox(height: 120),
             ],
           ),
@@ -588,216 +591,442 @@ class HomeContent extends StatelessWidget {
     );
   }
 
-  Widget _buildGridMenu(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  // ============================================================================
+  // GÓI HỘI VIÊN (MEMBERSHIP PACKAGES)
+  // ============================================================================
+  Widget _buildMembershipSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Gói hội viên",
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Text(
+                          "Ea Agri AI đề xuất cho bạn",
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.teal[600],
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Image.asset(
+                          'assets/images/de_xuat_cho_ban.png',
+                          width: 70,
+                          height: 70,
+                          fit: BoxFit.contain,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 320, // Tăng chiều cao để không bị tràn màn hình trên thiết bị nhỏ
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            physics: const BouncingScrollPhysics(),
+            children: [
+              _buildPackageCard(
+                headerColor: const Color(0xFF00B894),
+                isPopular: true,
+                badgeText: 'FREE',
+                typeTitle: 'Gói dùng thử',
+                mainTitle: 'NHÀ NÔNG\nTIẾT KIỆM',
+                mainIcon: Icons.eco_rounded,
+                savingText: 'Miễn phí trải nghiệm\ncông nghệ AI mới',
+                packageTitle: 'Green Cơ Bản',
+                packageSubtitle: 'Cá Nhân',
+                price: '0đ / vĩnh viễn',
+                trialText: '',
+              ),
+              _buildPackageCard(
+                headerColor: const Color(0xFF1E88E5), // Blueish
+                isPopular: false,
+                badgeText: 'HOT',
+                typeTitle: 'Gói ưu chuộng',
+                mainTitle: 'CHUYÊN GIA\nUNLIMITED',
+                mainIcon: Icons.psychology_rounded,
+                savingText: 'Tiết kiệm lên đến\n1.000.000 VNĐ',
+                packageTitle: 'Green Chuyên Gia',
+                packageSubtitle: 'Ưu tiên đặt lịch',
+                price: 'Từ 69.000đ/tháng',
+                trialText: '1 tháng dùng thử',
+              ),
+              _buildPackageCard(
+                headerColor: const Color(0xFFFFB300), // Amber/Orange
+                isPopular: false,
+                badgeText: 'PRO',
+                typeTitle: 'Gói cao cấp',
+                mainTitle: 'NÔNG TRẠI\nCA CAO',
+                mainIcon: Icons.agriculture_rounded,
+                savingText: 'Tiết kiệm lên đến\n5.000.000 VNĐ',
+                packageTitle: 'Green Nông Trại',
+                packageSubtitle: 'Chủ Nông Trại',
+                price: 'Từ 199.000đ/tháng',
+                trialText: 'Báo cáo độc quyền',
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPackageCard({
+    required Color headerColor,
+    required bool isPopular,
+    String badgeText = '',
+    required String typeTitle,
+    required String mainTitle,
+    required IconData mainIcon,
+    required String savingText,
+    required String packageTitle,
+    required String packageSubtitle,
+    required String price,
+    required String trialText,
+  }) {
+    return Container(
+      width: 175, // Kích thước thẻ cố định để hiện lấp ló thẻ sau
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[200]!, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          _buildCategoryTitle("Chuyên Gia & AI", Icons.smart_toy_outlined),
-          const SizedBox(height: 8),
-          GridView.count(
-            padding: EdgeInsets.zero,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 1.3,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _FeatureCard(
-                icon: Icons.forum_outlined,
-                label: "AI Phân Tích",
-                color: Colors.purple,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ExpertScreen(),
+              // Khu vực hình ảnh nền
+              Container(
+                height: 110,
+                margin: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [headerColor, headerColor.withOpacity(0.8)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Stack(
+                  children: [
+                    // Nội dung chữ trên nền khối màu
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              typeTitle,
+                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: headerColor),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            mainTitle,
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white, height: 1.2),
+                          ),
+                        ],
+                      ),
                     ),
-                  );
-                },
-              ),
-              _FeatureCard(
-                icon: Icons.calendar_month_outlined,
-                label: "Đặt Lịch Chuyên Gia",
-                color: Colors.teal,
-                isHot: true,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const FindExpertScreen(),
+                    // Icon chìm dưới góc phải thay cho hình ảnh 3D
+                    Positioned(
+                      right: -10,
+                      bottom: -15,
+                      child: Icon(mainIcon, size: 85, color: Colors.white.withOpacity(0.2)),
                     ),
-                  );
-                },
+                  ],
+                ),
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
 
-          _buildCategoryTitle("Tra Cứu & Chăm Sóc", Icons.eco_outlined),
-          const SizedBox(height: 8),
-          GridView.count(
-            padding: EdgeInsets.zero,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 1.3,
-            children: [
-              _FeatureCard(
-                icon: Icons.water_drop_outlined,
-                label: "Lịch Tưới",
-                color: Colors.blue,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const IrrigationScreen(),
-                    ),
-                  );
-                },
+              // Divider
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Divider(color: Colors.grey[200], thickness: 1, height: 1),
               ),
-              _FeatureCard(
-                icon: Icons.bug_report_outlined,
-                label: "Tra Cứu Sâu Bệnh",
-                color: Colors.red,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const PestDiseaseScreen(),
-                    ),
-                  );
-                },
-              ),
-              _FeatureCard(
-                icon: Icons.camera_alt_outlined,
-                label: "Phân Tích Ảnh Bệnh",
-                color: Colors.green,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const AnalyzeDiseaseScreen(),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
 
-          _buildCategoryTitle(
-            "Thương Mại & Cộng Đồng",
-            Icons.storefront_outlined,
-          ),
-          const SizedBox(height: 8),
-          GridView.count(
-            padding: EdgeInsets.zero,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 1.3,
-            children: [
-              _FeatureCard(
-                icon: Icons.store_mall_directory_outlined,
-                label: "Chợ Trực Tuyến",
-                color: Colors.orange,
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Chức năng đang phát triển")),
-                  );
-                },
-              ),
-              _FeatureCard(
-                icon: Icons.trending_up,
-                label: "Giá Nông Sản",
-                color: Colors.amber,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const AgriPriceHome(),
-                    ),
-                  );
-                },
-              ),
-              _FeatureCard(
-                icon: Icons.groups_outlined,
-                label: "Diễn Đàn Nông Nghiệp",
-                color: Colors.indigo,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const PostsScreen(),
-                    ),
-                  );
-                },
+              // Chi tiết báo giá
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        savingText,
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.4),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        packageTitle,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.black87),
+                      ),
+                      Text(
+                        packageSubtitle,
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black87),
+                      ),
+                      const Spacer(),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: Text(
+                          price,
+                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Colors.black87),
+                        ),
+                      ),
+                      if (trialText.isNotEmpty)
+                        Text(
+                          trialText,
+                          style: const TextStyle(fontSize: 12, color: Color(0xFF00B894), fontWeight: FontWeight.w700),
+                        ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
+          
+          // Badge nổi bên góc phải (ví dụ: x110, HOT)
+          if (isPopular || badgeText.isNotEmpty)
+            Positioned(
+              top: -6,
+              right: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isPopular ? Colors.blue[100] : Colors.orange[100],
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(8),
+                    bottomRight: Radius.circular(8),
+                    topLeft: Radius.circular(4),
+                    topRight: Radius.circular(4),
+                  ),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, 2)),
+                  ],
+                ),
+                child: Text(
+                  badgeText.isNotEmpty ? badgeText : 'HOT',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    color: isPopular ? Colors.blue[800] : Colors.orange[800],
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
-}
 
-class ProWeatherCardV35 extends StatefulWidget {
-  const ProWeatherCardV35({super.key});
-
-  @override
-  State<ProWeatherCardV35> createState() => _ProWeatherCardV35State();
+  Widget _buildGridMenu(BuildContext context) {
+    return const _PaginatedFeatureGrid();
+  }
 }
 
 class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
-  late Future<Map<String, dynamic>> _dataFuture;
+  late Future<List<Map<String, dynamic>>> _dataFuture;
 
-  final String pythonApiUrl =
-      'https://arica-baldish-consuelo.ngrok-free.dev/api/phan-tich-sau-rieng';
+  // Cấu hình API OpenWeatherMap (Giống IrrigationScreen)
+  static const String openWeatherApiKey = "4be89a65fe75c2f972c0f24084943bc1";
+  static const Map<String, Map<String, double>> locations = {
+    "Buôn Ma Thuột": {"lat": 12.6667, "lon": 108.0500, "cao_do": 536},
+    "Krông Pắc": {"lat": 12.69, "lon": 108.30, "cao_do": 500},
+    "Cư M'gar": {"lat": 12.86, "lon": 108.08, "cao_do": 530},
+    "Buôn Hồ": {"lat": 12.92, "lon": 108.30, "cao_do": 480},
+    "Ea Kar": {"lat": 12.80, "lon": 108.45, "cao_do": 420}
+  };
 
   @override
   void initState() {
     super.initState();
-    _dataFuture = fetchProData();
+    _dataFuture = fetchMultiLocationData();
   }
 
   Future<void> refreshData() async {
     setState(() {
-      _dataFuture = fetchProData();
+      _dataFuture = fetchMultiLocationData();
     });
   }
 
-  Future<Map<String, dynamic>> fetchProData() async {
-    try {
-      final response = await http
-          .get(
-            Uri.parse(pythonApiUrl),
-            headers: {
-              "ngrok-skip-browser-warning": "true",
-              "Content-Type": "application/json",
-            },
-          )
-          .timeout(const Duration(seconds: 15));
+  // HÀM HỖ TRỢ LẤY VỊ TRÍ HIỆN TẠI
+  Future<Position?> _determinePosition() async {
+    bool serviceEnabled;
+    LocationPermission permission;
 
-      if (response.statusCode == 200) {
-        return json.decode(utf8.decode(response.bodyBytes));
-      } else {
-        throw Exception('Lỗi: ${response.statusCode}');
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return null;
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return null;
+    }
+    
+    if (permission == LocationPermission.deniedForever) return null;
+
+    return await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.low,
+      timeLimit: const Duration(seconds: 5),
+    ).catchError((_) => null);
+  }
+
+  // TÍNH TOÁN SAI SỐ CHỈ SỐ NGUY CƠ (Rule-based)
+  Map<String, int> _calculateRisks({
+    required double temp,
+    required double humidity,
+    required double rain,
+  }) {
+    // 1. Nguy cơ nấm (Phụ thuộc mạnh vào độ ẩm và nhiệt độ trung bình)
+    int chiSoNam = 0;
+    if (humidity > 85) chiSoNam += 40;
+    if (humidity > 92) chiSoNam += 30;
+    if (temp >= 24 && temp <= 28) chiSoNam += 20;
+
+    // 2. Nguy cơ lũ lụt (Phụ thuộc lượng mưa)
+    int chiSoLuLut = (rain * 5).clamp(0, 100).toInt();
+
+    // 3. Stress nhiệt (Phụ thuộc nhiệt độ cao)
+    int chiSoStress = 0;
+    if (temp > 32) chiSoStress = ((temp - 32) * 10).clamp(0, 100).toInt();
+
+    return {
+      'lu_lut': chiSoLuLut,
+      'nam': chiSoNam.clamp(0, 100),
+      'stress': chiSoStress,
+    };
+  }
+
+  Future<List<Map<String, dynamic>>> fetchMultiLocationData() async {
+    try {
+      // 1. Lấy vị trí hiện tại của thiết bị
+      final Position? currentPos = await _determinePosition();
+      
+      // 2. Chuẩn bị danh sách yêu cầu (Map địa điểm mặc định + Thêm vị trí hiện tại nếu lấy được)
+      final List<Map<String, dynamic>> finalResults = [];
+      
+      // Nếu lấy được GPS, ưu tiên hiển thị vị trí hiện tại lên đầu tiên
+      if (currentPos != null) {
+        final currentUrl = "https://api.openweathermap.org/data/2.5/weather?lat=${currentPos.latitude}&lon=${currentPos.longitude}&appid=$openWeatherApiKey&units=metric&lang=vi";
+        try {
+          final resp = await http.get(Uri.parse(currentUrl)).timeout(const Duration(seconds: 10));
+          if (resp.statusCode == 200) {
+            final data = json.decode(utf8.decode(resp.bodyBytes));
+            final risks = _calculateRisks(
+              temp: (data['main']['temp'] as num).toDouble(),
+              humidity: (data['main']['humidity'] as num).toDouble(),
+              rain: data.containsKey('rain') ? (data['rain']['1h'] as num?)?.toDouble() ?? 0.0 : 0.0,
+            );
+            
+            finalResults.add({
+              'khu_vuc': "Vị trí của bạn (${data['name']})",
+              'nhiet_do': (data['main']['temp'] as num).toDouble(),
+              'do_am': (data['main']['humidity'] as num).toDouble(),
+              'gio': (data['wind']['speed'] as num).toDouble(),
+              'may': (data['clouds']['all'] as num).toInt(),
+              'mo_ta': data['weather'][0]['description'],
+              'icon_thoi_tiet': data['weather'][0]['icon'],
+              'mua_1h': data.containsKey('rain') ? (data['rain']['1h'] as num?)?.toDouble() ?? 0.0 : 0.0,
+              'cao_do': 0, // OWM không trả về cao độ trực tiếp
+              'chi_so_nguy_co_lu_lut': risks['lu_lut'],
+              'chi_so_nguy_co_nam': risks['nam'],
+              'chi_so_stress_nhiet': risks['stress'],
+            });
+          }
+        } catch (_) {}
       }
+
+      // 3. Lấy dữ liệu cho các địa điểm cố định còn lại
+      final List<Future<Map<String, dynamic>>> fetchers = locations.entries.map((entry) async {
+        final name = entry.key;
+        final coords = entry.value;
+        final url = "https://api.openweathermap.org/data/2.5/weather?lat=${coords['lat']}&lon=${coords['lon']}&appid=$openWeatherApiKey&units=metric&lang=vi";
+        
+        final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+        
+        if (response.statusCode == 200) {
+          final data = json.decode(utf8.decode(response.bodyBytes));
+          
+          double temp = (data['main']['temp'] as num).toDouble();
+          double humidity = (data['main']['humidity'] as num).toDouble();
+          double windSpeed = (data['wind']['speed'] as num).toDouble();
+          int clouds = (data['clouds']['all'] as num).toInt();
+          String description = data['weather'][0]['description'];
+          String icon = data['weather'][0]['icon'];
+          double rain1h = data.containsKey('rain') ? (data['rain']['1h'] as num?)?.toDouble() ?? 0.0 : 0.0;
+
+          // Tính toán nguy cơ
+          final risks = _calculateRisks(temp: temp, humidity: humidity, rain: rain1h);
+
+          return {
+            'khu_vuc': name,
+            'nhiet_do': temp,
+            'do_am': humidity,
+            'gio': windSpeed,
+            'may': clouds,
+            'mo_ta': description,
+            'icon_thoi_tiet': icon,
+            'mua_1h': rain1h,
+            'cao_do': coords['cao_do']?.toInt(),
+            'chi_so_nguy_co_lu_lut': risks['lu_lut'],
+            'chi_so_nguy_co_nam': risks['nam'],
+            'chi_so_stress_nhiet': risks['stress'],
+          };
+        }
+        return {'khu_vuc': name, 'error': true};
+      }).toList();
+
+      final results = await Future.wait(fetchers);
+      finalResults.addAll(results.where((item) => item['error'] != true).toList());
+      
+      return finalResults;
     } catch (e) {
-      throw Exception('Lỗi kết nối: $e');
+      throw Exception('Lỗi kết nối thời tiết: $e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Map<String, dynamic>>(
+    return FutureBuilder<List<Map<String, dynamic>>>(
       future: _dataFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -819,8 +1048,7 @@ class _ProWeatherCardV35State extends State<ProWeatherCardV35> {
           );
         }
 
-        final data = snapshot.data!;
-        final List<dynamic> listData = data['du_lieu'] ?? [];
+        final listData = snapshot.data!;
 
         if (listData.isEmpty) return const Text("Không có dữ liệu");
 
@@ -1071,35 +1299,48 @@ class _WeatherMiniBadgeState extends State<WeatherMiniBadge> {
 
   Future<void> _fetchWeather() async {
     try {
+      const String apiKey = "4be89a65fe75c2f972c0f24084943bc1";
+      double lat = 12.6667; // Mặc định BMT
+      double lon = 108.0500;
+
+      // THỬ LẤY TỌA ĐỘ GPS THỰC TẾ
+      try {
+        bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+        if (serviceEnabled) {
+          LocationPermission permission = await Geolocator.checkPermission();
+          if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
+            Position pos = await Geolocator.getCurrentPosition(
+              desiredAccuracy: LocationAccuracy.low,
+              timeLimit: const Duration(seconds: 3),
+            );
+            lat = pos.latitude;
+            lon = pos.longitude;
+          }
+        }
+      } catch (_) {}
+      
       final response = await http
           .get(
             Uri.parse(
-              'https://arica-baldish-consuelo.ngrok-free.dev/api/phan-tich-sau-rieng',
+              'https://api.openweathermap.org/data/2.5/weather?lat=$lat&lon=$lon&appid=$apiKey&units=metric',
             ),
-            headers: {
-              "ngrok-skip-browser-warning": "true",
-              "Content-Type": "application/json",
-            },
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = json.decode(utf8.decode(response.bodyBytes));
-        final listData = data['du_lieu'] as List<dynamic>? ?? [];
-        if (listData.isNotEmpty) {
-          final item = listData[0]; // Lấy của khu vực đầu tiên
-          final nhietDo = (item['nhiet_do'] as num?)?.round() ?? 0;
-          final doAm = (item['do_am'] as num?)?.round() ?? 0;
-          if (mounted) {
-            setState(() {
-              _weatherText = "$nhietDo°";
-              _humidityText = "$doAm%";
-            });
-          }
+        final nhietDo = (data['main']['temp'] as num?)?.round() ?? 0;
+        final doAm = (data['main']['humidity'] as num?)?.round() ?? 0;
+        
+        if (mounted) {
+          setState(() {
+            _weatherText = "$nhietDo°";
+            _humidityText = "$doAm%";
+          });
         }
       }
     } catch (e) {
-      // Im lặng nếu không tới được server (tránh làm crash UI màn chính)
+      // Im lặng nếu lỗi
     }
   }
 
@@ -1191,104 +1432,222 @@ class _FeatureCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: color.withOpacity(0.12),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 30, color: color),
               ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: onTap,
-                splashColor: color.withOpacity(0.1),
-                highlightColor: color.withOpacity(0.05),
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [color.withOpacity(0.7), color],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(18),
-                            boxShadow: [
-                              BoxShadow(
-                                color: color.withOpacity(0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Icon(icon, size: 26, color: Colors.white),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          label,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.1,
-                          ),
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+              if (isHot)
+                Positioned(
+                  top: -2,
+                  right: -2,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.white, width: 1.5),
+                    ),
+                    child: const Text(
+                      'HOT',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 8,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ),
                 ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.blueGrey[800],
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PaginatedFeatureGrid extends StatefulWidget {
+  const _PaginatedFeatureGrid();
+
+  @override
+  State<_PaginatedFeatureGrid> createState() => _PaginatedFeatureGridState();
+}
+
+class _PaginatedFeatureGridState extends State<_PaginatedFeatureGrid> {
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  List<Map<String, dynamic>> _getFeatures(BuildContext context) {
+    return [
+      {
+        'label': "AI Phân Tích",
+        'icon': Icons.psychology_rounded,
+        'color': Colors.purple,
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpertScreen())),
+      },
+      {
+        'label': "Đặt Lịch",
+        'icon': Icons.calendar_month_outlined,
+        'color': Colors.teal,
+        'isHot': true,
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FindExpertScreen())),
+      },
+      {
+        'label': "Lịch Tưới",
+        'icon': Icons.water_drop_outlined,
+        'color': Colors.blue,
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const IrrigationScreen())),
+      },
+      {
+        'label': "Sâu Bệnh",
+        'icon': Icons.bug_report_outlined,
+        'color': Colors.red,
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PestDiseaseScreen())),
+      },
+      {
+        'label': "Ảnh Bệnh",
+        'icon': Icons.camera_alt_outlined,
+        'color': Colors.green,
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyzeDiseaseScreen())),
+      },
+      {
+        'label': "Chợ",
+        'icon': Icons.store_mall_directory_outlined,
+        'color': Colors.orange,
+        'onTap': () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Đang phát triển"))),
+      },
+      {
+        'label': "Giá Cả",
+        'icon': Icons.trending_up,
+        'color': Colors.amber,
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AgriPriceHome())),
+      },
+      {
+        'label': "Diễn Đàn",
+        'icon': Icons.groups_outlined,
+        'color': Colors.indigo,
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PostsScreen())),
+      },
+      // Trang 2
+      {
+        'label': "Nhật Ký",
+        'icon': Icons.book_outlined,
+        'color': Colors.orange,
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FarmDiaryScreen())),
+      },
+      {
+        'label': "Thời Tiết",
+        'icon': Icons.cloud_outlined,
+        'color': Colors.lightBlue,
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WeatherScreen(initialLocation: 'Buôn Ma Thuột'))),
+      },
+      {
+        'label': "Tin Nhắn",
+        'icon': Icons.message_outlined,
+        'color': Colors.indigo,
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpertChatListScreen())),
+      },
+      {
+        'label': "Hồ Sơ",
+        'icon': Icons.person_outline,
+        'color': Colors.blueGrey,
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
+      },
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final features = _getFeatures(context);
+    final int itemsPerPage = 8;
+    final int pageCount = (features.length / itemsPerPage).ceil();
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 230, // Tăng chiều cao dư dả một chút để hiển thị đủ 2 hàng
+          child: PageView.builder(
+            controller: _pageController,
+            onPageChanged: (index) => setState(() => _currentPage = index),
+            itemCount: pageCount,
+            itemBuilder: (context, pageIndex) {
+              final start = pageIndex * itemsPerPage;
+              final end = (start + itemsPerPage > features.length) ? features.length : start + itemsPerPage;
+              final pageItems = features.sublist(start, end);
+
+              return GridView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 4,
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 10,
+                  mainAxisExtent: 100, // Cố định chiều cao mỗi ô là 100đp để chắc chắn không mất chữ
+                ),
+                itemCount: pageItems.length,
+                itemBuilder: (context, index) {
+                  final item = pageItems[index];
+                  return _FeatureCard(
+                    icon: item['icon'],
+                    label: item['label'],
+                    color: item['color'],
+                    isHot: item['isHot'] ?? false,
+                    onTap: item['onTap'],
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 8),
+        // Page Indicator (Dots)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(
+            pageCount,
+            (index) => AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              width: _currentPage == index ? 16 : 8,
+              height: 4,
+              decoration: BoxDecoration(
+                color: _currentPage == index ? Colors.green[700] : Colors.grey[300],
+                borderRadius: BorderRadius.circular(4),
               ),
             ),
           ),
         ),
-        if (isHot)
-          Positioned(
-            top: 0,
-            right: 0,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.redAccent,
-                borderRadius: const BorderRadius.only(
-                  topRight: Radius.circular(24),
-                  bottomLeft: Radius.circular(12),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.red.withOpacity(0.4),
-                    blurRadius: 4,
-                    offset: const Offset(-1, 2),
-                  ),
-                ],
-              ),
-              child: const Text(
-                'HOT',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ),
-          ),
       ],
     );
   }

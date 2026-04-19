@@ -36,12 +36,18 @@ class _FarmDiaryScreenState extends State<FarmDiaryScreen> {
 
   // Stream nhật ký theo tháng
   Stream<QuerySnapshot> _getDiaryStream() {
+    final String currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    if (currentUid.isEmpty) {
+      // Stream rỗng nếu chưa đăng nhập
+      return const Stream.empty();
+    }
+
     final start = DateTime(_focusedMonth.year, _focusedMonth.month, 1);
     final end = DateTime(_focusedMonth.year, _focusedMonth.month + 1, 0, 23, 59, 59);
 
     return _firestore
         .collection('farm_diary')
-        .doc(_userId)
+        .doc(currentUid)
         .collection('entries')
         .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
         .where('date', isLessThanOrEqualTo: Timestamp.fromDate(end))
@@ -60,6 +66,11 @@ class _FarmDiaryScreenState extends State<FarmDiaryScreen> {
             child: StreamBuilder<QuerySnapshot>(
               stream: _getDiaryStream(),
               builder: (context, snapshot) {
+                // XỬ LÝ LỖI (Quan trọng để tìm ra lỗi "mất dữ liệu")
+                if (snapshot.hasError) {
+                  return _buildErrorState(snapshot.error.toString());
+                }
+
                 final entries = snapshot.data?.docs ?? [];
                 // Tập hợp ngày có nhật ký
                 final Set<String> daysWithEntries = {};
@@ -197,6 +208,8 @@ class _FarmDiaryScreenState extends State<FarmDiaryScreen> {
                 onPressed: () {
                   setState(() {
                     _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month - 1);
+                    // Đồng bộ ngày chọn sang tháng mới để tránh bị "lag" không hiện dữ liệu
+                    _selectedDate = DateTime(_focusedMonth.year, _focusedMonth.month, 1);
                   });
                 },
                 icon: const Icon(Icons.chevron_left_rounded, size: 28),
@@ -210,6 +223,8 @@ class _FarmDiaryScreenState extends State<FarmDiaryScreen> {
                 onPressed: () {
                   setState(() {
                     _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month + 1);
+                    // Đồng bộ ngày chọn sang tháng mới
+                    _selectedDate = DateTime(_focusedMonth.year, _focusedMonth.month, 1);
                   });
                 },
                 icon: const Icon(Icons.chevron_right_rounded, size: 28),
@@ -333,6 +348,34 @@ class _FarmDiaryScreenState extends State<FarmDiaryScreen> {
                 style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  // ── Error state (Hiển thị lỗi truy vấn) ──────────────────────────────────────
+  Widget _buildErrorState(String error) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline_rounded, color: Colors.red, size: 60),
+          const SizedBox(height: 16),
+          const Text('Lỗi tải dữ liệu', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(
+              error,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey[600], fontSize: 13),
+            ),
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            onPressed: () => setState(() {}),
+            child: const Text('Thử lại'),
+          ),
         ],
       ),
     );
