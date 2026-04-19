@@ -122,11 +122,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 // Các Tab Icon
                 Row(
                   children: [
-                    _buildNavItem(0, Icons.grid_view_rounded, Icons.grid_view_outlined, "Home"),
-                    _buildNavItem(1, Icons.wb_sunny_rounded, Icons.wb_sunny_outlined, "Thời tiết"),
-                    _buildNavItem(2, Icons.forum_rounded, Icons.forum_outlined, "Hội nhóm"),
-                    _buildNavItem(3, Icons.chat_bubble_rounded, Icons.chat_bubble_outline_rounded, "Chat"),
-                    _buildNavItem(4, Icons.person_rounded, Icons.person_outline_rounded, "Tôi"),
+                    _buildNavItem(0, Image.asset('assets/images/home-heart (1).png', width: 26), Image.asset('assets/images/home-heart.png', width: 26), "Home"),
+                    _buildNavItem(1, Image.asset('assets/images/cloud (1).png', width: 26), Image.asset('assets/images/cloud.png', width: 26), "Thời tiết"),
+                    _buildNavItem(2, Image.asset('assets/images/group1.png', width: 26), Image.asset('assets/images/group.png', width: 26), "Hội nhóm"),
+                    _buildNavItem(3, Image.asset('assets/images/messages (1).png', width: 26), Image.asset('assets/images/messages.png', width: 26), "Chat"),
+                    _buildNavItem(4, Image.asset('assets/images/user (1).png', width: 26), Image.asset('assets/images/user.png', width: 26), "Tôi"),
                   ],
                 ),
               ],
@@ -137,7 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildNavItem(int index, IconData activeIcon, IconData inactiveIcon, String label) {
+  Widget _buildNavItem(int index, Widget activeIcon, Widget inactiveIcon, String label) {
     final bool isSelected = _selectedIndex == index;
     return Expanded(
       child: GestureDetector(
@@ -149,11 +149,7 @@ class _HomeScreenState extends State<HomeScreen> {
             AnimatedScale(
               duration: const Duration(milliseconds: 300),
               scale: isSelected ? 1.15 : 1.0,
-              child: Icon(
-                isSelected ? activeIcon : inactiveIcon,
-                color: isSelected ? const Color(0xFF00B894) : Colors.grey[400],
-                size: 26,
-              ),
+              child: isSelected ? activeIcon : inactiveIcon,
             ),
             const SizedBox(height: 4),
             Text(
@@ -660,7 +656,7 @@ class HomeContent extends StatelessWidget {
                 mainTitle: 'NHÀ NÔNG\nTIẾT KIỆM',
                 mainIcon: Icons.eco_rounded,
                 savingText: 'Miễn phí trải nghiệm\ncông nghệ AI mới',
-                packageTitle: 'Green Cơ Bản',
+                packageTitle: 'Ea Cơ Bản',
                 packageSubtitle: 'Cá Nhân',
                 price: '0đ / vĩnh viễn',
                 trialText: '',
@@ -673,7 +669,7 @@ class HomeContent extends StatelessWidget {
                 mainTitle: 'CHUYÊN GIA\nUNLIMITED',
                 mainIcon: Icons.psychology_rounded,
                 savingText: 'Tiết kiệm lên đến\n1.000.000 VNĐ',
-                packageTitle: 'Green Chuyên Gia',
+                packageTitle: 'Ea Chuyên Gia',
                 packageSubtitle: 'Ưu tiên đặt lịch',
                 price: 'Từ 69.000đ/tháng',
                 trialText: '1 tháng dùng thử',
@@ -686,7 +682,7 @@ class HomeContent extends StatelessWidget {
                 mainTitle: 'NÔNG TRẠI\nCA CAO',
                 mainIcon: Icons.agriculture_rounded,
                 savingText: 'Tiết kiệm lên đến\n5.000.000 VNĐ',
-                packageTitle: 'Green Nông Trại',
+                packageTitle: 'Ea Nông Trại',
                 packageSubtitle: 'Chủ Nông Trại',
                 price: 'Từ 199.000đ/tháng',
                 trialText: 'Báo cáo độc quyền',
