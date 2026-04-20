@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'price_screen.dart';
 import 'irrigation_screen.dart';
@@ -39,9 +41,276 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   bool _showAiBot = true;
 
+  // GlobalKeys cho hướng dẫn người dùng
+  final GlobalKey _keyHeader = GlobalKey();
+  final GlobalKey _keySearch = GlobalKey();
+  final GlobalKey _keyMenu = GlobalKey();
+  final GlobalKey _keyAiBot = GlobalKey();
+  List<TargetFocus> targets = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _initTargets();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndShowTutorial();
+    });
+  }
+
+  void _initTargets() {
+    targets.add(
+      TargetFocus(
+        identify: "Target 1",
+        keyTarget: _keyHeader,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            builder: (context, controller) {
+              return Padding(
+                padding: const EdgeInsets.only(top: 60.0), // Dịch xuống dưới
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white.withOpacity(0.2)),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Giao diện thông minh mới",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          fontSize: 22,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black45,
+                              blurRadius: 4,
+                              offset: Offset(0, 2),
+                            )
+                          ],
+                        ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.only(top: 10.0),
+                        child: Text(
+                          "Màn hình của bạn sẽ tự động thay đổi màu sắc và lời chào theo thời gian thực (Sáng, Trưa, Chiều, Tối).",
+                          style: TextStyle(color: Colors.white, fontSize: 16),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+
+    targets.add(
+      TargetFocus(
+        identify: "Target 2",
+        keyTarget: _keySearch,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            builder: (context, controller) {
+              return Padding(
+                padding: const EdgeInsets.only(top: 80.0), // Dịch xuống dưới
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white.withOpacity(0.2)),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Tìm kiếm & Mic thông minh",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          fontSize: 22,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black45,
+                              blurRadius: 4,
+                              offset: Offset(0, 2),
+                            )
+                          ],
+                        ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.only(top: 10.0),
+                        child: Text(
+                          "Bạn có thể tìm kiếm nhanh chuyên gia hoặc dùng giọng nói để hỏi AI về kỹ thuật cây trồng.",
+                          style: TextStyle(color: Colors.white, fontSize: 16),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+
+    targets.add(
+      TargetFocus(
+        identify: "Target 3",
+        keyTarget: _keyMenu,
+        contents: [
+          TargetContent(
+            align: ContentAlign.top,
+            builder: (context, controller) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 40.0), // Đẩy lên trên
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white.withOpacity(0.2)),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Tiện ích nông nghiệp",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          fontSize: 22,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black45,
+                              blurRadius: 4,
+                              offset: Offset(0, 2),
+                            )
+                          ],
+                        ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.only(top: 10.0),
+                        child: Text(
+                          "Chẩn đoán sâu bệnh, thời tiết nông vụ, và nhật ký canh tác đều ở đây.",
+                          style: TextStyle(color: Colors.white, fontSize: 16),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+
+    targets.add(
+      TargetFocus(
+        identify: "Target 4",
+        keyTarget: _keyAiBot,
+        contents: [
+          TargetContent(
+            align: ContentAlign.top,
+            builder: (context, controller) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 60.0), // Đẩy lên trên
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white.withOpacity(0.2)),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Trợ lý AI Ea Agri",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          fontSize: 22,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black45,
+                              blurRadius: 4,
+                              offset: Offset(0, 2),
+                            )
+                          ],
+                        ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.only(top: 10.0),
+                        child: Text(
+                          "Bất cứ khi nào cần hỗ trợ, hãy chạm vào trợ lý AI đang 'bay' này. Chúng tôi luôn đồng hành cùng bạn 24/7.",
+                          style: TextStyle(color: Colors.white, fontSize: 16),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _checkAndShowTutorial() async {
+    final prefs = await SharedPreferences.getInstance();
+    bool isFirstTime = prefs.getBool('is_first_time_home') ?? true;
+
+    if (isFirstTime) {
+      _showTutorial();
+      await prefs.setBool('is_first_time_home', false);
+    }
+  }
+
+  void _showTutorial() {
+    TutorialCoachMark(
+      targets: targets,
+      colorShadow: const Color(0xFF003D33), // Màu Teal đậm để nổi bật chữ trắng
+      textSkip: "BỎ QUA",
+      paddingFocus: 10,
+      opacityShadow: 0.95, // Nền đậm hơn để tập trung sự chú ý
+      onFinish: () {
+        debugPrint("finish");
+      },
+      onClickTarget: (target) {
+        debugPrint('onClickTarget: $target');
+      },
+      onClickOverlay: (target) {
+        debugPrint('onClickOverlay: $target');
+      },
+      onSkip: () {
+        debugPrint("skip");
+        return true;
+      },
+    ).show(context: context);
+  }
+
   // Danh sách các màn hình tương ứng với các Tab ở Bottom Navigation
-  final List<Widget> _screens = [
-    const HomeContent(), // Tab 0: Trang chủ
+  late final List<Widget> _screens = [
+    HomeContent(
+      headerKey: _keyHeader,
+      searchKey: _keySearch,
+      menuKey: _keyMenu,
+    ), // Tab 0: Trang chủ
     const WeatherScreen(initialLocation: 'Buôn Ma Thuột'), // Tab 1: Thời tiết
     const PostsScreen(), // Tab 2: Diễn đàn
     const ExpertChatListScreen(), // Tab 3: Tin nhắn
@@ -56,10 +325,21 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           IndexedStack(
             index: _selectedIndex,
-            children: _screens,
+            children: [
+              HomeContent(
+                headerKey: _keyHeader,
+                searchKey: _keySearch,
+                menuKey: _keyMenu,
+              ),
+              const WeatherScreen(initialLocation: 'Buôn Ma Thuột'),
+              const PostsScreen(),
+              const ExpertChatListScreen(),
+              const ProfileScreen(),
+            ],
           ),
           if (_showAiBot)
             DraggableAiBot(
+              key: _keyAiBot,
               onTap: () {
                 Navigator.push(
                   context,
@@ -122,10 +402,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 // Các Tab Icon
                 Row(
                   children: [
-                    _buildNavItem(0, Image.asset('assets/images/home-heart (1).png', width: 26), Image.asset('assets/images/home-heart.png', width: 26), "Home"),
+                    _buildNavItem(0, Image.asset('assets/images/home-heart (1).png', width: 26), Image.asset('assets/images/home-heart.png', width: 26), "Trang chủ"),
                     _buildNavItem(1, Image.asset('assets/images/cloud (1).png', width: 26), Image.asset('assets/images/cloud.png', width: 26), "Thời tiết"),
                     _buildNavItem(2, Image.asset('assets/images/group1.png', width: 26), Image.asset('assets/images/group.png', width: 26), "Hội nhóm"),
-                    _buildNavItem(3, Image.asset('assets/images/messages (1).png', width: 26), Image.asset('assets/images/messages.png', width: 26), "Chat"),
+                    _buildNavItem(3, Image.asset('assets/images/messages (1).png', width: 26), Image.asset('assets/images/messages.png', width: 26), "Tin nhắn"),
                     _buildNavItem(4, Image.asset('assets/images/user (1).png', width: 26), Image.asset('assets/images/user.png', width: 26), "Tôi"),
                   ],
                 ),
@@ -172,7 +452,16 @@ class _HomeScreenState extends State<HomeScreen> {
 // ==========================================
 
 class HomeContent extends StatelessWidget {
-  const HomeContent({super.key});
+  final GlobalKey? headerKey;
+  final GlobalKey? searchKey;
+  final GlobalKey? menuKey;
+
+  const HomeContent({
+    super.key,
+    this.headerKey,
+    this.searchKey,
+    this.menuKey,
+  });
 
   void _openAiChat(BuildContext context) {
     Navigator.push(
@@ -184,22 +473,59 @@ class HomeContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final int hour = DateTime.now().hour;
-    List<Color> headerColors;
     String greeting;
     IconData timeIcon;
+    List<Color> headerColors;
+    List<Widget> decorations = [];
 
-    if (hour >= 5 && hour < 12) {
-      headerColors = [const Color(0xFF00C6FF), const Color(0xFF0072FF)]; // Buổi sáng: Khởi đầu mới
+    if (hour >= 5 && hour < 11) {
+      // Sáng: Teal tươi mới
+      headerColors = [const Color(0xFF00B894), const Color(0xFF009B77), const Color(0xFF55E6C1)];
       greeting = "Chào buổi sáng,";
       timeIcon = Icons.light_mode_rounded;
-    } else if (hour >= 12 && hour < 18) {
-      headerColors = [const Color(0xFFFF8008), const Color(0xFFFFC837)]; // Buổi chiều: Ánh ráng vàng
+      decorations = [
+        Positioned(left: -20, top: 20, child: Icon(Icons.wb_sunny_rounded, size: 100, color: Colors.white.withOpacity(0.1))),
+        Positioned(right: 30, top: -10, child: Icon(Icons.cloud_rounded, size: 60, color: Colors.white.withOpacity(0.08))),
+        Positioned(left: 100, top: -10, child: Icon(Icons.wb_cloudy_rounded, size: 40, color: Colors.white.withOpacity(0.05))),
+      ];
+    } else if (hour >= 11 && hour < 14) {
+      // Trưa: Vàng rực rỡ
+      headerColors = [const Color(0xFFFF8008), const Color(0xFFFFC837), const Color(0xFFFDCB6E)];
+      greeting = "Chào buổi trưa,";
+      timeIcon = Icons.sunny;
+      decorations = [
+        Positioned(right: -30, top: -20, child: Icon(Icons.wb_sunny_rounded, size: 160, color: Colors.white.withOpacity(0.15))),
+        Positioned(left: 40, top: 10, child: Icon(Icons.wb_cloudy_rounded, size: 50, color: Colors.white.withOpacity(0.08))),
+      ];
+    } else if (hour >= 14 && hour < 18) {
+      // Chiều: Cam tím hoàng hôn
+      headerColors = [const Color(0xFFFF7675), const Color(0xFFE84393), const Color(0xFF6C5CE7).withOpacity(0.8)];
       greeting = "Chào buổi chiều,";
       timeIcon = Icons.wb_twilight_rounded;
-    } else {
-      headerColors = [const Color(0xFF607D8B), const Color(0xFF455A64)]; // Buổi tối: Màu xám dịu (Blue Grey)
+      decorations = [
+        Positioned(right: 20, top: -30, child: Icon(Icons.wb_twilight_rounded, size: 120, color: Colors.white.withOpacity(0.12))),
+        Positioned(left: -10, top: 40, child: Icon(Icons.air, size: 80, color: Colors.white.withOpacity(0.08))),
+      ];
+    } else if (hour >= 18 && hour < 22) {
+      // Tối: Xanh đen sành điệu
+      headerColors = [const Color(0xFF2D3436), const Color(0xFF0984E3), const Color(0xFF636E72)];
       greeting = "Chào buổi tối,";
       timeIcon = Icons.nights_stay_rounded;
+      decorations = [
+        Positioned(right: 10, top: -10, child: Icon(Icons.nights_stay_rounded, size: 90, color: Colors.white.withOpacity(0.1))),
+        Positioned(left: 50, top: 20, child: Icon(Icons.auto_awesome, size: 30, color: Colors.white.withOpacity(0.15))),
+        Positioned(right: 100, top: 40, child: Icon(Icons.auto_awesome, size: 20, color: Colors.white.withOpacity(0.1))),
+      ];
+    } else {
+      // Đêm: Đen huyền bí
+      headerColors = [const Color(0xFF1E272E), const Color(0xFF000000), const Color(0xFF485460)];
+      greeting = "Chào đêm khuya,";
+      timeIcon = Icons.bedtime_rounded;
+      decorations = [
+        Positioned(right: -10, top: -20, child: Icon(Icons.brightness_2_rounded, size: 130, color: Colors.white.withOpacity(0.08))),
+        Positioned(left: 30, top: 10, child: Icon(Icons.star_rounded, size: 25, color: Colors.white.withOpacity(0.1))),
+        Positioned(left: 120, top: 50, child: Icon(Icons.star_rounded, size: 15, color: Colors.white.withOpacity(0.08))),
+      ];
     }
 
     return Scaffold(
@@ -242,34 +568,14 @@ class HomeContent extends StatelessWidget {
                     child: Stack(
                       clipBehavior: Clip.none,
                       children: [
-                        // Đám mây bềnh bồng (scattered clouds)
-                        Positioned(
-                          left: -30,
-                          top: 10,
-                          child: Icon(Icons.cloud, size: 100, color: Colors.white.withOpacity(0.08)),
-                        ),
-                        Positioned(
-                          right: 60,
-                          top: -15,
-                          child: Icon(Icons.cloud, size: 70, color: Colors.white.withOpacity(0.05)),
-                        ),
-                        // Biểu tượng mặt trời / mặt trăng lớn
-                        Positioned(
-                          right: -20,
-                          top: -30,
-                          child: Icon(
-                            timeIcon,
-                            size: 150,
-                            color: Colors.white.withOpacity(0.12),
-                          ),
-                        ),
+                        ...decorations,
                         // Nội dung chính: Tên và Lời chào
                         StreamBuilder<User?>(
                           stream: FirebaseAuth.instance.userChanges(),
                           builder: (context, snapshot) {
                             final user =
                                 snapshot.data ?? FirebaseAuth.instance.currentUser;
-                            return _buildWelcomeCard(context, user, greeting);
+                            return _buildWelcomeCard(context, user, greeting, headerKey);
                           },
                         ),
                       ],
@@ -280,7 +586,7 @@ class HomeContent extends StatelessWidget {
                     bottom: -25,
                     left: 16,
                     right: 16,
-                    child: _buildAiSearchBar(context),
+                    child: _buildAiSearchBar(context, searchKey),
                   ),
                 ],
               ),
@@ -374,7 +680,7 @@ class HomeContent extends StatelessWidget {
               ),
 
               const SizedBox(height: 12),
-              _buildGridMenu(context),
+              _buildFeatureMenuGrid(context, menuKey),
               const SizedBox(height: 32),
 
               _buildMembershipSection(context),
@@ -387,8 +693,9 @@ class HomeContent extends StatelessWidget {
     );
   }
 
-  Widget _buildAiSearchBar(BuildContext context) {
+  Widget _buildAiSearchBar(BuildContext context, GlobalKey? key) {
     return InkWell(
+      key: key,
       onTap: () {
         showSearch(context: context, delegate: AppSearchDelegate());
       },
@@ -399,11 +706,12 @@ class HomeContent extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: Colors.green.withOpacity(0.1), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 15,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
@@ -432,12 +740,13 @@ class HomeContent extends StatelessWidget {
   }
 
   // CARD HIỂN THỊ AVATAR & TÊN ĐÃ ĐƯỢC NÂNG CẤP ĐỂ TỰ ĐỘNG LẤY ẢNH URL
-  Widget _buildWelcomeCard(BuildContext context, User? user, String greeting) {
+  Widget _buildWelcomeCard(BuildContext context, User? user, String greeting, GlobalKey? key) {
     // Lấy tên hiển thị, nếu không có thì lấy email, không có nữa thì gán mặc định
     String displayName = user?.displayName ?? user?.email ?? "Nhà nông 4.0";
     String? photoUrl = user?.photoURL;
 
     return Row(
+      key: key,
       children: [
         // Phần Welcome & Info
         Expanded(
@@ -456,16 +765,18 @@ class HomeContent extends StatelessWidget {
                       ? const EdgeInsets.all(12)
                       : EdgeInsets.zero,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withOpacity(0.25),
                     shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
                   ),
+                  clipBehavior: Clip.antiAlias,
                   child: photoUrl != null
                       ? CircleAvatar(
-                          radius: 24,
+                          radius: 26,
                           backgroundImage: NetworkImage(photoUrl),
                           backgroundColor: Colors.transparent,
                         )
-                      : const Icon(Icons.person, color: Colors.white, size: 32),
+                      : const Icon(Icons.person, color: Colors.white, size: 28),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -481,8 +792,16 @@ class HomeContent extends StatelessWidget {
                         displayName,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black26,
+                              blurRadius: 4,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -514,8 +833,9 @@ class HomeContent extends StatelessWidget {
                   height: 40,
                   width: 40,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withOpacity(0.15),
                     shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
                   ),
                   child: IconButton(
                     padding: EdgeInsets.zero,
@@ -857,8 +1177,8 @@ class HomeContent extends StatelessWidget {
     );
   }
 
-  Widget _buildGridMenu(BuildContext context) {
-    return const _PaginatedFeatureGrid();
+  Widget _buildFeatureMenuGrid(BuildContext context, GlobalKey? key) {
+    return _PaginatedFeatureGrid(key: key);
   }
 }
 
@@ -1366,8 +1686,9 @@ class _WeatherMiniBadgeState extends State<WeatherMiniBadge> {
         height: 40,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.2),
-          borderRadius: BorderRadius.circular(20),
+          color: Colors.white.withOpacity(0.18),
+          borderRadius: BorderRadius.circular(25),
+          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
         ),
         alignment: Alignment.center,
         child: AnimatedSwitcher(
@@ -1415,7 +1736,7 @@ class _WeatherMiniBadgeState extends State<WeatherMiniBadge> {
 }
 
 class _FeatureCard extends StatelessWidget {
-  final IconData icon;
+  final dynamic icon; // Chấp nhận IconData hoặc String (path ảnh)
   final String label;
   final Color color;
   final VoidCallback onTap;
@@ -1447,7 +1768,12 @@ class _FeatureCard extends StatelessWidget {
                   color: color.withOpacity(0.08),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, size: 30, color: color),
+                child: icon is IconData 
+                    ? Icon(icon as IconData, size: 30, color: color)
+                    : Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Image.asset(icon as String, fit: BoxFit.contain),
+                      ),
               ),
               if (isHot)
                 Positioned(
@@ -1491,7 +1817,7 @@ class _FeatureCard extends StatelessWidget {
 }
 
 class _PaginatedFeatureGrid extends StatefulWidget {
-  const _PaginatedFeatureGrid();
+  const _PaginatedFeatureGrid({super.key});
 
   @override
   State<_PaginatedFeatureGrid> createState() => _PaginatedFeatureGridState();
@@ -1511,75 +1837,75 @@ class _PaginatedFeatureGridState extends State<_PaginatedFeatureGrid> {
     return [
       {
         'label': "AI Phân Tích",
-        'icon': Icons.psychology_rounded,
+        'icon': 'assets/images/ai_phan_tich.png',
         'color': Colors.purple,
         'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpertScreen())),
       },
       {
         'label': "Đặt Lịch",
-        'icon': Icons.calendar_month_outlined,
+        'icon': 'assets/images/dat_lich.png',
         'color': Colors.teal,
         'isHot': true,
         'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FindExpertScreen())),
       },
       {
         'label': "Lịch Tưới",
-        'icon': Icons.water_drop_outlined,
+        'icon': 'assets/images/lich_tuoi.png',
         'color': Colors.blue,
         'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const IrrigationScreen())),
       },
       {
         'label': "Sâu Bệnh",
-        'icon': Icons.bug_report_outlined,
+        'icon': 'assets/images/sau_benh.png',
         'color': Colors.red,
         'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PestDiseaseScreen())),
       },
       {
         'label': "Ảnh Bệnh",
-        'icon': Icons.camera_alt_outlined,
+        'icon': 'assets/images/anh_benh.png',
         'color': Colors.green,
         'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyzeDiseaseScreen())),
       },
       {
         'label': "Chợ",
-        'icon': Icons.store_mall_directory_outlined,
+        'icon': 'assets/images/cho.png',
         'color': Colors.orange,
         'onTap': () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Đang phát triển"))),
       },
       {
         'label': "Giá Cả",
-        'icon': Icons.trending_up,
+        'icon': 'assets/images/gia_ca.png',
         'color': Colors.amber,
         'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AgriPriceHome())),
       },
       {
         'label': "Diễn Đàn",
-        'icon': Icons.groups_outlined,
+        'icon': 'assets/images/dien_dan.png',
         'color': Colors.indigo,
         'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PostsScreen())),
       },
       // Trang 2
       {
         'label': "Nhật Ký",
-        'icon': Icons.book_outlined,
+        'icon': 'assets/images/nhat_ky.png',
         'color': Colors.orange,
         'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FarmDiaryScreen())),
       },
       {
         'label': "Thời Tiết",
-        'icon': Icons.cloud_outlined,
+        'icon': 'assets/images/cloud.png',
         'color': Colors.lightBlue,
         'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WeatherScreen(initialLocation: 'Buôn Ma Thuột'))),
       },
       {
         'label': "Tin Nhắn",
-        'icon': Icons.message_outlined,
+        'icon': 'assets/images/messages.png',
         'color': Colors.indigo,
         'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpertChatListScreen())),
       },
       {
         'label': "Hồ Sơ",
-        'icon': Icons.person_outline,
+        'icon': 'assets/images/ho_so.png',
         'color': Colors.blueGrey,
         'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
       },
